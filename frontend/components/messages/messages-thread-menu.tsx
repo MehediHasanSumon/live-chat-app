@@ -8,9 +8,10 @@ type MenuItem = {
 type MessagesThreadMenuProps = {
   items: MenuItem[];
   onClose: () => void;
+  onItemClick?: (label: string) => void;
 };
 
-export function MessagesThreadMenu({ items, onClose }: MessagesThreadMenuProps) {
+export function MessagesThreadMenu({ items, onClose, onItemClick }: MessagesThreadMenuProps) {
   return (
     <div
       role="menu"
@@ -21,7 +22,10 @@ export function MessagesThreadMenu({ items, onClose }: MessagesThreadMenuProps) 
           key={label}
           type="button"
           role="menuitem"
-          onClick={onClose}
+          onClick={() => {
+            onItemClick?.(label);
+            onClose();
+          }}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--accent-soft)]"
         >
           <Icon className="h-4 w-4 text-[var(--muted)]" />

@@ -23,6 +23,9 @@ import { MessageThreadItem } from "@/components/messages/message-thread-item";
 
 type MessagesSidebarProps = {
   activeThreadId?: string;
+  onOpenMuteModal?: () => void;
+  onOpenConfirmation?: (action: "block" | "delete") => void;
+  onOpenNewMessageModal?: () => void;
 };
 
 const filters = ["All", "Unread", "Groups", "Communities"] as const;
@@ -43,7 +46,12 @@ const sidebarMenuItems = [
   { label: "Blocked accounts", icon: ShieldBan },
 ];
 
-export function MessagesSidebar({ activeThreadId }: MessagesSidebarProps) {
+export function MessagesSidebar({
+  activeThreadId,
+  onOpenMuteModal,
+  onOpenConfirmation,
+  onOpenNewMessageModal,
+}: MessagesSidebarProps) {
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
   const [openMenuThreadId, setOpenMenuThreadId] = useState<string | null>(null);
   const [isSidebarMenuOpen, setIsSidebarMenuOpen] = useState(false);
@@ -83,6 +91,7 @@ export function MessagesSidebar({ activeThreadId }: MessagesSidebarProps) {
         }}
         menuItems={sidebarMenuItems}
         onCloseMenu={() => setIsSidebarMenuOpen(false)}
+        onComposeClick={onOpenNewMessageModal}
       />
 
       <MessagesSearchBar />
@@ -117,7 +126,21 @@ export function MessagesSidebar({ activeThreadId }: MessagesSidebarProps) {
               />
 
               {isMenuOpen ? (
-                <MessagesThreadMenu items={threadMenuItems} onClose={() => setOpenMenuThreadId(null)} />
+                <MessagesThreadMenu
+                  items={threadMenuItems}
+                  onClose={() => setOpenMenuThreadId(null)}
+                  onItemClick={(label) => {
+                    if (label === "Mute notifications") {
+                      onOpenMuteModal?.();
+                    }
+                    if (label === "Block") {
+                      onOpenConfirmation?.("block");
+                    }
+                    if (label === "Delete chat") {
+                      onOpenConfirmation?.("delete");
+                    }
+                  }}
+                />
               ) : null}
             </div>
           );

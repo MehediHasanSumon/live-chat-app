@@ -1,7 +1,5 @@
-import { MessagesEmptyState } from "@/components/messages/messages-empty-state";
-import { MessagesShell } from "@/components/messages/messages-shell";
-import { MessagesSidebar } from "@/components/messages/messages-sidebar";
+import { MessagesPageLayout } from "@/components/messages/messages-page-layout";
 
 export default function MessagesPage() {
-  return <MessagesShell sidebar={<MessagesSidebar />} content={<MessagesEmptyState />} />;
+  return <MessagesPageLayout />;
 }

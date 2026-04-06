@@ -12,6 +12,7 @@ import { MessagesQuickActions } from "@/components/messages/messages-quick-actio
 type MessagesUserSidebarProps = {
   thread: MessageThread;
   onOpenMediaPanel?: (tab: "media" | "file") => void;
+  onOpenMuteModal?: () => void;
 };
 
 const mediaItems = [
@@ -19,7 +20,11 @@ const mediaItems = [
   { label: "Files", icon: FileText },
 ];
 
-export function MessagesUserSidebar({ thread, onOpenMediaPanel }: MessagesUserSidebarProps) {
+export function MessagesUserSidebar({
+  thread,
+  onOpenMediaPanel,
+  onOpenMuteModal,
+}: MessagesUserSidebarProps) {
   const privacyItems = [
     { label: "Mute notifications", icon: Bell },
     { label: "Archived chats", icon: Archive },
@@ -40,7 +45,7 @@ export function MessagesUserSidebar({ thread, onOpenMediaPanel }: MessagesUserSi
             <MessagesEncryptionBadge />
           </div>
 
-          <MessagesQuickActions />
+          <MessagesQuickActions onMuteClick={onOpenMuteModal} />
         </div>
 
         <div className="mt-6 space-y-5">
@@ -57,7 +62,12 @@ export function MessagesUserSidebar({ thread, onOpenMediaPanel }: MessagesUserSi
 
           <MessagesAccordionSection title="Privacy & support">
             {privacyItems.map((item) => (
-              <MessagesListRow key={item.label} label={item.label} icon={item.icon} />
+              <MessagesListRow
+                key={item.label}
+                label={item.label}
+                icon={item.icon}
+                onClick={item.label === "Mute notifications" ? onOpenMuteModal : undefined}
+              />
             ))}
           </MessagesAccordionSection>
         </div>

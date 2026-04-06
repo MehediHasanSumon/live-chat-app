@@ -11,6 +11,7 @@ type MessagesSidebarHeaderProps = {
   onToggleMenu: () => void;
   menuItems: MessagesMenuItem[];
   onCloseMenu: () => void;
+  onComposeClick?: () => void;
 };
 
 export function MessagesSidebarHeader({
@@ -19,6 +20,7 @@ export function MessagesSidebarHeader({
   onToggleMenu,
   menuItems,
   onCloseMenu,
+  onComposeClick,
 }: MessagesSidebarHeaderProps) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -36,6 +38,8 @@ export function MessagesSidebarHeader({
         </button>
         <button
           type="button"
+          onClick={onComposeClick}
+          aria-label="Start a new conversation"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] bg-white text-[var(--muted)] transition hover:border-[rgba(96,91,255,0.24)] hover:text-[var(--accent)]"
         >
           <SquarePen className="h-4 w-4" />
