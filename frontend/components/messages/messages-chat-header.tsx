@@ -5,9 +5,15 @@ import { MessageAvatar } from "@/components/messages/message-avatar";
 
 type MessagesChatHeaderProps = {
   thread: MessageThread;
+  isInfoSidebarOpen: boolean;
+  onToggleInfoSidebar: () => void;
 };
 
-export function MessagesChatHeader({ thread }: MessagesChatHeaderProps) {
+export function MessagesChatHeader({
+  thread,
+  isInfoSidebarOpen,
+  onToggleInfoSidebar,
+}: MessagesChatHeaderProps) {
   return (
     <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-4 sm:px-6">
       <div className="flex items-center gap-3">
@@ -22,6 +28,15 @@ export function MessagesChatHeader({ thread }: MessagesChatHeaderProps) {
           <button
             key={index}
             type="button"
+            onClick={index === 2 ? onToggleInfoSidebar : undefined}
+            aria-pressed={index === 2 ? isInfoSidebarOpen : undefined}
+            aria-label={
+              index === 2
+                ? isInfoSidebarOpen
+                  ? "Hide conversation info"
+                  : "Show conversation info"
+                : undefined
+            }
             className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] bg-white transition hover:border-[rgba(96,91,255,0.28)] hover:text-[var(--accent)]"
           >
             <Icon className="h-4 w-4" />

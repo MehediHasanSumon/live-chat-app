@@ -74,7 +74,7 @@ export function MessagesSidebar({ activeThreadId }: MessagesSidebarProps) {
   }, []);
 
   return (
-    <aside ref={sidebarRef} className="surface border-r border-[var(--line)] px-4 py-4 sm:px-5">
+    <aside ref={sidebarRef} className="surface h-full w-full border-r border-[var(--line)] px-4 py-4 sm:px-5">
       <MessagesSidebarHeader
         isMenuOpen={isSidebarMenuOpen}
         onToggleMenu={() => {

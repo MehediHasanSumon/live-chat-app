@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, FileText, Image, Lock } from "lucide-react";
+import { Archive, Bell, FileText, Image, Lock, LogOut, ShieldBan } from "lucide-react";
 
 import { type MessageThread } from "@/lib/messages-data";
 import { MessagesAccordionSection } from "@/components/messages/messages-accordion-section";
@@ -11,6 +11,7 @@ import { MessagesQuickActions } from "@/components/messages/messages-quick-actio
 
 type MessagesUserSidebarProps = {
   thread: MessageThread;
+  onOpenMediaPanel?: (tab: "media" | "file") => void;
 };
 
 const mediaItems = [
@@ -18,15 +19,19 @@ const mediaItems = [
   { label: "Files", icon: FileText },
 ];
 
-const privacyItems = [
-  { label: "Mute notifications", icon: Bell },
-  { label: "Verify end-to-end encryption", icon: Lock },
-];
+export function MessagesUserSidebar({ thread, onOpenMediaPanel }: MessagesUserSidebarProps) {
+  const privacyItems = [
+    { label: "Mute notifications", icon: Bell },
+    { label: "Archived chats", icon: Archive },
+    ...(thread.isGroup
+      ? [{ label: "Leave Group", icon: LogOut }]
+      : [{ label: "Blocked accounts", icon: ShieldBan }]),
+    { label: "Verify end-to-end encryption", icon: Lock },
+  ];
 
-export function MessagesUserSidebar({ thread }: MessagesUserSidebarProps) {
   return (
-    <aside className="surface hidden border-l border-[var(--line)] bg-[#fbfcff] lg:block">
-      <div className="h-[calc(100vh-2rem)] overflow-y-auto px-5 py-6">
+    <div className="surface h-full bg-[#fbfcff]">
+      <div className="h-full overflow-y-auto px-5 py-6">
         <div className="flex flex-col items-center text-center">
           <MessageAvatar name={thread.name} online={thread.online} sizeClass="h-20 w-20" textClass="text-2xl" />
 
@@ -41,7 +46,12 @@ export function MessagesUserSidebar({ thread }: MessagesUserSidebarProps) {
         <div className="mt-6 space-y-5">
           <MessagesAccordionSection title="Media & files">
             {mediaItems.map((item) => (
-              <MessagesListRow key={item.label} label={item.label} icon={item.icon} />
+              <MessagesListRow
+                key={item.label}
+                label={item.label}
+                icon={item.icon}
+                onClick={() => onOpenMediaPanel?.(item.label === "Media" ? "media" : "file")}
+              />
             ))}
           </MessagesAccordionSection>
 
@@ -52,6 +62,6 @@ export function MessagesUserSidebar({ thread }: MessagesUserSidebarProps) {
           </MessagesAccordionSection>
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
