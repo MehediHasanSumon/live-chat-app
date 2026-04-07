@@ -18,18 +18,24 @@ class LiveKitRoomService
 
     public function createRoom(string $roomName, array $options = []): array
     {
+        $maxParticipants = min(
+            (int) ($options['max_participants'] ?? config('livekit.default_room_max_participants')),
+            (int) config('livekit.default_room_max_participants')
+        );
+
         $room = $this->client()->createRoom(
             (new RoomCreateOptions())
                 ->setName($roomName)
                 ->setEmptyTimeout((int) ($options['empty_timeout'] ?? config('livekit.default_room_empty_timeout')))
-                ->setMaxParticipants((int) ($options['max_participants'] ?? config('livekit.default_room_max_participants')))
+                ->setMaxParticipants($maxParticipants)
         );
 
         return [
             'name' => $room->getName(),
             'sid' => $room->getSid(),
             'empty_timeout' => $room->getEmptyTimeout(),
-            'max_participants' => $room->getMaxParticipants(),
+            'max_participants' => $maxParticipants,
+            'max_video_publishers' => (int) config('livekit.default_room_max_video_publishers'),
             'creation_time' => $room->getCreationTime(),
             'metadata' => $room->getMetadata(),
         ];

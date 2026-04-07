@@ -22,10 +22,7 @@ class LiveKitController extends Controller
             'can_update_own_metadata' => ['sometimes', 'boolean'],
             'can_publish_sources' => ['sometimes', 'array'],
             'can_publish_sources.*' => ['string', Rule::in([
-                'camera',
-                'microphone',
-                'screen_share',
-                'screen_share_audio',
+                ...config('livekit.allowed_publish_sources'),
             ])],
         ]);
 
@@ -36,10 +33,12 @@ class LiveKitController extends Controller
 
     public function createRoom(Request $request, LiveKitRoomService $roomService): JsonResponse
     {
+        $maxParticipants = (int) config('livekit.default_room_max_participants');
+
         $payload = $request->validate([
             'room' => ['required', 'string', 'max:255'],
             'empty_timeout' => ['sometimes', 'integer', 'min:0'],
-            'max_participants' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'max_participants' => ['sometimes', 'integer', 'min:1', 'max:'.$maxParticipants],
         ]);
 
         return response()->json([
