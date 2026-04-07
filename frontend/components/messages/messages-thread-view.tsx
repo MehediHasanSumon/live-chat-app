@@ -30,8 +30,8 @@ export function MessagesThreadView({
         ))}
       </div>
 
-      <footer className="border-t border-[var(--line)] px-4 py-4 sm:px-6">
-        <MessageComposer />
+      <footer className="px-4 py-4 sm:px-6">
+        <MessageComposer threadName={thread.name} />
       </footer>
     </section>
   );
