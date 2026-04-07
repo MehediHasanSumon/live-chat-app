@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect } from "react";
 
 import { type MessageThread } from "@/lib/messages-data";
 import { MessagesAsidePanel } from "@/components/messages/messages-aside-panel";
@@ -12,31 +12,42 @@ import { MessagesShell } from "@/components/messages/messages-shell";
 import { MessagesSidebar } from "@/components/messages/messages-sidebar";
 import { MessagesThreadView } from "@/components/messages/messages-thread-view";
 import { MessagesUserSidebar } from "@/components/messages/messages-user-sidebar";
+import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 
 type MessagesThreadLayoutProps = {
   thread: MessageThread;
 };
 
-type AsideView = "info" | "media" | "file";
-type ConfirmationAction = "block" | "delete" | null;
-
 export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
-  const [isInfoSidebarOpen, setIsInfoSidebarOpen] = useState(true);
-  const [asideView, setAsideView] = useState<AsideView>("info");
-  const [isMuteModalOpen, setIsMuteModalOpen] = useState(false);
-  const [confirmationAction, setConfirmationAction] = useState<ConfirmationAction>(null);
-  const [isNewMessageModalOpen, setIsNewMessageModalOpen] = useState(false);
+  const activeThreadId = useChatUiStore((state) => state.activeThreadId);
+  const asideView = useChatUiStore((state) => state.asideView);
+  const confirmationAction = useChatUiStore((state) => state.confirmationAction);
+  const isInfoSidebarOpen = useChatUiStore((state) => state.isInfoSidebarOpen);
+  const isMuteModalOpen = useChatUiStore((state) => state.isMuteModalOpen);
+  const isNewMessageModalOpen = useChatUiStore((state) => state.isNewMessageModalOpen);
+  const closeConfirmation = useChatUiStore((state) => state.closeConfirmation);
+  const closeMuteModal = useChatUiStore((state) => state.closeMuteModal);
+  const closeNewMessageModal = useChatUiStore((state) => state.closeNewMessageModal);
+  const openAsideView = useChatUiStore((state) => state.openAsideView);
+  const openConfirmation = useChatUiStore((state) => state.openConfirmation);
+  const openMuteModal = useChatUiStore((state) => state.openMuteModal);
+  const openNewMessageModal = useChatUiStore((state) => state.openNewMessageModal);
+  const resetThreadPanels = useChatUiStore((state) => state.resetThreadPanels);
+  const setActiveThreadId = useChatUiStore((state) => state.setActiveThreadId);
+  const toggleInfoSidebar = useChatUiStore((state) => state.toggleInfoSidebar);
+
+  useEffect(() => {
+    setActiveThreadId(thread.id);
+    resetThreadPanels();
+  }, [resetThreadPanels, setActiveThreadId, thread.id]);
 
   const aside =
     asideView === "info" ? (
       <MessagesAsidePanel key="info">
         <MessagesUserSidebar
           thread={thread}
-          onOpenMuteModal={() => setIsMuteModalOpen(true)}
-          onOpenMediaPanel={(tab) => {
-            setAsideView(tab);
-            setIsInfoSidebarOpen(true);
-          }}
+          onOpenMuteModal={openMuteModal}
+          onOpenMediaPanel={openAsideView}
         />
       </MessagesAsidePanel>
     ) : (
@@ -44,10 +55,7 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
         <MessagesMediaSidebar
           thread={thread}
           initialTab={asideView}
-          onBack={() => {
-            setAsideView("info");
-            setIsInfoSidebarOpen(true);
-          }}
+          onBack={() => openAsideView("info")}
         />
       </MessagesAsidePanel>
     );
@@ -57,48 +65,40 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
       <MessagesShell
         sidebar={
           <MessagesSidebar
-            activeThreadId={thread.id}
-            onOpenMuteModal={() => setIsMuteModalOpen(true)}
-            onOpenConfirmation={(action) => setConfirmationAction(action)}
-            onOpenNewMessageModal={() => setIsNewMessageModalOpen(true)}
+            activeThreadId={activeThreadId ?? thread.id}
+            onOpenMuteModal={openMuteModal}
+            onOpenConfirmation={openConfirmation}
+            onOpenNewMessageModal={openNewMessageModal}
           />
         }
         content={
           <MessagesThreadView
             thread={thread}
             isInfoSidebarOpen={isInfoSidebarOpen}
-            onToggleInfoSidebar={() => {
-              setIsInfoSidebarOpen((value) => {
-                const next = !value;
-                if (next) {
-                  setAsideView("info");
-                }
-                return next;
-              });
-            }}
+            onToggleInfoSidebar={toggleInfoSidebar}
           />
         }
         aside={aside}
         asideVisible={isInfoSidebarOpen}
       />
-      <MessagesMuteModal isOpen={isMuteModalOpen} onClose={() => setIsMuteModalOpen(false)} />
+      <MessagesMuteModal isOpen={isMuteModalOpen} onClose={closeMuteModal} />
       <MessagesNewMessageModal
         isOpen={isNewMessageModalOpen}
-        onClose={() => setIsNewMessageModalOpen(false)}
+        onClose={closeNewMessageModal}
       />
       <MessagesConfirmationModal
         isOpen={confirmationAction === "block"}
         title="Block conversation"
         description="You won&apos;t receive new messages or calls from this conversation unless you unblock it later."
         confirmLabel="Block"
-        onClose={() => setConfirmationAction(null)}
+        onClose={closeConfirmation}
       />
       <MessagesConfirmationModal
         isOpen={confirmationAction === "delete"}
         title="Delete chat"
         description="This will remove the chat from your list. You can only restore it if it appears again from a new message."
         confirmLabel="Delete"
-        onClose={() => setConfirmationAction(null)}
+        onClose={closeConfirmation}
       />
     </>
   );

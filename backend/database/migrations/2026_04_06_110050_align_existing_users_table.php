@@ -33,12 +33,8 @@ return new class extends Migration
                 $table->enum('status', ['active', 'suspended', 'deleted'])->default('active')->after('password_hash');
             }
 
-            if (! Schema::hasColumn('users', 'is_system_admin')) {
-                $table->boolean('is_system_admin')->default(false)->after('status');
-            }
-
             if (! Schema::hasColumn('users', 'last_seen_at')) {
-                $table->timestamp('last_seen_at')->nullable()->after('is_system_admin');
+                $table->timestamp('last_seen_at')->nullable()->after('status');
             }
         });
 
@@ -96,10 +92,6 @@ return new class extends Migration
 
             if (Schema::hasColumn('users', 'status')) {
                 $table->dropColumn('status');
-            }
-
-            if (Schema::hasColumn('users', 'is_system_admin')) {
-                $table->dropColumn('is_system_admin');
             }
 
             if (Schema::hasColumn('users', 'last_seen_at')) {

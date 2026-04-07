@@ -21,7 +21,6 @@ return new class extends Migration
             $table->foreignId('avatar_object_id')->nullable();
             $table->string('password_hash');
             $table->enum('status', ['active', 'suspended', 'deleted'])->default('active');
-            $table->boolean('is_system_admin')->default(false);
             $table->timestamp('last_seen_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
