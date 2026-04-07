@@ -38,5 +38,7 @@ export function useAuthMeQuery(enabled = false) {
     queryFn: () => apiClient.get<AuthMeResponse>("/api/me", { skipAuthRedirect: true }),
     enabled,
     retry: false,
+    refetchOnMount: "always",
+    refetchOnReconnect: true,
   });
 }

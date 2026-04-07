@@ -1,4 +1,5 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const AUTH_SESSION_HINT_KEY = "chat-app:has-session";
 
 type ApiPrimitive = string | number | boolean | null;
 type ApiBodyValue = ApiPrimitive | ApiBodyValue[] | { [key: string]: ApiBodyValue };
@@ -50,6 +51,30 @@ function getCookie(name: string): string | null {
     .find((entry) => entry.startsWith(`${name}=`));
 
   return cookie ? decodeURIComponent(cookie.split("=")[1] ?? "") : null;
+}
+
+export function hasSessionHint(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.localStorage.getItem(AUTH_SESSION_HINT_KEY) === "1";
+}
+
+export function markSessionHintAuthenticated(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(AUTH_SESSION_HINT_KEY, "1");
+}
+
+export function clearSessionHint(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(AUTH_SESSION_HINT_KEY);
 }
 
 function createHeaders(options: ApiClientOptions): Headers {
@@ -134,6 +159,7 @@ async function request<T>(path: string, options: ApiClientOptions = {}, hasRetri
   }
 
   if (response.status === 401 && !options.skipAuthRedirect) {
+    clearSessionHint();
     unauthenticatedHandler?.();
   }
 

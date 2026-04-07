@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { ApiClientError, apiClient } from "@/lib/api-client";
+import { ApiClientError, apiClient, clearSessionHint, markSessionHintAuthenticated } from "@/lib/api-client";
 import { type AuthMeResponse } from "@/lib/hooks/use-auth-me-query";
 import { queryKeys } from "@/lib/query-keys";
 
@@ -27,6 +27,7 @@ export function useLoginMutation() {
   return useMutation({
     mutationFn: (payload: LoginPayload) => apiClient.post<AuthMeResponse>("/login", payload),
     onSuccess: (response) => {
+      markSessionHintAuthenticated();
       queryClient.setQueryData(queryKeys.auth.me, response);
     },
   });
@@ -38,6 +39,7 @@ export function useRegisterMutation() {
   return useMutation({
     mutationFn: (payload: RegisterPayload) => apiClient.post<AuthMeResponse>("/register", payload),
     onSuccess: (response) => {
+      markSessionHintAuthenticated();
       queryClient.setQueryData(queryKeys.auth.me, response);
     },
   });
@@ -49,10 +51,12 @@ export function useLogoutMutation() {
   return useMutation({
     mutationFn: () => apiClient.post<void>("/logout"),
     onSuccess: () => {
+      clearSessionHint();
       queryClient.removeQueries({ queryKey: queryKeys.auth.me });
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.status === 401) {
+        clearSessionHint();
         queryClient.removeQueries({ queryKey: queryKeys.auth.me });
       }
     },

@@ -12,9 +12,9 @@ export default function Home() {
   const { data, isLoading, isError } = useAuthMeQuery(true);
   const logoutMutation = useLogoutMutation();
 
-  async function handleLogout() {
+async function handleLogout() {
     await logoutMutation.mutateAsync();
-    router.refresh();
+    router.replace("/login");
   }
 
   return (

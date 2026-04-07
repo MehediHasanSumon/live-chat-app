@@ -3,6 +3,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactNode, useState } from "react";
 
+import { AuthQuerySync } from "@/components/providers/auth-query-sync";
+import { NavigationProgress } from "@/components/providers/navigation-progress";
+
 type AppProvidersProps = {
   children: ReactNode;
 };
@@ -21,5 +24,11 @@ export function AppProviders({ children }: AppProvidersProps) {
       }),
   );
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <NavigationProgress />
+      <AuthQuerySync />
+      {children}
+    </QueryClientProvider>
+  );
 }
