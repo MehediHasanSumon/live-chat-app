@@ -88,17 +88,24 @@ export function MessageComposer({ threadName }: MessageComposerProps) {
     }
   };
 
-  const addFiles = (files: FileList | null, kind: "image" | "file") => {
+  const addFiles = (
+    files: FileList | null,
+    kind: "image" | "file",
+    input?: HTMLInputElement | null,
+  ) => {
     if (!files?.length) return;
 
     const nextItems = Array.from(files).map((file) => ({
       id: `${file.name}-${file.size}-${crypto.randomUUID()}`,
       file,
-      kind,
+      kind: file.type.startsWith("image/") ? "image" : kind,
       previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
     }));
 
     setAttachments((current) => [...current, ...nextItems].slice(0, 6));
+    if (input) {
+      input.value = "";
+    }
   };
 
   const removeAttachment = (id: string) => {
@@ -150,15 +157,17 @@ export function MessageComposer({ threadName }: MessageComposerProps) {
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           className="hidden"
-          onChange={(e) => addFiles(e.target.files, "file")}
+          onChange={(e) => addFiles(e.target.files, "file", e.currentTarget)}
         />
         <input
           ref={imageInputRef}
           type="file"
+          multiple
           accept="image/*"
           className="hidden"
-          onChange={(e) => addFiles(e.target.files, "image")}
+          onChange={(e) => addFiles(e.target.files, "image", e.currentTarget)}
         />
 
         {attachments.length > 0 ? (
