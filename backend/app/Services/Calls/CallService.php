@@ -10,6 +10,7 @@ use App\Services\Conversations\ConversationMemberService;
 use App\Services\Conversations\ConversationService;
 use App\Services\LiveKit\LiveKitRoomService;
 use App\Services\LiveKit\LiveKitTokenService;
+use App\Services\Privacy\PrivacyService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -23,6 +24,7 @@ class CallService
         protected ConversationMemberService $conversationMemberService,
         protected LiveKitRoomService $liveKitRoomService,
         protected LiveKitTokenService $liveKitTokenService,
+        protected PrivacyService $privacyService,
     ) {
     }
 
@@ -32,6 +34,7 @@ class CallService
     public function startDirect(int $callerId, int $targetUserId, string $mediaType): array
     {
         $conversation = $this->conversationService->getOrCreateDirect($callerId, $targetUserId);
+        $this->privacyService->ensureDirectCallAllowed($callerId, $conversation);
 
         $callRoom = $this->createCallRoom(
             $conversation,
@@ -66,6 +69,8 @@ class CallService
             ->map(static fn ($id) => (int) $id)
             ->values()
             ->all();
+
+        $this->privacyService->ensureGroupCallAllowed($callerId, $conversation, $memberIds);
 
         $callRoom = $this->createCallRoom(
             $conversation,

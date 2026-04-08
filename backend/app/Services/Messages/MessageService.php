@@ -8,6 +8,7 @@ use App\Models\Message;
 use App\Models\MessageEdit;
 use App\Models\MessageHiddenForUser;
 use App\Services\Conversations\ConversationMemberService;
+use App\Services\Privacy\PrivacyService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -17,6 +18,7 @@ class MessageService
 {
     public function __construct(
         protected ConversationMemberService $conversationMemberService,
+        protected PrivacyService $privacyService,
     ) {
     }
 
@@ -59,6 +61,7 @@ class MessageService
         ?string $clientUuid = null,
     ): array {
         $this->conversationMemberService->requireActiveMembership($conversation, $senderId);
+        $this->privacyService->ensureChatAllowed($senderId, $conversation);
 
         if ($clientUuid) {
             $existing = $this->findExistingMessage($conversation->id, $senderId, $clientUuid);
@@ -114,6 +117,7 @@ class MessageService
     {
         $this->conversationMemberService->requireActiveMembership($sourceMessage->conversation, $actorId);
         $this->conversationMemberService->requireActiveMembership($targetConversation, $actorId);
+        $this->privacyService->ensureChatAllowed($actorId, $targetConversation);
 
         if ($clientUuid) {
             $existing = $this->findExistingMessage($targetConversation->id, $actorId, $clientUuid);

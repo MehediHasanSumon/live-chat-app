@@ -8,6 +8,7 @@ use App\Models\CallRoomParticipant;
 use App\Models\Conversation;
 use App\Models\ConversationMember;
 use App\Models\User;
+use App\Models\UserSetting;
 use App\Providers\EventServiceProvider;
 use App\Services\LiveKit\LiveKitRoomService;
 use App\Services\LiveKit\LiveKitTokenService;
@@ -56,6 +57,17 @@ it('starts a direct voice call and dispatches incoming call fanout', function ()
 
     $caller = User::factory()->create();
     $recipient = User::factory()->create();
+    UserSetting::query()->create([
+        'user_id' => $recipient->id,
+        'show_active_status' => true,
+        'allow_message_requests' => false,
+        'push_enabled' => true,
+        'sound_enabled' => true,
+        'vibrate_enabled' => true,
+        'quiet_hours_enabled' => false,
+        'theme' => 'system',
+        'updated_at' => now(),
+    ]);
 
     $roomService = Mockery::mock(LiveKitRoomService::class);
     $roomService->shouldReceive('createRoom')

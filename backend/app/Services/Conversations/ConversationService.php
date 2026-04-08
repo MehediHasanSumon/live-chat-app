@@ -4,6 +4,7 @@ namespace App\Services\Conversations;
 
 use App\Models\Conversation;
 use App\Models\ConversationMember;
+use App\Services\Privacy\PrivacyService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -12,6 +13,7 @@ class ConversationService
 {
     public function __construct(
         protected ConversationMemberService $conversationMemberService,
+        protected PrivacyService $privacyService,
     ) {
     }
 
@@ -45,6 +47,9 @@ class ConversationService
 
         return DB::transaction(function () use ($authUserId, $directKey, $targetUserId): Conversation {
             $conversation = Conversation::query()->firstWhere('direct_key', $directKey);
+            $targetMembershipState = $this->privacyService->shouldCreateMessageRequest($authUserId, $targetUserId)
+                ? 'request_pending'
+                : 'active';
 
             if (! $conversation) {
                 $conversation = Conversation::query()->create([
@@ -53,8 +58,19 @@ class ConversationService
                     'created_by' => $authUserId,
                 ]);
 
-                $this->attachMember($conversation->id, $authUserId, 'owner', $authUserId);
-                $this->attachMember($conversation->id, $targetUserId, 'member', $authUserId);
+                $this->attachMember($conversation->id, $authUserId, 'owner', $authUserId, 'active');
+                $this->attachMember($conversation->id, $targetUserId, 'member', $authUserId, $targetMembershipState);
+            } else {
+                $this->syncDirectMembership($conversation->id, $authUserId, 'owner', $authUserId, 'active');
+
+                $existingTargetMembership = ConversationMember::query()
+                    ->where('conversation_id', $conversation->id)
+                    ->where('user_id', $targetUserId)
+                    ->first();
+
+                if ($existingTargetMembership?->membership_state !== 'active') {
+                    $this->syncDirectMembership($conversation->id, $targetUserId, 'member', $authUserId, $targetMembershipState);
+                }
             }
 
             return $this->loadConversationForUser($conversation, $authUserId);
@@ -88,10 +104,10 @@ class ConversationService
                 'settings_json' => $payload['settings_json'] ?? null,
             ]);
 
-            $this->attachMember($conversation->id, $creatorId, 'owner', $creatorId);
+            $this->attachMember($conversation->id, $creatorId, 'owner', $creatorId, 'active');
 
             foreach ($memberIds as $memberId) {
-                $this->attachMember($conversation->id, $memberId, 'member', $creatorId);
+                $this->attachMember($conversation->id, $memberId, 'member', $creatorId, 'active');
             }
 
             return $this->loadConversationForUser($conversation, $creatorId);
@@ -183,15 +199,37 @@ class ConversationService
         return hash('sha256', implode(':', $sorted));
     }
 
-    protected function attachMember(int $conversationId, int $userId, string $role, int $actorId): void
+    protected function attachMember(int $conversationId, int $userId, string $role, int $actorId, string $membershipState): void
     {
         ConversationMember::query()->create([
             'conversation_id' => $conversationId,
             'user_id' => $userId,
             'role' => $role,
-            'membership_state' => 'active',
+            'membership_state' => $membershipState,
             'added_by_user_id' => $actorId,
-            'joined_at' => now(),
+            'joined_at' => $membershipState === 'active' ? now() : null,
+            'request_created_at' => $membershipState === 'request_pending' ? now() : null,
+        ]);
+    }
+
+    protected function syncDirectMembership(
+        int $conversationId,
+        int $userId,
+        string $role,
+        int $actorId,
+        string $membershipState,
+    ): void {
+        ConversationMember::query()->updateOrCreate([
+            'conversation_id' => $conversationId,
+            'user_id' => $userId,
+        ], [
+            'role' => $role,
+            'membership_state' => $membershipState,
+            'added_by_user_id' => $actorId,
+            'joined_at' => $membershipState === 'active' ? now() : null,
+            'request_created_at' => $membershipState === 'request_pending' ? now() : null,
+            'left_at' => null,
+            'removed_at' => null,
         ]);
     }
 

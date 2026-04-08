@@ -7,6 +7,7 @@ use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\AdminStoragePolicyController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MeController;
+use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\RealtimeController;
 use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\UploadController;
@@ -39,6 +40,15 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
     Route::post('/groups', [GroupController::class, 'store']);
     Route::patch('/groups/{conversation}', [GroupController::class, 'update']);
+
+    Route::get('/message-requests', [PrivacyController::class, 'messageRequests']);
+    Route::post('/message-requests/{conversation}/accept', [PrivacyController::class, 'acceptMessageRequest']);
+    Route::post('/message-requests/{conversation}/reject', [PrivacyController::class, 'rejectMessageRequest']);
+    Route::post('/users/{user}/block', [PrivacyController::class, 'block']);
+    Route::delete('/users/{user}/block', [PrivacyController::class, 'unblock']);
+    Route::post('/users/{user}/restrict', [PrivacyController::class, 'restrict']);
+    Route::delete('/users/{user}/restrict', [PrivacyController::class, 'unrestrict']);
+    Route::get('/users/{user}/presence', [PrivacyController::class, 'presence']);
 
     Route::patch('/messages/{message}', [MessageController::class, 'update']);
     Route::delete('/messages/{message}', [MessageController::class, 'destroy']);
