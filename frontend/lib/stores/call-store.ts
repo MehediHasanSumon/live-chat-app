@@ -1,0 +1,99 @@
+import { create } from "zustand";
+
+import {
+  type CallRoomApiItem,
+  type CallSignalPayload,
+  type JoinCallApiPayload,
+  isCallTerminal,
+} from "@/lib/calls-data";
+
+type CallSession = {
+  callRoom: CallRoomApiItem;
+  token: JoinCallApiPayload["token"] | null;
+  publishMode: JoinCallApiPayload["publish_mode"] | null;
+  source: "incoming" | "outgoing" | "synced";
+};
+
+type CallStoreState = {
+  incomingCall: CallSession | null;
+  activeCall: CallSession | null;
+  receiveIncomingCall: (payload: CallSignalPayload) => void;
+  syncCallState: (payload: CallSignalPayload) => void;
+  setOutgoingCall: (callRoom: CallRoomApiItem) => void;
+  setJoinedCall: (payload: JoinCallApiPayload, source?: CallSession["source"]) => void;
+  clearIncomingCall: () => void;
+  clearActiveCall: () => void;
+};
+
+function mergeSession(
+  current: CallSession | null,
+  callRoom: CallRoomApiItem,
+  source: CallSession["source"],
+): CallSession {
+  return {
+    callRoom,
+    token: current?.token ?? null,
+    publishMode: current?.publishMode ?? null,
+    source,
+  };
+}
+
+export const useCallStore = create<CallStoreState>((set) => ({
+  incomingCall: null,
+  activeCall: null,
+  receiveIncomingCall: ({ call_room }) =>
+    set((state) => ({
+      incomingCall: {
+        callRoom: call_room,
+        token: null,
+        publishMode: null,
+        source: "incoming",
+      },
+      activeCall:
+        state.activeCall?.callRoom.room_uuid === call_room.room_uuid
+          ? mergeSession(state.activeCall, call_room, state.activeCall.source)
+          : state.activeCall,
+    })),
+  syncCallState: ({ call_room }) =>
+    set((state) => {
+      const nextIncoming =
+        state.incomingCall?.callRoom.room_uuid === call_room.room_uuid && !isCallTerminal(call_room)
+          ? mergeSession(state.incomingCall, call_room, state.incomingCall.source)
+          : state.incomingCall?.callRoom.room_uuid === call_room.room_uuid
+            ? null
+            : state.incomingCall;
+
+      const nextActive =
+        state.activeCall?.callRoom.room_uuid === call_room.room_uuid
+          ? isCallTerminal(call_room)
+            ? null
+            : mergeSession(state.activeCall, call_room, state.activeCall.source)
+          : state.activeCall;
+
+      return {
+        incomingCall: nextIncoming,
+        activeCall: nextActive,
+      };
+    }),
+  setOutgoingCall: (callRoom) =>
+    set({
+      activeCall: {
+        callRoom,
+        token: null,
+        publishMode: null,
+        source: "outgoing",
+      },
+    }),
+  setJoinedCall: (payload, source = "synced") =>
+    set({
+      activeCall: {
+        callRoom: payload.call_room,
+        token: payload.token,
+        publishMode: payload.publish_mode,
+        source,
+      },
+      incomingCall: null,
+    }),
+  clearIncomingCall: () => set({ incomingCall: null }),
+  clearActiveCall: () => set({ activeCall: null, incomingCall: null }),
+}));
