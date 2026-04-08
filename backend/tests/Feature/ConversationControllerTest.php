@@ -193,3 +193,32 @@ it('allows group admins to rename a group and update its avatar', function () {
         ->assertJsonPath('data.title', 'Product circle v2')
         ->assertJsonPath('data.avatar_object_id', $avatar->id);
 });
+
+it('forbids showing a conversation to a pending member', function () {
+    $owner = User::factory()->create();
+    $pendingUser = User::factory()->create();
+
+    $conversation = Conversation::query()->create([
+        'type' => 'direct',
+        'created_by' => $owner->id,
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $owner->id,
+        'role' => 'owner',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $pendingUser->id,
+        'role' => 'member',
+        'membership_state' => 'request_pending',
+    ]);
+
+    $this->actingAs($pendingUser, 'web')
+        ->getJson("/api/conversations/{$conversation->id}")
+        ->assertForbidden();
+});

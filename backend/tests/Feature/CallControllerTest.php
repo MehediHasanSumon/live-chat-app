@@ -297,3 +297,29 @@ it('registers the call state broadcast listener', function () {
 
     expect($listen[ConversationCallStateChanged::class])->toContain(BroadcastConversationCallStateChanged::class);
 });
+
+it('prevents non admins from starting a group call when the group requires admins only', function () {
+    $owner = User::factory()->create();
+    $member = User::factory()->create();
+    $conversation = createCallGroupConversation($owner, [$member], [
+        'who_can_start_call' => 'admins_only',
+    ]);
+
+    $this->actingAs($member, 'web')
+        ->postJson("/api/conversations/{$conversation->id}/calls/group/voice")
+        ->assertStatus(422)
+        ->assertJsonPath('errors.call.0', 'Only group admins can start a call in this conversation.');
+});
+
+it('returns unauthorized when the livekit webhook signature is invalid', function () {
+    $webhookService = Mockery::mock(LiveKitWebhookService::class);
+    $webhookService->shouldReceive('parse')
+        ->once()
+        ->andThrow(new RuntimeException('Invalid signature'));
+
+    $this->app->instance(LiveKitWebhookService::class, $webhookService);
+
+    $this->postJson('/api/webhooks/livekit')
+        ->assertUnauthorized()
+        ->assertJsonPath('message', 'Invalid LiveKit webhook signature.');
+});

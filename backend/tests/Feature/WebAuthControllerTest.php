@@ -110,6 +110,28 @@ it('rate limits repeated login attempts', function () {
     ])->assertTooManyRequests();
 });
 
+it('rate limits repeated register attempts', function () {
+    foreach (range(1, 3) as $attempt) {
+        $response = $this->postJson('/register', [
+            'username' => 'sumon-rate-limit',
+            'name' => 'Sumon Hasan',
+            'email' => "sumon-rate-limit-{$attempt}@example.com",
+            'password' => 'secret-123',
+            'password_confirmation' => 'mismatch-secret',
+        ]);
+
+        $response->assertUnprocessable();
+    }
+
+    $this->postJson('/register', [
+        'username' => 'sumon-rate-limit',
+        'name' => 'Sumon Hasan',
+        'email' => 'sumon-rate-limit-4@example.com',
+        'password' => 'secret-123',
+        'password_confirmation' => 'mismatch-secret',
+    ])->assertTooManyRequests();
+});
+
 it('returns the authenticated web user from api me', function () {
     $user = User::factory()->create();
     UserSetting::query()->create([

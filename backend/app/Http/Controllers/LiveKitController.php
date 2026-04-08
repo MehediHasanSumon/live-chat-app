@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 class LiveKitController extends Controller
 {
@@ -61,7 +62,18 @@ class LiveKitController extends Controller
         CallService $callService,
     ): JsonResponse
     {
-        $event = $webhookService->parse($request);
+        try {
+            $event = $webhookService->parse($request);
+        } catch (Throwable $exception) {
+            Log::warning('livekit.webhook.invalid_signature', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Invalid LiveKit webhook signature.',
+            ], 401);
+        }
+
         $result = $callService->handleWebhook($event);
 
         Log::info('livekit.webhook.received', [
