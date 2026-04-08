@@ -1,12 +1,65 @@
-export type MessageThread = {
+export type ConversationUser = {
+  id: number;
+  username: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  status: "active" | "suspended" | "deleted";
+  last_seen_at: string | null;
+  avatar_object_id: number | null;
+};
+
+export type ConversationMembership = {
+  id: number;
+  user_id: number;
+  role: "owner" | "admin" | "member";
+  membership_state: "active" | "request_pending" | "invited" | "left" | "removed";
+  last_read_seq: number;
+  last_delivered_seq: number;
+  unread_count_cache: number;
+  archived_at: string | null;
+  pinned_at: string | null;
+  muted_until: string | null;
+  notifications_mode: "all" | "mentions" | "mute" | "scheduled";
+  notification_schedule_json: Record<string, unknown> | null;
+  joined_at: string | null;
+  user?: ConversationUser;
+};
+
+export type ConversationApiItem = {
+  id: number;
+  type: "direct" | "group";
+  direct_key: string | null;
+  title: string | null;
+  description: string | null;
+  avatar_object_id: number | null;
+  created_by: number;
+  settings_json: Record<string, unknown> | null;
+  last_message_seq: number;
+  last_message_id: number | null;
+  last_message_preview: string | null;
+  last_message_at: string | null;
+  active_room_uuid: string | null;
+  created_at: string;
+  updated_at: string;
+  creator?: ConversationUser;
+  membership?: ConversationMembership | null;
+  members?: ConversationMembership[];
+};
+
+export type ConversationThread = {
   id: string;
+  numericId: number;
   name: string;
   handle: string;
+  description?: string | null;
   lastMessage: string;
   time: string;
   unreadCount?: number;
   online?: boolean;
   isGroup?: boolean;
+  membership?: ConversationMembership | null;
+  members?: ConversationMembership[];
 };
 
 export type ChatMessage = {
@@ -24,64 +77,93 @@ export type ThreadMediaItem = {
   meta?: string;
 };
 
-export const messageThreads: MessageThread[] = [
-  {
-    id: "design-room",
-    name: "Elizabeth Olsen",
-    handle: "@elizabeth",
-    lastMessage: "Let's keep the first version simple and clean.",
-    time: "9:42 AM",
-    unreadCount: 2,
-    online: true,
-    isGroup: false,
-  },
-  {
-    id: "frontend-sync",
-    name: "Brad Frost",
-    handle: "@brad",
-    lastMessage: "Navbar spacing looks much better now.",
-    time: "8:18 AM",
-    isGroup: false,
-  },
-  {
-    id: "product-notes",
-    name: "Lina Roy",
-    handle: "@lina",
-    lastMessage: "We can polish the message composer later.",
-    time: "Yesterday",
-    isGroup: false,
-  },
-];
+function formatRelativeTime(value: string | null): string {
+  if (!value) {
+    return "Just now";
+  }
 
-export const threadMessages: Record<string, ChatMessage[]> = {
-  "design-room": [
-    { id: "m1", sender: "other", body: "Let's keep the first version simple and clean.", time: "9:34 AM" },
-    { id: "m2", sender: "me", body: "Agreed. We can layer in details after the basic flow feels right.", time: "9:36 AM" },
-    { id: "m3", sender: "other", body: "Perfect. Start with messages routes and we'll refine from there.", time: "9:42 AM" },
-  ],
-  "frontend-sync": [
-    { id: "m1", sender: "other", body: "Navbar spacing looks much better now.", time: "8:18 AM" },
-    { id: "m2", sender: "me", body: "Nice. I'll keep the message layout simple too.", time: "8:22 AM" },
-  ],
-  "product-notes": [
-    { id: "m1", sender: "other", body: "We can polish the message composer later.", time: "Yesterday" },
-    { id: "m2", sender: "me", body: "Yes, first I'll keep the shell reusable and lightweight.", time: "Yesterday" },
-  ],
-};
+  const date = new Date(value);
 
-export const threadMedia: Record<string, ThreadMediaItem[]> = {
-  "design-room": [
-    { id: "media-1", type: "media", title: "Lobby clip", preview: "LC", meta: "0:11" },
-    { id: "media-2", type: "media", title: "Storyboard", preview: "SB", meta: "Image" },
-    { id: "file-1", type: "file", title: "Wireframe notes.pdf", meta: "1.8 MB" },
-    { id: "file-2", type: "file", title: "Meeting summary.docx", meta: "248 KB" },
-  ],
-  "frontend-sync": [
-    { id: "media-1", type: "media", title: "Navbar preview", preview: "NP", meta: "Image" },
-    { id: "file-1", type: "file", title: "spacing-review.pdf", meta: "640 KB" },
-  ],
-  "product-notes": [
-    { id: "media-1", type: "media", title: "Flow draft", preview: "FD", meta: "Image" },
-    { id: "file-1", type: "file", title: "product-notes.txt", meta: "34 KB" },
-  ],
-};
+  if (Number.isNaN(date.getTime())) {
+    return "Just now";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function buildDirectConversationName(conversation: ConversationApiItem): string {
+  const otherMember = conversation.members?.find(
+    (member) => member.user && member.user_id !== conversation.membership?.user_id,
+  )?.user;
+
+  return otherMember?.name ?? conversation.title ?? `Conversation #${conversation.id}`;
+}
+
+function buildConversationHandle(conversation: ConversationApiItem): string {
+  if (conversation.type === "group") {
+    return `#group-${conversation.id}`;
+  }
+
+  const otherMember = conversation.members?.find(
+    (member) => member.user && member.user_id !== conversation.membership?.user_id,
+  )?.user;
+
+  return otherMember?.username ? `@${otherMember.username}` : `@conversation-${conversation.id}`;
+}
+
+export function toConversationThread(conversation: ConversationApiItem): ConversationThread {
+  return {
+    id: String(conversation.id),
+    numericId: conversation.id,
+    name: conversation.type === "group" ? conversation.title ?? `Group #${conversation.id}` : buildDirectConversationName(conversation),
+    handle: buildConversationHandle(conversation),
+    description: conversation.description,
+    lastMessage: conversation.last_message_preview ?? "No messages yet",
+    time: formatRelativeTime(conversation.last_message_at ?? conversation.updated_at),
+    unreadCount: conversation.membership?.unread_count_cache || undefined,
+    online: false,
+    isGroup: conversation.type === "group",
+    membership: conversation.membership,
+    members: conversation.members,
+  };
+}
+
+export function getPlaceholderMessages(thread: ConversationThread): ChatMessage[] {
+  return [
+    {
+      id: `${thread.id}-m1`,
+      sender: "other",
+      body: thread.lastMessage || `Conversation #${thread.numericId} is ready. Real message history will plug in next.`,
+      time: thread.time,
+    },
+    {
+      id: `${thread.id}-m2`,
+      sender: "me",
+      body: thread.isGroup
+        ? "Group shell is live. We can wire the real message timeline next."
+        : "Direct conversation shell is live. Real messages come in the next backend phase.",
+      time: "Now",
+    },
+  ];
+}
+
+export function getPlaceholderMedia(thread: ConversationThread): ThreadMediaItem[] {
+  return [
+    {
+      id: `${thread.id}-media-1`,
+      type: "media",
+      title: `${thread.name} preview`,
+      preview: thread.name.slice(0, 2).toUpperCase(),
+      meta: "Image",
+    },
+    {
+      id: `${thread.id}-file-1`,
+      type: "file",
+      title: `${thread.handle.replace(/[^a-z0-9#@-]/gi, "")}-notes.txt`,
+      meta: "14 KB",
+    },
+  ];
+}

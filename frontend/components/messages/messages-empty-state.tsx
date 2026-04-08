@@ -8,7 +8,7 @@ export function MessagesEmptyState() {
       </div>
       <h1 className="mt-5 text-2xl font-semibold tracking-tight">Select a conversation</h1>
       <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted)]">
-        Choose a thread from the sidebar to open messages. We can wire this screen to real data next.
+        Choose a conversation from the sidebar to open its details. The real message timeline lands in the next backend phase.
       </p>
     </section>
   );

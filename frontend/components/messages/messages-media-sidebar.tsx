@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { ArrowLeft, FileText } from "lucide-react";
 
-import { threadMedia, type MessageThread } from "@/lib/messages-data";
+import { getPlaceholderMedia, type MessageThread } from "@/lib/messages-data";
 
 type MessagesMediaSidebarProps = {
   thread: MessageThread;
@@ -18,11 +18,7 @@ export function MessagesMediaSidebar({
   onBack,
 }: MessagesMediaSidebarProps) {
   const [activeTab, setActiveTab] = useState<"media" | "file">(initialTab);
-
-  const items = useMemo(
-    () => (threadMedia[thread.id] ?? []).filter((item) => item.type === activeTab),
-    [thread.id, activeTab],
-  );
+  const items = getPlaceholderMedia(thread).filter((item) => item.type === activeTab);
 
   return (
     <div className="surface h-full bg-[#fbfcff]">

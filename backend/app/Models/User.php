@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -78,6 +79,23 @@ class User extends Authenticatable
     public function conversationMemberships(): HasMany
     {
         return $this->hasMany(ConversationMember::class);
+    }
+
+    public function conversations(): BelongsToMany
+    {
+        return $this->belongsToMany(Conversation::class, 'conversation_members')
+            ->withPivot([
+                'role',
+                'membership_state',
+                'last_read_seq',
+                'last_delivered_seq',
+                'unread_count_cache',
+                'archived_at',
+                'pinned_at',
+                'muted_until',
+                'notifications_mode',
+                'notification_schedule_json',
+            ]);
     }
 
     public function sentMessages(): HasMany

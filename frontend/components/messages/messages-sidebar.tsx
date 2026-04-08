@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Archive,
@@ -14,12 +14,13 @@ import {
   Video,
 } from "lucide-react";
 
-import { messageThreads } from "@/lib/messages-data";
+import { toConversationThread } from "@/lib/messages-data";
 import { MessagesFilterTabs } from "@/components/messages/messages-filter-tabs";
 import { MessagesSearchBar } from "@/components/messages/messages-search-bar";
 import { MessagesSidebarHeader } from "@/components/messages/messages-sidebar-header";
 import { MessagesThreadMenu } from "@/components/messages/messages-thread-menu";
 import { MessageThreadItem } from "@/components/messages/message-thread-item";
+import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 
 type MessagesSidebarProps = {
   activeThreadId?: string;
@@ -28,7 +29,7 @@ type MessagesSidebarProps = {
   onOpenNewMessageModal?: () => void;
 };
 
-const filters = ["All", "Unread", "Groups", "Communities"] as const;
+const filters = ["All", "Unread", "Groups"] as const;
 
 const threadMenuItems = [
   { label: "Mark as unread", icon: CheckCheck },
@@ -53,9 +54,42 @@ export function MessagesSidebar({
   onOpenNewMessageModal,
 }: MessagesSidebarProps) {
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [openMenuThreadId, setOpenMenuThreadId] = useState<string | null>(null);
   const [isSidebarMenuOpen, setIsSidebarMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement | null>(null);
+  const { data: conversations = [], isLoading, isError } = useConversationsQuery();
+
+  const threads = useMemo(
+    () => conversations.map((conversation) => toConversationThread(conversation)),
+    [conversations],
+  );
+
+  const filteredThreads = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    return threads.filter((thread) => {
+      const matchesFilter =
+        activeFilter === "All"
+          ? true
+          : activeFilter === "Unread"
+            ? Boolean(thread.unreadCount)
+            : Boolean(thread.isGroup);
+
+      if (!matchesFilter) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      return (
+        thread.name.toLowerCase().includes(normalizedQuery) ||
+        thread.handle.toLowerCase().includes(normalizedQuery)
+      );
+    });
+  }, [activeFilter, searchQuery, threads]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -94,7 +128,11 @@ export function MessagesSidebar({
         onComposeClick={onOpenNewMessageModal}
       />
 
-      <MessagesSearchBar />
+      <MessagesSearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search conversations"
+      />
 
       <MessagesFilterTabs
         filters={filters}
@@ -103,7 +141,38 @@ export function MessagesSidebar({
       />
 
       <div className="mt-4 space-y-2">
-        {messageThreads.map((thread) => {
+        {isLoading
+          ? Array.from({ length: 5 }).map((_, index) => (
+              <div
+                key={`thread-skeleton-${index}`}
+                className="animate-pulse rounded-xl border border-transparent bg-white/70 px-3 py-3"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="h-11 w-11 rounded-full bg-[var(--accent-soft)]" />
+                  <div className="min-w-0 flex-1">
+                    <div className="h-4 w-1/2 rounded bg-[var(--accent-soft)]" />
+                    <div className="mt-2 h-3 w-5/6 rounded bg-[var(--accent-soft)]/80" />
+                  </div>
+                </div>
+              </div>
+            ))
+          : null}
+
+        {!isLoading && isError ? (
+          <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
+            We could not load conversations right now.
+          </div>
+        ) : null}
+
+        {!isLoading && !isError && filteredThreads.length === 0 ? (
+          <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
+            {threads.length === 0
+              ? "No conversations yet. Start one from the compose button when user search is ready."
+              : "No conversations match this filter."}
+          </div>
+        ) : null}
+
+        {filteredThreads.map((thread) => {
           const isActive = thread.id === activeThreadId;
           const isMenuOpen = openMenuThreadId === thread.id;
 

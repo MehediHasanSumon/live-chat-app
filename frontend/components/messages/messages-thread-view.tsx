@@ -1,4 +1,4 @@
-import { threadMessages, type MessageThread } from "@/lib/messages-data";
+import { getPlaceholderMessages, type MessageThread } from "@/lib/messages-data";
 import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
 import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
@@ -14,7 +14,7 @@ export function MessagesThreadView({
   isInfoSidebarOpen,
   onToggleInfoSidebar,
 }: MessagesThreadViewProps) {
-  const messages = threadMessages[thread.id] ?? [];
+  const messages = getPlaceholderMessages(thread);
 
   return (
     <section className="flex h-full min-h-0 w-full flex-col bg-white/60">

@@ -1,7 +1,4 @@
-import { notFound } from "next/navigation";
-
-import { MessagesThreadLayout } from "@/components/messages/messages-thread-layout";
-import { messageThreads } from "@/lib/messages-data";
+import { MessagesThreadPage } from "@/components/messages/messages-thread-page";
 
 type ThreadPageProps = {
   params: Promise<{
@@ -11,11 +8,6 @@ type ThreadPageProps = {
 
 export default async function ThreadPage({ params }: ThreadPageProps) {
   const { threadid } = await params;
-  const thread = messageThreads.find((item) => item.id === threadid);
 
-  if (!thread) {
-    notFound();
-  }
-
-  return <MessagesThreadLayout thread={thread} />;
+  return <MessagesThreadPage threadId={threadid} />;
 }
