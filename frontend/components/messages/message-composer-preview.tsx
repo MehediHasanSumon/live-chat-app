@@ -3,15 +3,10 @@
 import Image from "next/image";
 import { FileText, X } from "lucide-react";
 
-export type ComposerAttachment = {
-  id: string;
-  file: File;
-  kind: "image" | "file";
-  previewUrl?: string;
-};
+import { type ComposerAttachmentInput } from "@/lib/messages-data";
 
 type MessageComposerPreviewProps = {
-  attachments: ComposerAttachment[];
+  attachments: ComposerAttachmentInput[];
   onRemove: (id: string) => void;
 };
 

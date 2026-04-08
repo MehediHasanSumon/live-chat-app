@@ -1,0 +1,54 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\URL;
+
+class StorageObjectResource extends JsonResource
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'object_uuid' => $this->object_uuid,
+            'owner_user_id' => $this->owner_user_id,
+            'purpose' => $this->purpose,
+            'media_kind' => $this->media_kind,
+            'storage_driver' => $this->storage_driver,
+            'original_name' => $this->original_name,
+            'mime_type' => $this->mime_type,
+            'file_ext' => $this->file_ext,
+            'size_bytes' => $this->size_bytes,
+            'checksum_sha256' => $this->checksum_sha256,
+            'width' => $this->width,
+            'height' => $this->height,
+            'duration_ms' => $this->duration_ms,
+            'waveform_json' => $this->waveform_json,
+            'thumbnail_path' => $this->thumbnail_path,
+            'preview_blurhash' => $this->preview_blurhash,
+            'virus_scan_status' => $this->virus_scan_status,
+            'transcode_status' => $this->transcode_status,
+            'ref_count' => $this->ref_count,
+            'first_attached_at' => $this->first_attached_at,
+            'last_attached_at' => $this->last_attached_at,
+            'retention_mode' => $this->retention_mode,
+            'delete_eligible_at' => $this->delete_eligible_at,
+            'deleted_at' => $this->deleted_at,
+            'deleted_reason' => $this->deleted_reason,
+            'download_url' => $this->deleted_at
+                ? null
+                : URL::temporarySignedRoute(
+                    'files.download',
+                    now()->addMinutes(config('uploads.signed_download_ttl_minutes')),
+                    ['objectUuid' => $this->object_uuid],
+                ),
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+        ];
+    }
+}
