@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\Domain\ConversationMessageCreated;
+use App\Events\Domain\ConversationMessageDeleted;
+use App\Events\Domain\ConversationMessageUpdated;
 use App\Http\Requests\Message\DeleteMessageRequest;
 use App\Http\Requests\Message\ForwardMessageRequest;
 use App\Http\Requests\Message\StoreTextMessageRequest;
@@ -60,6 +63,10 @@ class MessageController extends Controller
             ], 422);
         }
 
+        if ($result['created']) {
+            event(new ConversationMessageCreated($result['message']));
+        }
+
         return response()->json([
             'data' => (new MessageResource($result['message']))->resolve($request),
         ], $result['created'] ? 201 : 200);
@@ -81,6 +88,8 @@ class MessageController extends Controller
                 ],
             ], 422);
         }
+
+        event(new ConversationMessageUpdated($updatedMessage));
 
         return response()->json([
             'data' => (new MessageResource($updatedMessage))->resolve($request),
@@ -114,6 +123,8 @@ class MessageController extends Controller
             ], 422);
         }
 
+        event(new ConversationMessageDeleted($updatedMessage));
+
         return response()->json([
             'data' => (new MessageResource($updatedMessage))->resolve($request),
         ]);
@@ -137,6 +148,10 @@ class MessageController extends Controller
                     'target_conversation_id' => [$exception->getMessage()],
                 ],
             ], 422);
+        }
+
+        if ($result['created']) {
+            event(new ConversationMessageCreated($result['message']));
         }
 
         return response()->json([

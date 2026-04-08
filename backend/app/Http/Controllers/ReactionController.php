@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\Domain\ConversationReactionChanged;
 use App\Http\Requests\Message\StoreReactionRequest;
 use App\Http\Resources\MessageReactionResource;
 use App\Models\Message;
@@ -24,6 +25,12 @@ class ReactionController extends Controller
             $request->string('emoji')->toString(),
         );
 
+        event(new ConversationReactionChanged(
+            $message->loadMissing('conversation'),
+            $result['created'] ? 'added' : 'existing',
+            $request->string('emoji')->toString(),
+        ));
+
         return response()->json([
             'data' => (new MessageReactionResource($result['reaction']))->resolve($request),
         ], $result['created'] ? 201 : 200);
@@ -36,6 +43,14 @@ class ReactionController extends Controller
             $request->user()->getKey(),
             $emoji,
         );
+
+        if ($deleted) {
+            event(new ConversationReactionChanged(
+                $message->loadMissing('conversation'),
+                'removed',
+                $emoji,
+            ));
+        }
 
         return response()->json([
             'data' => [

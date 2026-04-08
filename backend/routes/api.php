@@ -6,6 +6,7 @@ use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\AdminStoragePolicyController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MeController;
+use App\Http\Controllers\RealtimeController;
 use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\WebAuthController;
@@ -30,6 +31,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::patch('/conversations/{conversation}/mute', [ConversationController::class, 'mute']);
     Route::post('/conversations/{conversation}/read', [ConversationController::class, 'markRead']);
     Route::post('/conversations/{conversation}/messages/text', [MessageController::class, 'storeText']);
+    Route::post('/conversations/{conversation}/typing', [RealtimeController::class, 'startTyping']);
+    Route::delete('/conversations/{conversation}/typing', [RealtimeController::class, 'stopTyping']);
 
     Route::post('/groups', [GroupController::class, 'store']);
     Route::patch('/groups/{conversation}', [GroupController::class, 'update']);
@@ -41,6 +44,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::delete('/messages/{message}/reactions/{emoji}', [ReactionController::class, 'destroy']);
     Route::post('/uploads', [UploadController::class, 'store']);
     Route::post('/uploads/{storageObject}/attach', [UploadController::class, 'attach']);
+    Route::post('/presence/heartbeat', [RealtimeController::class, 'heartbeat']);
 
     Route::post('/livekit/token', [LiveKitController::class, 'token']);
     Route::post('/livekit/rooms', [LiveKitController::class, 'createRoom']);
