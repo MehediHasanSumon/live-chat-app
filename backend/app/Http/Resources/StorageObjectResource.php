@@ -40,6 +40,9 @@ class StorageObjectResource extends JsonResource
             'delete_eligible_at' => $this->delete_eligible_at,
             'deleted_at' => $this->deleted_at,
             'deleted_reason' => $this->deleted_reason,
+            'is_expired' => $this->deleted_at !== null,
+            'placeholder_text' => $this->deleted_at ? 'File expired / removed by storage policy' : null,
+            'display_name' => $this->deleted_at ? 'File expired / removed by storage policy' : $this->original_name,
             'download_url' => $this->deleted_at
                 ? null
                 : URL::temporarySignedRoute(

@@ -3,6 +3,7 @@
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LiveKitController;
+use App\Http\Controllers\AdminStoragePolicyController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MeController;
 use App\Http\Controllers\ReactionController;
@@ -44,6 +45,14 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/livekit/token', [LiveKitController::class, 'token']);
     Route::post('/livekit/rooms', [LiveKitController::class, 'createRoom']);
     Route::get('/livekit/rooms', [LiveKitController::class, 'listRooms']);
+
+    Route::get('/admin/storage/policy', [AdminStoragePolicyController::class, 'showPolicy']);
+    Route::patch('/admin/storage/policy', [AdminStoragePolicyController::class, 'updatePolicy']);
+    Route::get('/admin/storage/usage', [AdminStoragePolicyController::class, 'usage']);
+    Route::post('/admin/storage/cleanup/preview', [AdminStoragePolicyController::class, 'previewCleanup']);
+    Route::post('/admin/storage/cleanup/run', [AdminStoragePolicyController::class, 'runCleanup']);
+    Route::post('/admin/storage/objects/{storageObject}/exempt', [AdminStoragePolicyController::class, 'exempt']);
+    Route::delete('/admin/storage/objects/{storageObject}/exempt', [AdminStoragePolicyController::class, 'removeExemption']);
 });
 
 Route::post('/webhooks/livekit', [LiveKitController::class, 'webhook']);

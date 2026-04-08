@@ -5,6 +5,7 @@ import { ReactNode, useState } from "react";
 
 import { AuthQuerySync } from "@/components/providers/auth-query-sync";
 import { NavigationProgress } from "@/components/providers/navigation-progress";
+import { ReverbProvider } from "@/components/providers/reverb-provider";
 
 type AppProvidersProps = {
   children: ReactNode;
@@ -28,6 +29,7 @@ export function AppProviders({ children }: AppProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <NavigationProgress />
       <AuthQuerySync />
+      <ReverbProvider />
       {children}
     </QueryClientProvider>
   );
