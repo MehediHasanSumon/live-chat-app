@@ -87,22 +87,6 @@ class WebAuthController extends Controller
         return response()->noContent();
     }
 
-    public function me(Request $request): AuthenticatedUserResource
-    {
-        $user = $request->user();
-
-        UserSetting::query()->firstOrCreate(
-            ['user_id' => $user->getKey()],
-            ['updated_at' => now()]
-        );
-
-        $user->forceFill([
-            'last_seen_at' => now(),
-        ])->save();
-
-        return new AuthenticatedUserResource($user->fresh(['settings']));
-    }
-
     protected function throwJsonValidationException(string $field, string $message): never
     {
         $exception = ValidationException::withMessages([

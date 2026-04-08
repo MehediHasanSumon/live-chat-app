@@ -89,6 +89,27 @@ it('rejects invalid web login credentials', function () {
     $this->assertGuest('web');
 });
 
+it('rate limits repeated login attempts', function () {
+    User::factory()->create([
+        'username' => 'sumon',
+        'password_hash' => Hash::make('secret-123'),
+    ]);
+
+    foreach (range(1, 5) as $attempt) {
+        $response = $this->post('/login', [
+            'login' => 'sumon',
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertUnprocessable();
+    }
+
+    $this->post('/login', [
+        'login' => 'sumon',
+        'password' => 'wrong-password',
+    ])->assertTooManyRequests();
+});
+
 it('returns the authenticated web user from api me', function () {
     $user = User::factory()->create();
     UserSetting::query()->create([

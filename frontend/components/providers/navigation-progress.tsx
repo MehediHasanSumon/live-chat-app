@@ -18,8 +18,14 @@ export function NavigationProgress() {
   const navigationStartedAtRef = useRef(0);
   const progressTimerRef = useRef<number | null>(null);
   const finishTimerRef = useRef<number | null>(null);
+  const startTimerRef = useRef<number | null>(null);
 
   function clearTimers() {
+    if (startTimerRef.current) {
+      window.clearTimeout(startTimerRef.current);
+      startTimerRef.current = null;
+    }
+
     if (progressTimerRef.current) {
       window.clearInterval(progressTimerRef.current);
       progressTimerRef.current = null;
@@ -62,6 +68,17 @@ export function NavigationProgress() {
       }, 160);
     }
 
+    function scheduleStartNavigation() {
+      if (startTimerRef.current || isNavigatingRef.current) {
+        return;
+      }
+
+      startTimerRef.current = window.setTimeout(() => {
+        startTimerRef.current = null;
+        startNavigation();
+      }, 0);
+    }
+
     function handlePointerDown(event: PointerEvent) {
       if (isModifiedEvent(event)) {
         return;
@@ -99,19 +116,19 @@ export function NavigationProgress() {
     }
 
     function handleHistoryNavigation() {
-      startNavigation();
+      scheduleStartNavigation();
     }
 
     const originalPushState = window.history.pushState;
     const originalReplaceState = window.history.replaceState;
 
     window.history.pushState = function pushState(...args) {
-      startNavigation();
+      scheduleStartNavigation();
       return originalPushState.apply(this, args);
     };
 
     window.history.replaceState = function replaceState(...args) {
-      startNavigation();
+      scheduleStartNavigation();
       return originalReplaceState.apply(this, args);
     };
 
