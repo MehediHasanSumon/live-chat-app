@@ -47,7 +47,7 @@ export type ConversationApiItem = {
   members?: ConversationMembership[];
 };
 
-export type ConversationThread = {
+export type MessageThread = {
   id: string;
   numericId: number;
   name: string;
@@ -90,6 +90,8 @@ export type StorageObjectApiItem = {
   deleted_at: string | null;
   deleted_reason: string | null;
   download_url: string | null;
+  is_expired?: boolean;
+  placeholder_text?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -103,6 +105,21 @@ export type MessageAttachmentApiItem = {
   display_order: number;
   created_at: string | null;
   storage_object?: StorageObjectApiItem;
+  message?: {
+    id: number;
+    sender_id: number;
+    created_at: string;
+    sender?: ConversationUser | null;
+  };
+};
+
+export type MessageReactionApiItem = {
+  id: number;
+  message_id: number;
+  user_id: number;
+  emoji: string;
+  created_at: string | null;
+  user?: ConversationUser | null;
 };
 
 export type MessageApiItem = {
@@ -116,6 +133,14 @@ export type MessageApiItem = {
   text_body: string | null;
   display_text: string | null;
   reply_to_message_id: number | null;
+  reply_to?: {
+    id: number;
+    sender_id: number;
+    type: string;
+    text_body: string | null;
+    created_at: string;
+    sender?: ConversationUser | null;
+  } | null;
   quote_snapshot_json: Record<string, unknown> | null;
   forwarded_from_message_id: number | null;
   forwarded_from_conversation_id: number | null;
@@ -131,6 +156,7 @@ export type MessageApiItem = {
   can_edit: boolean;
   can_unsend: boolean;
   sender?: ConversationUser | null;
+  reactions?: MessageReactionApiItem[];
   attachments?: MessageAttachmentApiItem[];
 };
 
@@ -141,20 +167,52 @@ export type ComposerAttachmentInput = {
   previewUrl?: string;
 };
 
+export type ComposerVoiceInput = {
+  id: string;
+  file: File;
+  durationMs: number;
+};
+
+export type ComposerGifInput = {
+  url: string;
+  title?: string;
+  previewUrl?: string;
+  provider?: string;
+};
+
+export type ChatReaction = {
+  emoji: string;
+  count: number;
+  userIds: number[];
+};
+
 export type ChatMessage = {
   id: string;
+  numericId: number;
   sender: "me" | "other";
+  senderId: number;
   body: string;
   time: string;
   senderName?: string;
   isEdited?: boolean;
   isDeletedForEveryone?: boolean;
+  isForwarded?: boolean;
+  canEdit?: boolean;
+  canUnsend?: boolean;
+  quote?: {
+    senderName?: string;
+    text: string;
+  } | null;
+  gifUrl?: string | null;
+  reactions?: ChatReaction[];
   attachments?: {
     id: string;
     name: string;
     mimeType: string;
     sizeBytes: number;
     downloadUrl: string | null;
+    isExpired: boolean;
+    placeholderText: string | null;
   }[];
 };
 
@@ -164,6 +222,8 @@ export type ThreadMediaItem = {
   title: string;
   preview?: string;
   meta?: string;
+  downloadUrl?: string | null;
+  isExpired?: boolean;
 };
 
 function formatRelativeTime(value: string | null): string {
@@ -203,7 +263,7 @@ function buildConversationHandle(conversation: ConversationApiItem): string {
   return otherMember?.username ? `@${otherMember.username}` : `@conversation-${conversation.id}`;
 }
 
-export function toConversationThread(conversation: ConversationApiItem): ConversationThread {
+export function toConversationThread(conversation: ConversationApiItem): MessageThread {
   return {
     id: String(conversation.id),
     numericId: conversation.id,
@@ -223,33 +283,67 @@ export function toConversationThread(conversation: ConversationApiItem): Convers
   };
 }
 
-export function getPlaceholderMedia(thread: ConversationThread): ThreadMediaItem[] {
-  return [
-    {
-      id: `${thread.id}-media-1`,
-      type: "media",
-      title: `${thread.name} preview`,
-      preview: thread.name.slice(0, 2).toUpperCase(),
-      meta: "Image",
-    },
-    {
-      id: `${thread.id}-file-1`,
-      type: "file",
-      title: `${thread.handle.replace(/[^a-z0-9#@-]/gi, "")}-notes.txt`,
-      meta: "14 KB",
-    },
-  ];
+export function toThreadMediaItems(items: MessageAttachmentApiItem[]): ThreadMediaItem[] {
+  return items.map((item) => ({
+    id: String(item.id),
+    type: item.storage_object?.media_kind === "file" ? "file" : "media",
+    title: item.storage_object?.original_name ?? `Attachment #${item.storage_object_id}`,
+    preview: item.storage_object?.media_kind === "image" || item.storage_object?.media_kind === "gif"
+      ? item.storage_object.original_name.slice(0, 2).toUpperCase()
+      : undefined,
+    meta: item.storage_object
+      ? `${Math.max(1, Math.round(item.storage_object.size_bytes / 1024))} KB`
+      : undefined,
+    downloadUrl: item.storage_object?.download_url ?? null,
+    isExpired: Boolean(item.storage_object?.deleted_at),
+  }));
 }
 
 export function toChatMessage(message: MessageApiItem, authUserId?: number | null): ChatMessage {
+  const reactionsMap = new Map<string, ChatReaction>();
+
+  message.reactions?.forEach((reaction) => {
+    const current = reactionsMap.get(reaction.emoji) ?? {
+      emoji: reaction.emoji,
+      count: 0,
+      userIds: [],
+    };
+
+    current.count += 1;
+    current.userIds.push(reaction.user_id);
+    reactionsMap.set(reaction.emoji, current);
+  });
+
   return {
     id: String(message.id),
+    numericId: message.id,
     sender: authUserId !== undefined && authUserId !== null && message.sender_id === authUserId ? "me" : "other",
+    senderId: message.sender_id,
     body: message.display_text ?? message.text_body ?? "Unsupported message",
     time: formatRelativeTime(message.created_at),
     senderName: message.sender?.name ?? undefined,
     isEdited: message.is_edited,
     isDeletedForEveryone: Boolean(message.deleted_for_everyone_at),
+    isForwarded: Boolean(message.forwarded_from_message_id),
+    canEdit: message.can_edit,
+    canUnsend: message.can_unsend,
+    quote: message.quote_snapshot_json
+      ? {
+          senderName:
+            typeof message.quote_snapshot_json.sender_name === "string"
+              ? message.quote_snapshot_json.sender_name
+              : undefined,
+          text:
+            typeof message.quote_snapshot_json.text_body === "string"
+              ? message.quote_snapshot_json.text_body
+              : "Quoted message",
+        }
+      : null,
+    gifUrl:
+      message.type === "gif" && typeof message.metadata_json?.url === "string"
+        ? message.metadata_json.url
+        : null,
+    reactions: Array.from(reactionsMap.values()),
     attachments:
       message.attachments?.map((attachment) => ({
         id: String(attachment.id),
@@ -257,6 +351,8 @@ export function toChatMessage(message: MessageApiItem, authUserId?: number | nul
         mimeType: attachment.storage_object?.mime_type ?? "application/octet-stream",
         sizeBytes: attachment.storage_object?.size_bytes ?? 0,
         downloadUrl: attachment.storage_object?.download_url ?? null,
+        isExpired: Boolean(attachment.storage_object?.deleted_at),
+        placeholderText: attachment.storage_object?.placeholder_text ?? null,
       })) ?? [],
   };
 }

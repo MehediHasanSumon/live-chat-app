@@ -7,7 +7,10 @@ use App\Events\Domain\ConversationMessageDeleted;
 use App\Events\Domain\ConversationMessageUpdated;
 use App\Http\Requests\Message\DeleteMessageRequest;
 use App\Http\Requests\Message\ForwardMessageRequest;
+use App\Http\Requests\Message\StoreGifMessageRequest;
+use App\Http\Requests\Message\StoreMediaMessageRequest;
 use App\Http\Requests\Message\StoreTextMessageRequest;
+use App\Http\Requests\Message\StoreVoiceMessageRequest;
 use App\Http\Requests\Message\UpdateMessageRequest;
 use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
@@ -64,6 +67,84 @@ class MessageController extends Controller
                 ],
             ], 422);
         }
+
+        if ($result['created']) {
+            event(new ConversationMessageCreated($result['message']));
+            $this->notificationService->queueMessagePush($result['message']);
+        }
+
+        return response()->json([
+            'data' => (new MessageResource($result['message']))->resolve($request),
+        ], $result['created'] ? 201 : 200);
+    }
+
+    public function storeVoice(StoreVoiceMessageRequest $request, Conversation $conversation): JsonResponse
+    {
+        try {
+            $result = $this->messageService->sendVoice(
+                $conversation,
+                $request->user()->getKey(),
+                (int) $request->integer('storage_object_id'),
+                (int) $request->integer('duration_ms'),
+                $request->input('waveform'),
+                $request->input('client_uuid'),
+            );
+        } catch (InvalidArgumentException $exception) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => [
+                    'storage_object_id' => [$exception->getMessage()],
+                ],
+            ], 422);
+        }
+
+        if ($result['created']) {
+            event(new ConversationMessageCreated($result['message']));
+            $this->notificationService->queueMessagePush($result['message']);
+        }
+
+        return response()->json([
+            'data' => (new MessageResource($result['message']))->resolve($request),
+        ], $result['created'] ? 201 : 200);
+    }
+
+    public function storeMedia(StoreMediaMessageRequest $request, Conversation $conversation): JsonResponse
+    {
+        try {
+            $result = $this->messageService->sendMedia(
+                $conversation,
+                $request->user()->getKey(),
+                $request->array('storage_object_ids'),
+                $request->input('caption'),
+                $request->input('client_uuid'),
+            );
+        } catch (InvalidArgumentException $exception) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => [
+                    'storage_object_ids' => [$exception->getMessage()],
+                ],
+            ], 422);
+        }
+
+        if ($result['created']) {
+            event(new ConversationMessageCreated($result['message']));
+            $this->notificationService->queueMessagePush($result['message']);
+        }
+
+        return response()->json([
+            'data' => (new MessageResource($result['message']))->resolve($request),
+        ], $result['created'] ? 201 : 200);
+    }
+
+    public function storeGif(StoreGifMessageRequest $request, Conversation $conversation): JsonResponse
+    {
+        $result = $this->messageService->sendGif(
+            $conversation,
+            $request->user()->getKey(),
+            $request->array('gif_meta'),
+            $request->input('client_uuid'),
+        );
 
         if ($result['created']) {
             event(new ConversationMessageCreated($result['message']));

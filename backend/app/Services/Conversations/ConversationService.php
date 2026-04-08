@@ -4,6 +4,7 @@ namespace App\Services\Conversations;
 
 use App\Models\Conversation;
 use App\Models\ConversationMember;
+use App\Models\MessageAttachment;
 use App\Services\Privacy\PrivacyService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -189,6 +190,45 @@ class ConversationService
         ])->save();
 
         return $this->loadConversationForUser($conversation, $userId);
+    }
+
+    public function setScheduledNotifications(Conversation $conversation, int $userId, array $payload): Conversation
+    {
+        $membership = $this->conversationMemberService->requireActiveMembership($conversation, $userId);
+        $membership->forceFill([
+            'notifications_mode' => $payload['notifications_mode'],
+            'notification_schedule_json' => $payload['notification_schedule_json'] ?? null,
+        ])->save();
+
+        return $this->loadConversationForUser($conversation, $userId);
+    }
+
+    public function listSharedAttachments(Conversation $conversation, int $userId, string $kind, int $limit = 50): Collection
+    {
+        $this->conversationMemberService->requireActiveMembership($conversation, $userId);
+
+        $mediaKinds = $kind === 'media'
+            ? ['image', 'video', 'voice', 'gif']
+            : ['file'];
+
+        return MessageAttachment::query()
+            ->where('conversation_id', $conversation->getKey())
+            ->whereHas('storageObject', function ($builder) use ($mediaKinds): void {
+                $builder
+                    ->whereNull('deleted_at')
+                    ->whereIn('media_kind', $mediaKinds);
+            })
+            ->whereHas('message', function ($builder) use ($userId): void {
+                $builder
+                    ->whereNull('deleted_for_everyone_at')
+                    ->whereDoesntHave('hiddenForUsers', function ($hiddenBuilder) use ($userId): void {
+                        $hiddenBuilder->where('user_id', $userId);
+                    });
+            })
+            ->with(['storageObject', 'message.sender'])
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
     }
 
     protected function directKey(int $leftUserId, int $rightUserId): string

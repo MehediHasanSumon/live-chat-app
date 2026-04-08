@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Conversation\MarkConversationReadRequest;
 use App\Http\Requests\Conversation\StoreDirectConversationRequest;
+use App\Http\Requests\Conversation\UpdateConversationNotificationScheduleRequest;
 use App\Http\Requests\Conversation\UpdateConversationMuteRequest;
 use App\Http\Resources\ConversationResource;
+use App\Http\Resources\MessageAttachmentResource;
 use App\Models\Conversation;
 use App\Services\Conversations\ConversationService;
 use Illuminate\Http\JsonResponse;
@@ -119,6 +121,49 @@ class ConversationController extends Controller
                     (int) $request->integer('last_seq')
                 )
             ),
+        ]);
+    }
+
+    public function updateNotificationSchedule(
+        UpdateConversationNotificationScheduleRequest $request,
+        Conversation $conversation,
+    ): JsonResponse {
+        return response()->json([
+            'data' => new ConversationResource(
+                $this->conversationService->setScheduledNotifications(
+                    $conversation,
+                    $request->user()->getKey(),
+                    $request->validated(),
+                )
+            ),
+        ]);
+    }
+
+    public function sharedMedia(Request $request, Conversation $conversation): JsonResponse
+    {
+        return response()->json([
+            'data' => MessageAttachmentResource::collection(
+                $this->conversationService->listSharedAttachments(
+                    $conversation,
+                    $request->user()->getKey(),
+                    'media',
+                    max(1, min((int) $request->integer('limit', 50), 100)),
+                )
+            )->resolve(),
+        ]);
+    }
+
+    public function sharedFiles(Request $request, Conversation $conversation): JsonResponse
+    {
+        return response()->json([
+            'data' => MessageAttachmentResource::collection(
+                $this->conversationService->listSharedAttachments(
+                    $conversation,
+                    $request->user()->getKey(),
+                    'file',
+                    max(1, min((int) $request->integer('limit', 50), 100)),
+                )
+            )->resolve(),
         ]);
     }
 }

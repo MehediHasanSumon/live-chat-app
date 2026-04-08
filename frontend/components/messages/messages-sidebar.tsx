@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   Archive,
@@ -41,24 +42,27 @@ const threadMenuItems = [
   { label: "Delete chat", icon: Trash2 },
 ];
 
-const sidebarMenuItems = [
-  { label: "Message requests", icon: Inbox },
-  { label: "Archived chats", icon: Archive },
-  { label: "Blocked accounts", icon: ShieldBan },
-];
-
 export function MessagesSidebar({
   activeThreadId,
   onOpenMuteModal,
   onOpenConfirmation,
   onOpenNewMessageModal,
 }: MessagesSidebarProps) {
+  const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [openMenuThreadId, setOpenMenuThreadId] = useState<string | null>(null);
   const [isSidebarMenuOpen, setIsSidebarMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement | null>(null);
   const { data: conversations = [], isLoading, isError } = useConversationsQuery();
+  const sidebarMenuItems = useMemo(
+    () => [
+      { label: "Message requests", icon: Inbox, onClick: () => router.push("/messages/requests") },
+      { label: "Settings", icon: Bell, onClick: () => router.push("/settings") },
+      { label: "Admin ops", icon: ShieldBan, onClick: () => router.push("/admin/ops") },
+    ],
+    [router],
+  );
 
   const threads = useMemo(
     () => conversations.map((conversation) => toConversationThread(conversation)),

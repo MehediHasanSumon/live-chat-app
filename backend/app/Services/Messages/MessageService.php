@@ -5,8 +5,10 @@ namespace App\Services\Messages;
 use App\Models\Conversation;
 use App\Models\ConversationMember;
 use App\Models\Message;
+use App\Models\MessageAttachment;
 use App\Models\MessageEdit;
 use App\Models\MessageHiddenForUser;
+use App\Models\StorageObject;
 use App\Services\Conversations\ConversationMemberService;
 use App\Services\Privacy\PrivacyService;
 use Illuminate\Database\Eloquent\Collection;
@@ -102,6 +104,159 @@ class MessageService
             $this->incrementUnreadCounts($lockedConversation->id, $senderId);
 
             return $message;
+        });
+
+        return [
+            'message' => $this->loadMessage($message),
+            'created' => true,
+        ];
+    }
+
+    /**
+     * @param  array<int, float|int>|null  $waveform
+     * @return array{message: Message, created: bool}
+     */
+    public function sendVoice(
+        Conversation $conversation,
+        int $senderId,
+        int $storageObjectId,
+        int $durationMs,
+        ?array $waveform = null,
+        ?string $clientUuid = null,
+    ): array {
+        $this->conversationMemberService->requireActiveMembership($conversation, $senderId);
+        $this->privacyService->ensureChatAllowed($senderId, $conversation);
+
+        if ($clientUuid) {
+            $existing = $this->findExistingMessage($conversation->id, $senderId, $clientUuid);
+
+            if ($existing) {
+                return [
+                    'message' => $this->loadMessage($existing),
+                    'created' => false,
+                ];
+            }
+        }
+
+        $message = DB::transaction(function () use ($clientUuid, $conversation, $durationMs, $senderId, $storageObjectId, $waveform): Message {
+            $storageObject = $this->lockOwnedStorageObject($storageObjectId, $senderId);
+
+            if (! in_array($storageObject->media_kind, ['audio', 'voice'], true)) {
+                throw new InvalidArgumentException('Only audio uploads can be sent as a voice message.');
+            }
+
+            return $this->createMessageWithAttachments(
+                $conversation,
+                $senderId,
+                [
+                    'client_uuid' => $clientUuid,
+                    'type' => 'voice',
+                    'metadata_json' => [
+                        'duration_ms' => $durationMs,
+                        'waveform' => $waveform ?? [],
+                    ],
+                    'editable_until_at' => now()->addMinutes(15),
+                ],
+                [$storageObject],
+            );
+        });
+
+        return [
+            'message' => $this->loadMessage($message),
+            'created' => true,
+        ];
+    }
+
+    /**
+     * @param  array<int, int>  $storageObjectIds
+     * @return array{message: Message, created: bool}
+     */
+    public function sendMedia(
+        Conversation $conversation,
+        int $senderId,
+        array $storageObjectIds,
+        ?string $caption = null,
+        ?string $clientUuid = null,
+    ): array {
+        $this->conversationMemberService->requireActiveMembership($conversation, $senderId);
+        $this->privacyService->ensureChatAllowed($senderId, $conversation);
+
+        if ($clientUuid) {
+            $existing = $this->findExistingMessage($conversation->id, $senderId, $clientUuid);
+
+            if ($existing) {
+                return [
+                    'message' => $this->loadMessage($existing),
+                    'created' => false,
+                ];
+            }
+        }
+
+        $message = DB::transaction(function () use ($caption, $clientUuid, $conversation, $senderId, $storageObjectIds): Message {
+            $storageObjects = collect($storageObjectIds)
+                ->map(fn ($storageObjectId) => $this->lockOwnedStorageObject((int) $storageObjectId, $senderId));
+
+            $kinds = $storageObjects->pluck('media_kind')->unique()->values()->all();
+            $type = in_array('image', $kinds, true) && count($kinds) === 1
+                ? 'image'
+                : (in_array('video', $kinds, true) && count($kinds) === 1 ? 'video' : 'file');
+
+            return $this->createMessageWithAttachments(
+                $conversation,
+                $senderId,
+                [
+                    'client_uuid' => $clientUuid,
+                    'type' => $type,
+                    'text_body' => $caption ? trim($caption) : null,
+                    'editable_until_at' => now()->addMinutes(15),
+                ],
+                $storageObjects->all(),
+            );
+        });
+
+        return [
+            'message' => $this->loadMessage($message),
+            'created' => true,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $gifMeta
+     * @return array{message: Message, created: bool}
+     */
+    public function sendGif(
+        Conversation $conversation,
+        int $senderId,
+        array $gifMeta,
+        ?string $clientUuid = null,
+    ): array {
+        $this->conversationMemberService->requireActiveMembership($conversation, $senderId);
+        $this->privacyService->ensureChatAllowed($senderId, $conversation);
+
+        if ($clientUuid) {
+            $existing = $this->findExistingMessage($conversation->id, $senderId, $clientUuid);
+
+            if ($existing) {
+                return [
+                    'message' => $this->loadMessage($existing),
+                    'created' => false,
+                ];
+            }
+        }
+
+        $message = DB::transaction(function () use ($clientUuid, $conversation, $gifMeta, $senderId): Message {
+            return $this->createMessageWithAttachments(
+                $conversation,
+                $senderId,
+                [
+                    'client_uuid' => $clientUuid,
+                    'type' => 'gif',
+                    'metadata_json' => $gifMeta,
+                    'text_body' => $gifMeta['title'] ?? 'GIF',
+                    'editable_until_at' => now()->addMinutes(15),
+                ],
+                [],
+            );
         });
 
         return [
@@ -330,7 +485,7 @@ class MessageService
             return 'Message unsent';
         }
 
-        if ($message->type === 'text') {
+        if (in_array($message->type, ['text', 'gif'], true) && $message->text_body) {
             return Str::limit((string) $message->text_body, 255);
         }
 
@@ -382,5 +537,84 @@ class MessageService
             'reactions.user',
             'attachments.storageObject',
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @param  array<int, StorageObject>  $storageObjects
+     */
+    protected function createMessageWithAttachments(
+        Conversation $conversation,
+        int $senderId,
+        array $attributes,
+        array $storageObjects,
+    ): Message {
+        $lockedConversation = Conversation::query()
+            ->whereKey($conversation->getKey())
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        $nextSeq = (int) $lockedConversation->last_message_seq + 1;
+
+        $message = Message::query()->create([
+            'conversation_id' => $lockedConversation->getKey(),
+            'seq' => $nextSeq,
+            'sender_id' => $senderId,
+            'client_uuid' => $attributes['client_uuid'] ?? null,
+            'type' => $attributes['type'],
+            'sub_type' => $attributes['sub_type'] ?? null,
+            'text_body' => $attributes['text_body'] ?? null,
+            'reply_to_message_id' => $attributes['reply_to_message_id'] ?? null,
+            'quote_snapshot_json' => $attributes['quote_snapshot_json'] ?? null,
+            'forwarded_from_message_id' => $attributes['forwarded_from_message_id'] ?? null,
+            'forwarded_from_conversation_id' => $attributes['forwarded_from_conversation_id'] ?? null,
+            'forwarded_from_user_id' => $attributes['forwarded_from_user_id'] ?? null,
+            'metadata_json' => $attributes['metadata_json'] ?? null,
+            'editable_until_at' => $attributes['editable_until_at'] ?? now()->addMinutes(15),
+        ]);
+
+        foreach ($storageObjects as $index => $storageObject) {
+            MessageAttachment::query()->create([
+                'message_id' => $message->getKey(),
+                'conversation_id' => $lockedConversation->getKey(),
+                'storage_object_id' => $storageObject->getKey(),
+                'uploader_user_id' => $senderId,
+                'display_order' => $index + 1,
+                'created_at' => now(),
+            ]);
+
+            $storageObject->forceFill([
+                'ref_count' => (int) $storageObject->ref_count + 1,
+                'first_attached_at' => $storageObject->first_attached_at ?? now(),
+                'last_attached_at' => now(),
+            ])->save();
+        }
+
+        $this->syncConversationAfterMessageMutation($lockedConversation, $message);
+        $this->incrementUnreadCounts($lockedConversation->id, $senderId);
+
+        return $message;
+    }
+
+    protected function lockOwnedStorageObject(int $storageObjectId, int $ownerUserId): StorageObject
+    {
+        $storageObject = StorageObject::query()
+            ->whereKey($storageObjectId)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        if ((int) $storageObject->owner_user_id !== $ownerUserId) {
+            throw new InvalidArgumentException('You may only send files that you uploaded.');
+        }
+
+        if ($storageObject->purpose !== 'message_attachment') {
+            throw new InvalidArgumentException('Only message attachments can be sent in messages.');
+        }
+
+        if ($storageObject->deleted_at !== null) {
+            throw new InvalidArgumentException('One or more selected files are no longer available.');
+        }
+
+        return $storageObject;
     }
 }

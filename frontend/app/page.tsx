@@ -41,6 +41,18 @@ async function handleLogout() {
               >
                 Storage admin
               </Link>
+              <Link
+                href="/admin/ops"
+                className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
+              >
+                Ops
+              </Link>
+              <Link
+                href="/settings"
+                className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
+              >
+                Settings
+              </Link>
               <Button onClick={handleLogout} disabled={logoutMutation.isPending} className="rounded-full px-5 py-2.5">
                 {logoutMutation.isPending ? "Signing out..." : "Logout"}
               </Button>

@@ -4,9 +4,10 @@ import { ApiClientError } from "@/lib/api-client";
 import { useStartCallMutation, useJoinCallMutation } from "@/lib/hooks/use-call-mutations";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationMessagesQuery } from "@/lib/hooks/use-conversation-messages-query";
-import { useSendMessageMutation } from "@/lib/hooks/use-message-mutations";
+import { useSendMessageMutation, useToggleReactionMutation } from "@/lib/hooks/use-message-mutations";
 import { toChatMessage, type MessageThread } from "@/lib/messages-data";
 import { useCallStore } from "@/lib/stores/call-store";
+import { useConversationRealtimeStore } from "@/lib/stores/conversation-realtime-store";
 import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
 import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
@@ -25,9 +26,11 @@ export function MessagesThreadView({
   const { data: authMe } = useAuthMeQuery(true);
   const { data: messages = [], isLoading, isError } = useConversationMessagesQuery(thread.id);
   const sendMessageMutation = useSendMessageMutation();
+  const toggleReactionMutation = useToggleReactionMutation(thread.id);
   const startCallMutation = useStartCallMutation();
   const joinCallMutation = useJoinCallMutation();
   const activeCall = useCallStore((state) => state.activeCall);
+  const typingUsers = useConversationRealtimeStore((state) => state.typingUsersByConversation[thread.id] ?? []);
 
   const mappedMessages = messages.map((message) => toChatMessage(message, authMe?.data.user.id));
 
@@ -78,6 +81,12 @@ export function MessagesThreadView({
       />
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+        {typingUsers.length > 0 ? (
+          <div className="rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 text-sm text-[var(--muted)]">
+            {typingUsers.map((user) => user.name).join(", ")} {typingUsers.length > 1 ? "are" : "is"} typing...
+          </div>
+        ) : null}
+
         {currentCallForThread ? (
           <div className="rounded-2xl border border-[rgba(96,91,255,0.14)] bg-[rgba(96,91,255,0.06)] px-4 py-3 text-sm text-[#575f86]">
             {currentCallForThread.token ? (
@@ -117,20 +126,35 @@ export function MessagesThreadView({
         ) : null}
 
         {mappedMessages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble
+            key={message.id}
+            message={message}
+            authUserId={authMe?.data.user.id ?? null}
+            onToggleReaction={(emoji, hasReacted) => {
+              void toggleReactionMutation.mutateAsync({
+                messageId: message.numericId,
+                emoji,
+                hasReacted,
+              });
+            }}
+            isReacting={toggleReactionMutation.isPending}
+          />
         ))}
       </div>
 
       <footer className="px-4 py-4 sm:px-6">
         <MessageComposer
           threadName={thread.name}
+          conversationId={thread.id}
           isSending={sendMessageMutation.isPending}
           errorMessage={composerErrorMessage}
-          onSend={async ({ text, attachments }) => {
+          onSend={async ({ text, attachments, voice, gif }) => {
             await sendMessageMutation.mutateAsync({
               conversationId: thread.id,
               text,
               attachments,
+              voice,
+              gif,
             });
           }}
         />

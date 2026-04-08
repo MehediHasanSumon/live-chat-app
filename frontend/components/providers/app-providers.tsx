@@ -7,6 +7,7 @@ import { AuthQuerySync } from "@/components/providers/auth-query-sync";
 import { CallDock } from "@/components/providers/call-dock";
 import { CallRoomOverlay } from "@/components/providers/call-room-overlay";
 import { CallRealtimeProvider } from "@/components/providers/call-realtime-provider";
+import { ConversationRealtimeProvider } from "@/components/providers/conversation-realtime-provider";
 import { NavigationProgress } from "@/components/providers/navigation-progress";
 import { ReverbProvider } from "@/components/providers/reverb-provider";
 
@@ -34,6 +35,7 @@ export function AppProviders({ children }: AppProvidersProps) {
       <AuthQuerySync />
       <ReverbProvider />
       <CallRealtimeProvider />
+      <ConversationRealtimeProvider />
       <CallDock />
       <CallRoomOverlay />
       {children}

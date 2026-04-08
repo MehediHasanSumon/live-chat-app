@@ -13,6 +13,16 @@ class MessageResource extends JsonResource
     public function toArray(Request $request): array
     {
         $actorId = $request->user()?->getKey();
+        $displayText = $this->deleted_for_everyone_at
+            ? 'Message unsent'
+            : match ($this->type) {
+                'voice' => 'Voice message',
+                'image' => $this->text_body ?: 'Shared photo',
+                'video' => $this->text_body ?: 'Shared video',
+                'file' => $this->text_body ?: 'Shared attachment',
+                'gif' => $this->text_body ?: 'GIF',
+                default => $this->text_body,
+            };
 
         return [
             'id' => $this->id,
@@ -23,7 +33,7 @@ class MessageResource extends JsonResource
             'type' => $this->type,
             'sub_type' => $this->sub_type,
             'text_body' => $this->deleted_for_everyone_at ? null : $this->text_body,
-            'display_text' => $this->deleted_for_everyone_at ? 'Message unsent' : $this->text_body,
+            'display_text' => $displayText,
             'reply_to_message_id' => $this->reply_to_message_id,
             'quote_snapshot_json' => $this->quote_snapshot_json,
             'forwarded_from_message_id' => $this->forwarded_from_message_id,

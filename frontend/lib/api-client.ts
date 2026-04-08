@@ -207,7 +207,7 @@ export const apiClient = {
       requiresCsrf: options.requiresCsrf ?? true,
     });
   },
-  delete<T>(path: string, options: Omit<ApiClientOptions, "method" | "body"> = {}) {
+  delete<T>(path: string, options: Omit<ApiClientOptions, "method"> = {}) {
     return request<T>(path, {
       ...options,
       method: "DELETE",

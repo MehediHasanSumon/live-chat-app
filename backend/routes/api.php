@@ -11,7 +11,9 @@ use App\Http\Controllers\MeController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\RealtimeController;
 use App\Http\Controllers\ReactionController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UploadController;
+use App\Http\Controllers\UserDirectoryController;
 use App\Http\Controllers\WebAuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -27,13 +29,19 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/conversations/direct', [ConversationController::class, 'storeDirect']);
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show']);
     Route::get('/conversations/{conversation}/messages', [MessageController::class, 'index']);
+    Route::get('/conversations/{conversation}/shared-media', [ConversationController::class, 'sharedMedia']);
+    Route::get('/conversations/{conversation}/shared-files', [ConversationController::class, 'sharedFiles']);
     Route::patch('/conversations/{conversation}/archive', [ConversationController::class, 'archive']);
     Route::patch('/conversations/{conversation}/unarchive', [ConversationController::class, 'unarchive']);
     Route::patch('/conversations/{conversation}/pin', [ConversationController::class, 'pin']);
     Route::patch('/conversations/{conversation}/unpin', [ConversationController::class, 'unpin']);
     Route::patch('/conversations/{conversation}/mute', [ConversationController::class, 'mute']);
+    Route::patch('/conversations/{conversation}/notifications/schedule', [ConversationController::class, 'updateNotificationSchedule']);
     Route::post('/conversations/{conversation}/read', [ConversationController::class, 'markRead']);
     Route::post('/conversations/{conversation}/messages/text', [MessageController::class, 'storeText']);
+    Route::post('/conversations/{conversation}/messages/voice', [MessageController::class, 'storeVoice']);
+    Route::post('/conversations/{conversation}/messages/media', [MessageController::class, 'storeMedia']);
+    Route::post('/conversations/{conversation}/messages/gif', [MessageController::class, 'storeGif']);
     Route::post('/conversations/{conversation}/typing', [RealtimeController::class, 'startTyping']);
     Route::delete('/conversations/{conversation}/typing', [RealtimeController::class, 'stopTyping']);
     Route::post('/conversations/{conversation}/calls/group/voice', [CallController::class, 'startGroup'])->defaults('mediaType', 'voice');
@@ -41,6 +49,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
     Route::post('/groups', [GroupController::class, 'store']);
     Route::patch('/groups/{conversation}', [GroupController::class, 'update']);
+    Route::post('/groups/{conversation}/members', [GroupController::class, 'addMembers']);
+    Route::delete('/groups/{conversation}/members/{user}', [GroupController::class, 'removeMember']);
+    Route::patch('/groups/{conversation}/members/{user}/role', [GroupController::class, 'changeRole']);
+    Route::post('/groups/{conversation}/leave', [GroupController::class, 'leave']);
 
     Route::get('/message-requests', [PrivacyController::class, 'messageRequests']);
     Route::post('/message-requests/{conversation}/accept', [PrivacyController::class, 'acceptMessageRequest']);
@@ -49,6 +61,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::delete('/users/{user}/block', [PrivacyController::class, 'unblock']);
     Route::post('/users/{user}/restrict', [PrivacyController::class, 'restrict']);
     Route::delete('/users/{user}/restrict', [PrivacyController::class, 'unrestrict']);
+    Route::get('/users/search', [UserDirectoryController::class, 'index']);
     Route::get('/users/{user}/presence', [PrivacyController::class, 'presence']);
 
     Route::patch('/messages/{message}', [MessageController::class, 'update']);
@@ -79,6 +92,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::delete('/admin/storage/objects/{storageObject}/exempt', [AdminStoragePolicyController::class, 'removeExemption']);
     Route::get('/admin/ops/health', [AdminOpsController::class, 'health']);
     Route::get('/admin/ops/status', [AdminOpsController::class, 'status']);
+    Route::patch('/settings/theme', [SettingsController::class, 'theme']);
+    Route::patch('/settings/presence', [SettingsController::class, 'presence']);
+    Route::patch('/settings/notifications', [SettingsController::class, 'notifications']);
+    Route::patch('/settings/quiet-hours', [SettingsController::class, 'quietHours']);
 });
 
 Route::post('/webhooks/livekit', [LiveKitController::class, 'webhook']);

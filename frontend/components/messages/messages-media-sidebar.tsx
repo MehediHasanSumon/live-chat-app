@@ -4,7 +4,8 @@ import { useState } from "react";
 
 import { ArrowLeft, FileText } from "lucide-react";
 
-import { getPlaceholderMedia, type MessageThread } from "@/lib/messages-data";
+import { useSharedFilesQuery, useSharedMediaQuery } from "@/lib/hooks/use-shared-attachments-query";
+import { toThreadMediaItems, type MessageThread } from "@/lib/messages-data";
 
 type MessagesMediaSidebarProps = {
   thread: MessageThread;
@@ -18,7 +19,10 @@ export function MessagesMediaSidebar({
   onBack,
 }: MessagesMediaSidebarProps) {
   const [activeTab, setActiveTab] = useState<"media" | "file">(initialTab);
-  const items = getPlaceholderMedia(thread).filter((item) => item.type === activeTab);
+  const { data: media = [], isLoading: isMediaLoading } = useSharedMediaQuery(thread.id, activeTab === "media");
+  const { data: files = [], isLoading: isFilesLoading } = useSharedFilesQuery(thread.id, activeTab === "file");
+  const items = activeTab === "media" ? toThreadMediaItems(media) : toThreadMediaItems(files);
+  const isLoading = activeTab === "media" ? isMediaLoading : isFilesLoading;
 
   return (
     <div className="surface h-full bg-[#fbfcff]">
@@ -55,24 +59,50 @@ export function MessagesMediaSidebar({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          {activeTab === "media" ? (
+          {isLoading ? (
+            <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
+              Loading {activeTab}...
+            </div>
+          ) : null}
+
+          {!isLoading && items.length === 0 ? (
+            <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
+              No shared {activeTab === "media" ? "media" : "files"} yet.
+            </div>
+          ) : null}
+
+          {!isLoading && activeTab === "media" ? (
             <div className="grid grid-cols-2 gap-3">
               {items.map((item) => (
-                <div
+                <a
                   key={item.id}
+                  href={item.downloadUrl ?? undefined}
+                  target="_blank"
+                  rel="noreferrer"
                   className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white"
                 >
                   <div className="flex aspect-square items-center justify-center bg-[var(--accent-soft)] text-2xl font-semibold text-[var(--accent)]">
                     {item.preview ?? "M"}
                   </div>
-                </div>
+                  <div className="px-3 py-2">
+                    <p className="truncate text-sm font-medium text-[var(--foreground)]">{item.title}</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      {item.isExpired ? "Expired file" : item.meta}
+                    </p>
+                  </div>
+                </a>
               ))}
             </div>
-          ) : (
+          ) : null}
+
+          {!isLoading && activeTab === "file" ? (
             <div className="space-y-3">
               {items.map((item) => (
-                <div
+                <a
                   key={item.id}
+                  href={item.downloadUrl ?? undefined}
+                  target="_blank"
+                  rel="noreferrer"
                   className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-white px-4 py-3"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
@@ -80,12 +110,14 @@ export function MessagesMediaSidebar({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{item.title}</p>
-                    <p className="mt-1 text-xs text-[var(--muted)]">{item.meta}</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      {item.isExpired ? "Expired file" : item.meta}
+                    </p>
                   </div>
-                </div>
+                </a>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
