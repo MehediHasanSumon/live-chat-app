@@ -126,4 +126,11 @@ return [
         'table' => 'failed_jobs',
     ],
 
+    'queues' => [
+        'high' => env('QUEUE_NAME_HIGH', 'high'),
+        'default' => env('QUEUE_NAME_DEFAULT', 'default'),
+        'notifications' => env('QUEUE_NAME_NOTIFICATIONS', 'notifications'),
+        'media' => env('QUEUE_NAME_MEDIA', 'media'),
+    ],
+
 ];

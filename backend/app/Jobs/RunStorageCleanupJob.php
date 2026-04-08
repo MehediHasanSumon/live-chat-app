@@ -15,6 +15,7 @@ class RunStorageCleanupJob implements ShouldQueue
         public ?int $actorId = null,
         public bool $dryRun = false,
     ) {
+        $this->onQueue((string) config('queue.queues.media', 'media'));
     }
 
     public function handle(StorageCleanupService $storageCleanupService): void

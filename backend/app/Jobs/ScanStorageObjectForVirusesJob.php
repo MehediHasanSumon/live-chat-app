@@ -15,6 +15,7 @@ class ScanStorageObjectForVirusesJob implements ShouldQueue
     public function __construct(
         public int $storageObjectId,
     ) {
+        $this->onQueue((string) config('queue.queues.media', 'media'));
     }
 
     public function handle(): void

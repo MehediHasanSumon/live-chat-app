@@ -5,6 +5,7 @@ use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\AdminStoragePolicyController;
+use App\Http\Controllers\AdminOpsController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MeController;
 use App\Http\Controllers\PrivacyController;
@@ -76,6 +77,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/admin/storage/cleanup/run', [AdminStoragePolicyController::class, 'runCleanup']);
     Route::post('/admin/storage/objects/{storageObject}/exempt', [AdminStoragePolicyController::class, 'exempt']);
     Route::delete('/admin/storage/objects/{storageObject}/exempt', [AdminStoragePolicyController::class, 'removeExemption']);
+    Route::get('/admin/ops/health', [AdminOpsController::class, 'health']);
+    Route::get('/admin/ops/status', [AdminOpsController::class, 'status']);
 });
 
 Route::post('/webhooks/livekit', [LiveKitController::class, 'webhook']);

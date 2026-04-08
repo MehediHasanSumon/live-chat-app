@@ -14,7 +14,7 @@ class DeliverNotificationOutboxJob implements ShouldQueue
     public function __construct(
         public int $notificationOutboxId,
     ) {
-        $this->onQueue('notifications');
+        $this->onQueue((string) config('queue.queues.notifications', 'notifications'));
     }
 
     public function handle(NotificationService $notificationService): void

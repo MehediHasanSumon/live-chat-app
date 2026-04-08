@@ -12,7 +12,7 @@ class DispatchScheduledNotificationDigestsJob implements ShouldQueue
 
     public function __construct()
     {
-        $this->onQueue('notifications');
+        $this->onQueue((string) config('queue.queues.notifications', 'notifications'));
     }
 
     public function handle(NotificationService $notificationService): void
