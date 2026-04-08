@@ -26,6 +26,8 @@ export function CallDock() {
   const { data: conversations = [] } = useConversationsQuery(Boolean(authMe?.data.user.id));
   const incomingCall = useCallStore((state) => state.incomingCall);
   const activeCall = useCallStore((state) => state.activeCall);
+  const isRoomOpen = useCallStore((state) => state.isRoomOpen);
+  const openRoom = useCallStore((state) => state.openRoom);
   const clearIncomingCall = useCallStore((state) => state.clearIncomingCall);
   const clearActiveCall = useCallStore((state) => state.clearActiveCall);
   const userId = authMe?.data.user.id ?? null;
@@ -36,7 +38,7 @@ export function CallDock() {
 
   const session = incomingCall ?? activeCall;
 
-  if (!session || !userId) {
+  if (!session || !userId || Boolean(activeCall?.token && isRoomOpen && !incomingCall)) {
     return null;
   }
 
@@ -93,7 +95,7 @@ export function CallDock() {
           </span>
         </div>
 
-        {activeCall?.token ? (
+          {activeCall?.token ? (
           <div className="mt-3 rounded-2xl border border-[var(--line)] bg-white/90 px-3 py-3 text-sm text-[#6b7395]">
             Token ready for room <span className="font-medium text-[#3b4260]">{session.callRoom.room_uuid.slice(0, 8)}</span>.
           </div>
@@ -158,6 +160,17 @@ export function CallDock() {
                 </button>
               ) : null}
             </>
+          ) : null}
+
+          {hasJoinToken ? (
+            <button
+              type="button"
+              onClick={openRoom}
+              className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-medium text-white shadow-[0_12px_24px_rgba(96,91,255,0.22)] transition hover:brightness-105"
+            >
+              <Video className="h-4 w-4" />
+              Resume room
+            </button>
           ) : null}
 
           <button

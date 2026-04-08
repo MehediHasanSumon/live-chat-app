@@ -17,10 +17,13 @@ type CallSession = {
 type CallStoreState = {
   incomingCall: CallSession | null;
   activeCall: CallSession | null;
+  isRoomOpen: boolean;
   receiveIncomingCall: (payload: CallSignalPayload) => void;
   syncCallState: (payload: CallSignalPayload) => void;
   setOutgoingCall: (callRoom: CallRoomApiItem) => void;
   setJoinedCall: (payload: JoinCallApiPayload, source?: CallSession["source"]) => void;
+  openRoom: () => void;
+  minimizeRoom: () => void;
   clearIncomingCall: () => void;
   clearActiveCall: () => void;
 };
@@ -41,6 +44,7 @@ function mergeSession(
 export const useCallStore = create<CallStoreState>((set) => ({
   incomingCall: null,
   activeCall: null,
+  isRoomOpen: false,
   receiveIncomingCall: ({ call_room }) =>
     set((state) => ({
       incomingCall: {
@@ -83,6 +87,7 @@ export const useCallStore = create<CallStoreState>((set) => ({
         publishMode: null,
         source: "outgoing",
       },
+      isRoomOpen: false,
     }),
   setJoinedCall: (payload, source = "synced") =>
     set({
@@ -93,7 +98,10 @@ export const useCallStore = create<CallStoreState>((set) => ({
         source,
       },
       incomingCall: null,
+      isRoomOpen: true,
     }),
+  openRoom: () => set({ isRoomOpen: true }),
+  minimizeRoom: () => set({ isRoomOpen: false }),
   clearIncomingCall: () => set({ incomingCall: null }),
-  clearActiveCall: () => set({ activeCall: null, incomingCall: null }),
+  clearActiveCall: () => set({ activeCall: null, incomingCall: null, isRoomOpen: false }),
 }));
