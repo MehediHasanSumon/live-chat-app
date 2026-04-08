@@ -11,6 +11,8 @@ class CallRoom extends Model
 {
     use HasFactory;
 
+    public const ACTIVE_STATUSES = ['initiated', 'ringing', 'active'];
+
     protected $guarded = [];
 
     protected function casts(): array
@@ -35,5 +37,10 @@ class CallRoom extends Model
     public function participants(): HasMany
     {
         return $this->hasMany(CallRoomParticipant::class);
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'room_uuid';
     }
 }

@@ -6,10 +6,12 @@ use App\Events\Domain\ConversationMessageCreated;
 use App\Events\Domain\ConversationMessageDeleted;
 use App\Events\Domain\ConversationMessageUpdated;
 use App\Events\Domain\ConversationReactionChanged;
+use App\Events\Domain\ConversationCallStateChanged;
 use App\Events\Domain\ConversationTypingStarted;
 use App\Events\Domain\ConversationTypingStopped;
 use App\Events\Domain\UserCallSignaled;
 use App\Events\Domain\UserNotificationDispatched;
+use App\Listeners\BroadcastConversationCallStateChanged;
 use App\Listeners\BroadcastConversationMessageCreated;
 use App\Listeners\BroadcastConversationMessageDeleted;
 use App\Listeners\BroadcastConversationMessageUpdated;
@@ -37,6 +39,9 @@ class EventServiceProvider extends ServiceProvider
         ],
         ConversationReactionChanged::class => [
             BroadcastConversationReactionChanged::class,
+        ],
+        ConversationCallStateChanged::class => [
+            BroadcastConversationCallStateChanged::class,
         ],
         ConversationTypingStarted::class => [
             BroadcastConversationTypingStarted::class,

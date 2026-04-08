@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CallController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LiveKitController;
@@ -33,6 +34,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/conversations/{conversation}/messages/text', [MessageController::class, 'storeText']);
     Route::post('/conversations/{conversation}/typing', [RealtimeController::class, 'startTyping']);
     Route::delete('/conversations/{conversation}/typing', [RealtimeController::class, 'stopTyping']);
+    Route::post('/conversations/{conversation}/calls/group/voice', [CallController::class, 'startGroup'])->defaults('mediaType', 'voice');
+    Route::post('/conversations/{conversation}/calls/group/video', [CallController::class, 'startGroup'])->defaults('mediaType', 'video');
 
     Route::post('/groups', [GroupController::class, 'store']);
     Route::patch('/groups/{conversation}', [GroupController::class, 'update']);
@@ -45,6 +48,12 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/uploads', [UploadController::class, 'store']);
     Route::post('/uploads/{storageObject}/attach', [UploadController::class, 'attach']);
     Route::post('/presence/heartbeat', [RealtimeController::class, 'heartbeat']);
+    Route::post('/calls/direct/{user}/voice', [CallController::class, 'startDirect'])->defaults('mediaType', 'voice');
+    Route::post('/calls/direct/{user}/video', [CallController::class, 'startDirect'])->defaults('mediaType', 'video');
+    Route::post('/calls/{callRoom}/accept', [CallController::class, 'accept']);
+    Route::post('/calls/{callRoom}/decline', [CallController::class, 'decline']);
+    Route::post('/calls/{callRoom}/end', [CallController::class, 'end']);
+    Route::post('/calls/{callRoom}/join-token', [CallController::class, 'joinToken']);
 
     Route::post('/livekit/token', [LiveKitController::class, 'token']);
     Route::post('/livekit/rooms', [LiveKitController::class, 'createRoom']);

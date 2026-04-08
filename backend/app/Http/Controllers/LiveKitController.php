@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\Domain\ConversationCallStateChanged;
+use App\Services\Calls\CallService;
 use App\Services\LiveKit\LiveKitRoomService;
 use App\Services\LiveKit\LiveKitTokenService;
 use App\Services\LiveKit\LiveKitWebhookService;
@@ -53,9 +55,14 @@ class LiveKitController extends Controller
         ]);
     }
 
-    public function webhook(Request $request, LiveKitWebhookService $webhookService): JsonResponse
+    public function webhook(
+        Request $request,
+        LiveKitWebhookService $webhookService,
+        CallService $callService,
+    ): JsonResponse
     {
         $event = $webhookService->parse($request);
+        $result = $callService->handleWebhook($event);
 
         Log::info('livekit.webhook.received', [
             'event' => $event['event'] ?? null,
@@ -63,9 +70,14 @@ class LiveKitController extends Controller
             'participant' => $event['participant']['identity'] ?? null,
         ]);
 
+        if ($result['call_room']) {
+            event(new ConversationCallStateChanged($result['call_room'], $result['action'] ?? 'webhook_received'));
+        }
+
         return response()->json([
             'received' => true,
             'event' => $event['event'] ?? null,
+            'call_room' => $result['call_room']?->room_uuid,
         ]);
     }
 }
