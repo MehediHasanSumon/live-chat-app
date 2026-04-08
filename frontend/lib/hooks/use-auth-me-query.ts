@@ -32,10 +32,14 @@ export type AuthMeResponse = {
   };
 };
 
+export function fetchAuthMe() {
+  return apiClient.get<AuthMeResponse>("/api/me", { skipAuthRedirect: true });
+}
+
 export function useAuthMeQuery(enabled = false) {
   return useQuery({
     queryKey: queryKeys.auth.me,
-    queryFn: () => apiClient.get<AuthMeResponse>("/api/me", { skipAuthRedirect: true }),
+    queryFn: fetchAuthMe,
     enabled,
     retry: false,
     refetchOnMount: "always",

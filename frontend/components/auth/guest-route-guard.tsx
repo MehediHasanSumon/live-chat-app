@@ -17,9 +17,8 @@ export function GuestRouteGuard({
 }: GuestRouteGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { data, isLoading } = useAuthMeQuery(true);
-
   const hasSession = hasSessionHint();
+  const { data, isLoading } = useAuthMeQuery(hasSession);
   const isAuthenticated = Boolean(data?.data.user);
 
   useEffect(() => {

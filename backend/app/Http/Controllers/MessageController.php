@@ -13,6 +13,7 @@ use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\Messages\MessageService;
+use App\Services\Notifications\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -21,6 +22,7 @@ class MessageController extends Controller
 {
     public function __construct(
         protected MessageService $messageService,
+        protected NotificationService $notificationService,
     ) {
     }
 
@@ -65,6 +67,7 @@ class MessageController extends Controller
 
         if ($result['created']) {
             event(new ConversationMessageCreated($result['message']));
+            $this->notificationService->queueMessagePush($result['message']);
         }
 
         return response()->json([
@@ -152,6 +155,7 @@ class MessageController extends Controller
 
         if ($result['created']) {
             event(new ConversationMessageCreated($result['message']));
+            $this->notificationService->queueMessagePush($result['message']);
         }
 
         return response()->json([

@@ -10,6 +10,7 @@ use App\Models\CallRoom;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Services\Calls\CallService;
+use App\Services\Notifications\NotificationService;
 use App\Services\Realtime\UserRealtimeSignalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class CallController extends Controller
 {
     public function __construct(
         protected CallService $callService,
+        protected NotificationService $notificationService,
         protected UserRealtimeSignalService $userRealtimeSignalService,
     ) {
     }
@@ -41,6 +43,7 @@ class CallController extends Controller
         }
 
         $this->dispatchCallFanout($payload['call_room'], 'started', $payload['notify_user_ids'], 'call.incoming');
+        $this->notificationService->queueCallInvite($payload['call_room'], $payload['notify_user_ids']);
 
         return response()->json([
             'data' => (new CallRoomResource($payload['call_room']))->resolve($request),
@@ -65,6 +68,7 @@ class CallController extends Controller
         }
 
         $this->dispatchCallFanout($payload['call_room'], 'started', $payload['notify_user_ids'], 'call.incoming');
+        $this->notificationService->queueCallInvite($payload['call_room'], $payload['notify_user_ids']);
 
         return response()->json([
             'data' => (new CallRoomResource($payload['call_room']))->resolve($request),

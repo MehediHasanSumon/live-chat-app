@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { ApiClientError, apiClient, clearSessionHint, markSessionHintAuthenticated } from "@/lib/api-client";
-import { type AuthMeResponse } from "@/lib/hooks/use-auth-me-query";
+import { fetchAuthMe, type AuthMeResponse } from "@/lib/hooks/use-auth-me-query";
 import { queryKeys } from "@/lib/query-keys";
 
 type LoginPayload = {
@@ -26,9 +26,13 @@ export function useLoginMutation() {
 
   return useMutation({
     mutationFn: (payload: LoginPayload) => apiClient.post<AuthMeResponse>("/login", payload),
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       markSessionHintAuthenticated();
       queryClient.setQueryData(queryKeys.auth.me, response);
+      await queryClient.fetchQuery({
+        queryKey: queryKeys.auth.me,
+        queryFn: fetchAuthMe,
+      });
     },
   });
 }
@@ -38,9 +42,13 @@ export function useRegisterMutation() {
 
   return useMutation({
     mutationFn: (payload: RegisterPayload) => apiClient.post<AuthMeResponse>("/register", payload),
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       markSessionHintAuthenticated();
       queryClient.setQueryData(queryKeys.auth.me, response);
+      await queryClient.fetchQuery({
+        queryKey: queryKeys.auth.me,
+        queryFn: fetchAuthMe,
+      });
     },
   });
 }
