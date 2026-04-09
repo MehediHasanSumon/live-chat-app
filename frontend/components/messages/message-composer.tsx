@@ -17,6 +17,11 @@ import { useStartTypingMutation, useStopTypingMutation } from "@/lib/hooks/use-t
 type MessageComposerProps = {
   threadName: string;
   conversationId: string;
+  isEditing?: boolean;
+  editingValue?: string;
+  editingMessagePreview?: string | null;
+  onEditingValueChange?: (value: string) => void;
+  onCancelEditing?: () => void;
   onSend: (payload: {
     text: string;
     attachments: ComposerAttachmentInput[];
@@ -30,6 +35,11 @@ type MessageComposerProps = {
 export function MessageComposer({
   threadName,
   conversationId,
+  isEditing = false,
+  editingValue = "",
+  editingMessagePreview = null,
+  onEditingValueChange,
+  onCancelEditing,
   onSend,
   isSending = false,
   errorMessage,
@@ -45,12 +55,18 @@ export function MessageComposer({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const typingTimerRef = useRef<number | null>(null);
-  const hasText = value.trim().length > 0;
   const startTypingMutation = useStartTypingMutation();
   const stopTypingMutation = useStopTypingMutation();
   void threadName;
 
+  const composerValue = isEditing ? editingValue : value;
+  const hasText = composerValue.trim().length > 0;
   const hasMessagePayload = hasText || attachments.length > 0 || voiceAttachment !== null || gifAttachment !== null;
+
+  const resizeTextarea = (ta: HTMLTextAreaElement) => {
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
+  };
 
   const stopTyping = () => {
     if (typingTimerRef.current) {
@@ -76,6 +92,20 @@ export function MessageComposer({
   }, [attachments]);
 
   useEffect(() => {
+    if (!isEditing) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length);
+        resizeTextarea(textareaRef.current);
+      }
+    });
+  }, [isEditing, editingValue]);
+
+  useEffect(() => {
     if (!showEmojiPicker) {
       return;
     }
@@ -90,13 +120,12 @@ export function MessageComposer({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [showEmojiPicker]);
 
-  const resizeTextarea = (ta: HTMLTextAreaElement) => {
-    ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
-  };
-
   const handleInput = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    setValue(event.target.value);
+    if (isEditing) {
+      onEditingValueChange?.(event.target.value);
+    } else {
+      setValue(event.target.value);
+    }
     resizeTextarea(event.target);
 
     startTypingMutation.mutate({ conversationId });
@@ -116,6 +145,10 @@ export function MessageComposer({
     input?: HTMLInputElement | null,
   ) => {
     if (!files?.length || isSending) {
+      return;
+    }
+
+    if (isEditing) {
       return;
     }
 
@@ -150,7 +183,11 @@ export function MessageComposer({
 
   const appendEmoji = (emoji: string) => {
     const next = `${value}${emoji}`;
-    setValue(next);
+    if (isEditing) {
+      onEditingValueChange?.(`${composerValue}${emoji}`);
+    } else {
+      setValue(next);
+    }
     setShowEmojiPicker(false);
 
     requestAnimationFrame(() => {
@@ -188,7 +225,7 @@ export function MessageComposer({
     }
 
     await onSend({
-      text: value,
+      text: composerValue,
       attachments: [...attachments],
       voice: voiceAttachment,
       gif: gifAttachment,
@@ -208,6 +245,10 @@ export function MessageComposer({
     const file = files?.[0];
 
     if (!file || isSending) {
+      return;
+    }
+
+    if (isEditing) {
       return;
     }
 
@@ -247,6 +288,10 @@ export function MessageComposer({
       return;
     }
 
+    if (isEditing) {
+      return;
+    }
+
     const url = window.prompt("Paste a GIF URL");
 
     if (!url) {
@@ -269,6 +314,22 @@ export function MessageComposer({
         ref={composerRef}
         className="rounded-[22px] border border-[rgba(111,123,176,0.12)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(246,248,255,0.98)_100%)] p-2 shadow-[0_18px_40px_rgba(96,109,160,0.08)] transition-shadow duration-200 ease-out hover:shadow-[0_20px_46px_rgba(96,109,160,0.1)]"
       >
+        {isEditing ? (
+          <div className="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-[rgba(96,91,255,0.14)] bg-[rgba(96,91,255,0.06)] px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">Editing message</p>
+              <p className="mt-1 line-clamp-1 text-sm text-[#5a6388]">{editingMessagePreview ?? editingValue}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onCancelEditing}
+              className="rounded-full border border-[rgba(111,123,176,0.12)] px-3 py-1 text-xs font-medium text-[#5a6388] transition hover:border-[rgba(96,91,255,0.16)] hover:text-[var(--accent)]"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : null}
+
         <input
           ref={fileInputRef}
           type="file"
@@ -348,7 +409,7 @@ export function MessageComposer({
         <div className="relative rounded-[18px] bg-white/88 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_22px_rgba(96,109,160,0.05)] transition-all duration-200 ease-out">
           <textarea
             ref={textareaRef}
-            value={value}
+            value={composerValue}
             onChange={handleInput}
             onKeyDown={(event) => {
               void handleKeyDown(event);
@@ -369,6 +430,10 @@ export function MessageComposer({
             type="button"
             onClick={() => {
               if (!hasText && attachments.length === 0 && !voiceAttachment && !gifAttachment) {
+                if (isEditing) {
+                  return;
+                }
+
                 audioInputRef.current?.click();
                 return;
               }
@@ -377,7 +442,9 @@ export function MessageComposer({
             }}
             aria-label={
               hasMessagePayload
-                ? "Send message"
+                ? isEditing
+                  ? "Save message"
+                  : "Send message"
                 : "Record voice message"
             }
             disabled={isSending}
@@ -400,7 +467,7 @@ export function MessageComposer({
             <button
               aria-label="Attach file"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isSending}
+              disabled={isSending || isEditing}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Paperclip className="h-3.5 w-3.5" />
@@ -408,7 +475,7 @@ export function MessageComposer({
             <button
               aria-label="Upload image"
               onClick={() => imageInputRef.current?.click()}
-              disabled={isSending}
+              disabled={isSending || isEditing}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <ImageIcon className="h-3.5 w-3.5" />
@@ -424,7 +491,7 @@ export function MessageComposer({
             <button
               aria-label="Attach GIF"
               onClick={handleAttachGif}
-              disabled={isSending}
+              disabled={isSending || isEditing}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Film className="h-3.5 w-3.5" />
@@ -432,7 +499,7 @@ export function MessageComposer({
             <button
               aria-label="Upload voice note"
               onClick={() => audioInputRef.current?.click()}
-              disabled={isSending}
+              disabled={isSending || isEditing}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <FileAudio className="h-3.5 w-3.5" />
@@ -440,9 +507,9 @@ export function MessageComposer({
           </div>
           {isSending ? (
             <span className="text-[11px] text-[#8f97bb]">Sending...</span>
-          ) : value.length > 60 ? (
+          ) : composerValue.length > 60 ? (
             <span className="text-[11px] text-[#b0b7d3] transition-opacity duration-200">
-              {value.length}
+              {composerValue.length}
             </span>
           ) : null}
         </div>

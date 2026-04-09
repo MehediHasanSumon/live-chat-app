@@ -81,14 +81,17 @@ export function MessagesThreadView({
     ? null
     : (thread.members ?? []).find((member) => member.user_id !== authMe?.data.user.id) ?? null;
 
+  const activeComposerError = editingMessageId ? editMessageMutation.error : sendMessageMutation.error;
   const composerErrorMessage =
-    sendMessageMutation.error instanceof ApiClientError
-      ? sendMessageMutation.error.errors?.file?.[0] ??
-        sendMessageMutation.error.errors?.text?.[0] ??
-        sendMessageMutation.error.errors?.message_id?.[0] ??
-        sendMessageMutation.error.message
-      : sendMessageMutation.error
-        ? "We could not send the message."
+    activeComposerError instanceof ApiClientError
+      ? activeComposerError.errors?.file?.[0] ??
+        activeComposerError.errors?.text?.[0] ??
+        activeComposerError.errors?.message_id?.[0] ??
+        activeComposerError.message
+      : activeComposerError
+        ? editingMessageId
+          ? "We could not update the message."
+          : "We could not send the message."
         : null;
 
   const currentCallForThread =
@@ -98,6 +101,10 @@ export function MessagesThreadView({
   const removeTargetMessage = useMemo(
     () => mappedMessages.find((message) => message.numericId === removeTargetMessageId) ?? null,
     [mappedMessages, removeTargetMessageId],
+  );
+  const editingMessage = useMemo(
+    () => mappedMessages.find((message) => message.numericId === editingMessageId) ?? null,
+    [mappedMessages, editingMessageId],
   );
   const forwardTargets = useMemo(
     () => forwardConversations
@@ -268,7 +275,7 @@ export function MessagesThreadView({
         ref={scrollContainerRef}
         className="flex-1 space-y-4 overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.45)_0%,rgba(246,248,255,0.72)_100%)] px-4 py-5 sm:px-6"
       >
-        <div className="sticky top-0 z-10 -mx-1 flex justify-center pb-2 pt-1">
+        <div className="-mx-1 flex justify-center pb-2 pt-1">
           {hasNextPage ? (
             <button
               type="button"
@@ -349,14 +356,6 @@ export function MessagesThreadView({
                     }
                   : undefined
               }
-              isEditing={editingMessageId === message.numericId}
-              editValue={editingMessageId === message.numericId ? editingValue : message.body}
-              onEditValueChange={setEditingValue}
-              onSaveEdit={() => {
-                void handleSaveEdit(message.numericId);
-              }}
-              onCancelEdit={cancelEditing}
-              isSavingEdit={editMessageMutation.isPending && editingMessageId === message.numericId}
               readLabel={
                 !thread.isGroup && message.sender === "me" && peerMembership
                   ? peerMembership.last_read_seq >= message.seq
@@ -484,9 +483,19 @@ export function MessagesThreadView({
         <MessageComposer
           threadName={thread.name}
           conversationId={thread.id}
-          isSending={sendMessageMutation.isPending}
+          isEditing={Boolean(editingMessage)}
+          editingValue={editingValue}
+          editingMessagePreview={editingMessage?.body ?? null}
+          onEditingValueChange={setEditingValue}
+          onCancelEditing={cancelEditing}
+          isSending={sendMessageMutation.isPending || editMessageMutation.isPending}
           errorMessage={composerErrorMessage}
           onSend={async ({ text, attachments, voice, gif }) => {
+            if (editingMessageId) {
+              await handleSaveEdit(editingMessageId);
+              return;
+            }
+
             await sendMessageMutation.mutateAsync({
               conversationId: thread.id,
               text,
