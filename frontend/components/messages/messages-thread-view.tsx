@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
 
 import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
 import { MessageBubble } from "@/components/messages/message-bubble";
@@ -69,7 +70,9 @@ export function MessagesThreadView({
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [forwardingMessageId, setForwardingMessageId] = useState<number | null>(null);
+  const [forwardingSearch, setForwardingSearch] = useState("");
   const [removeTargetMessageId, setRemoveTargetMessageId] = useState<number | null>(null);
+  const [removeScope, setRemoveScope] = useState<"self" | "everyone">("self");
 
   const mappedMessages = useMemo(
     () => messages.map((message) => toChatMessage(message, authMe?.data.user.id)),
@@ -112,6 +115,19 @@ export function MessagesThreadView({
       .map((conversation) => toConversationThread(conversation)),
     [forwardConversations, thread.id],
   );
+  const filteredForwardTargets = useMemo(() => {
+    const query = forwardingSearch.trim().toLowerCase();
+
+    if (!query) {
+      return forwardTargets;
+    }
+
+    return forwardTargets.filter((target) =>
+      [target.name, target.handle, target.lastMessage]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(query)),
+    );
+  }, [forwardTargets, forwardingSearch]);
 
   useEffect(() => {
     hasInitialScrollRef.current = false;
@@ -227,18 +243,12 @@ export function MessagesThreadView({
     });
 
     setRemoveTargetMessageId(null);
+    setRemoveScope("self");
   };
 
-  const handleQuickUnsend = async (messageId: number) => {
-    if (!window.confirm("Unsend this message for everyone?")) {
-      return;
-    }
-
-    await deleteMessageMutation.mutateAsync({
-      conversationId: thread.id,
-      messageId,
-      scope: "everyone",
-    });
+  const openRemoveModal = (messageId: number, preferredScope: "self" | "everyone" = "self") => {
+    setRemoveTargetMessageId(messageId);
+    setRemoveScope(preferredScope);
   };
 
   const handleForward = async (targetConversationId: string) => {
@@ -253,6 +263,7 @@ export function MessagesThreadView({
     });
 
     setForwardingMessageId(null);
+    setForwardingSearch("");
   };
 
   return (
@@ -348,14 +359,7 @@ export function MessagesThreadView({
               authUserId={authMe?.data.user.id ?? null}
               onEdit={() => startEditing(message.numericId, message.body)}
               onForward={() => setForwardingMessageId(message.numericId)}
-              onRemove={() => setRemoveTargetMessageId(message.numericId)}
-              onUnsend={
-                message.sender === "me" && message.canUnsend
-                  ? () => {
-                      void handleQuickUnsend(message.numericId);
-                    }
-                  : undefined
-              }
+              onRemove={() => openRemoveModal(message.numericId, "self")}
               readLabel={
                 !thread.isGroup && message.sender === "me" && peerMembership
                   ? peerMembership.last_read_seq >= message.seq
@@ -381,102 +385,6 @@ export function MessagesThreadView({
         {typingUsers.length > 0 ? (
           <div className="inline-flex rounded-full border border-[rgba(96,91,255,0.16)] bg-[linear-gradient(135deg,rgba(96,91,255,0.12)_0%,rgba(122,117,255,0.18)_100%)] px-4 py-2 text-sm text-[#5a6388] shadow-[0_10px_24px_rgba(96,109,160,0.08)]">
             {typingUsers.map((user) => user.name).join(", ")} {typingUsers.length > 1 ? "are" : "is"} typing...
-          </div>
-        ) : null}
-
-        {forwardingMessageId ? (
-          <div className="rounded-[22px] border border-[rgba(111,123,176,0.12)] bg-white/96 p-4 shadow-[0_18px_40px_rgba(96,109,160,0.08)]">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-[#2f3655]">Forward message</p>
-                <p className="text-xs text-[#8f97bb]">Choose a conversation to forward this message into.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setForwardingMessageId(null)}
-                className="rounded-full border border-[rgba(111,123,176,0.12)] px-3 py-1 text-xs font-medium text-[#5a6388] transition hover:border-[rgba(96,91,255,0.16)] hover:text-[var(--accent)]"
-              >
-                Cancel
-              </button>
-            </div>
-
-            <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-              {forwardTargets.length > 0 ? (
-                forwardTargets.map((target) => (
-                  <button
-                    key={target.id}
-                    type="button"
-                    onClick={() => {
-                      void handleForward(target.id);
-                    }}
-                    disabled={forwardMessageMutation.isPending}
-                    className="flex w-full items-center justify-between rounded-2xl border border-[rgba(111,123,176,0.12)] bg-[rgba(246,248,255,0.84)] px-4 py-3 text-left transition hover:border-[rgba(96,91,255,0.16)] hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-[#2f3655]">{target.name}</p>
-                      <p className="text-xs text-[#8f97bb]">{target.handle}</p>
-                    </div>
-                    <span className="text-xs font-medium text-[var(--accent)]">
-                      {forwardMessageMutation.isPending ? "Forwarding..." : "Forward"}
-                    </span>
-                  </button>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-[rgba(111,123,176,0.12)] bg-[rgba(246,248,255,0.84)] px-4 py-3 text-sm text-[#8f97bb]">
-                  No other conversations available yet.
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null}
-
-        {removeTargetMessage ? (
-          <div className="rounded-[22px] border border-[rgba(111,123,176,0.12)] bg-white/96 p-4 shadow-[0_18px_40px_rgba(96,109,160,0.08)]">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-[#2f3655]">Remove message</p>
-                <p className="mt-1 text-xs text-[#8f97bb]">
-                  Choose whether to remove this message only for you or for everyone in the conversation.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setRemoveTargetMessageId(null)}
-                className="rounded-full border border-[rgba(111,123,176,0.12)] px-3 py-1 text-xs font-medium text-[#5a6388] transition hover:border-[rgba(96,91,255,0.16)] hover:text-[var(--accent)]"
-              >
-                Cancel
-              </button>
-            </div>
-
-            <div className="mt-3 rounded-2xl border border-[rgba(111,123,176,0.12)] bg-[rgba(246,248,255,0.84)] px-4 py-3 text-sm text-[#5a6388]">
-              {removeTargetMessage.body}
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  void handleRemove(removeTargetMessage.numericId, "self");
-                }}
-                disabled={deleteMessageMutation.isPending}
-                className="rounded-full border border-[rgba(111,123,176,0.16)] bg-[rgba(246,248,255,0.92)] px-4 py-2 text-sm font-medium text-[#5d668c] transition hover:border-[rgba(96,91,255,0.16)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {deleteMessageMutation.isPending ? "Removing..." : "Remove for you"}
-              </button>
-
-              {removeTargetMessage.sender === "me" && removeTargetMessage.canUnsend ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleRemove(removeTargetMessage.numericId, "everyone");
-                  }}
-                  disabled={deleteMessageMutation.isPending}
-                  className="rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-medium text-white shadow-[0_12px_24px_rgba(96,91,255,0.24)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {deleteMessageMutation.isPending ? "Removing..." : "Remove for everyone"}
-                </button>
-              ) : null}
-            </div>
           </div>
         ) : null}
 
@@ -506,6 +414,205 @@ export function MessagesThreadView({
           }}
         />
       </footer>
+
+      {forwardingMessageId ? (
+        <div
+          className="absolute inset-0 z-40 flex items-center justify-center px-4 py-6"
+          onClick={() => {
+            setForwardingMessageId(null);
+            setForwardingSearch("");
+          }}
+        >
+          <div
+            className="flex h-[min(480px,82vh)] w-full max-w-[440px] flex-col overflow-hidden rounded-[22px] border border-[rgba(111,123,176,0.14)] bg-white shadow-[0_18px_40px_rgba(61,72,120,0.1)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
+              <div className="w-8" />
+              <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[#2f3655]">Forward</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setForwardingMessageId(null);
+                  setForwardingSearch("");
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(96,91,255,0.08)] bg-[var(--accent-soft)] text-[var(--accent)] transition hover:border-[rgba(96,91,255,0.18)] hover:bg-[rgba(96,91,255,0.16)]"
+                aria-label="Close forward modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-hidden px-4 py-4">
+              <div className="pill-input relative flex h-10 items-center rounded-[16px] px-3 text-sm text-[var(--muted)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                <Search className="pointer-events-none h-3.5 w-3.5 shrink-0 text-[#99a1c2]" />
+                <input
+                  type="text"
+                  value={forwardingSearch}
+                  onChange={(event) => setForwardingSearch(event.target.value)}
+                  placeholder="Search for people and groups"
+                  className="min-w-0 flex-1 bg-transparent pl-2.5 text-[13px] text-[#3a4160] outline-none placeholder:text-[#99a1c2]"
+                />
+              </div>
+
+              <div className="mt-4">
+                <p className="text-[14px] font-semibold text-[#2f3655]">Contacts</p>
+              </div>
+
+              <div className="mt-3 h-[calc(100%-4.5rem)] overflow-y-auto pr-1">
+                <div className="space-y-1.5">
+                  {filteredForwardTargets.length > 0 ? (
+                    filteredForwardTargets.map((target) => (
+                      <div
+                        key={target.id}
+                        className="flex items-center justify-between gap-2.5 rounded-[18px] border border-transparent bg-white/72 px-2.5 py-2.5 transition hover:border-[rgba(96,91,255,0.14)] hover:bg-white hover:shadow-[0_10px_24px_rgba(96,109,160,0.08)]"
+                      >
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,rgba(96,91,255,0.16)_0%,rgba(131,165,255,0.24)_100%)] text-[12px] font-semibold text-[var(--accent)]">
+                            {target.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-semibold text-[#2f3655]">{target.name}</p>
+                            <p className="truncate text-[11px] text-[#8f97bb]">{target.handle}</p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handleForward(target.id);
+                          }}
+                          disabled={forwardMessageMutation.isPending}
+                          className="h-8 min-w-[68px] rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-3 text-[12px] font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {forwardMessageMutation.isPending ? "Send..." : "Send"}
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-[18px] border border-[var(--line)] bg-white/84 px-3 py-3 text-[13px] text-[var(--muted)]">
+                      No matching contacts or groups found.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {removeTargetMessage ? (
+        <div
+          className="absolute inset-0 z-40 flex items-center justify-center px-4 py-6"
+          onClick={() => {
+            setRemoveTargetMessageId(null);
+            setRemoveScope("self");
+          }}
+        >
+          <div
+            className="w-full max-w-[440px] rounded-[20px] border border-[rgba(111,123,176,0.14)] bg-white shadow-[0_16px_36px_rgba(61,72,120,0.1)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--line)] px-3.5 py-2.5 sm:px-4">
+              <h2 className="pr-3 text-[18px] font-semibold tracking-[-0.03em] text-[#2f3655]">Message Remove</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setRemoveTargetMessageId(null);
+                  setRemoveScope("self");
+                }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[rgba(96,91,255,0.08)] bg-[var(--accent-soft)] text-[var(--accent)] transition hover:border-[rgba(96,91,255,0.18)] hover:bg-[rgba(96,91,255,0.16)]"
+                aria-label="Close remove modal"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="px-3.5 py-3.5 sm:px-4">
+              <div className="space-y-2.5">
+                {removeTargetMessage.sender === "me" && removeTargetMessage.canUnsend ? (
+                  <button
+                    type="button"
+                    onClick={() => setRemoveScope("everyone")}
+                    className={`flex w-full items-start gap-2.5 rounded-[16px] px-1 py-1 text-left transition ${
+                      removeScope === "everyone" ? "bg-[rgba(96,91,255,0.04)]" : ""
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                        removeScope === "everyone"
+                          ? "border-[var(--accent)]"
+                          : "border-[rgba(111,123,176,0.36)]"
+                      }`}
+                    >
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full transition ${
+                          removeScope === "everyone" ? "bg-[var(--accent)]" : "bg-transparent"
+                        }`}
+                      />
+                    </span>
+                    <span>
+                      <span className="block text-[14px] font-semibold tracking-[-0.02em] text-[#2f3655]">
+                        Unsend for everyone
+                      </span>
+                    </span>
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => setRemoveScope("self")}
+                  className={`flex w-full items-start gap-2.5 rounded-[16px] px-1 py-1 text-left transition ${
+                    removeScope === "self" ? "bg-[rgba(96,91,255,0.04)]" : ""
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                      removeScope === "self"
+                        ? "border-[var(--accent)]"
+                        : "border-[rgba(111,123,176,0.36)]"
+                    }`}
+                  >
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full transition ${
+                        removeScope === "self" ? "bg-[var(--accent)]" : "bg-transparent"
+                      }`}
+                    />
+                  </span>
+                  <span>
+                    <span className="block text-[14px] font-semibold tracking-[-0.02em] text-[#2f3655]">
+                      Remove for you
+                    </span>
+                  </span>
+                </button>
+              </div>
+
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRemoveTargetMessageId(null);
+                    setRemoveScope("self");
+                  }}
+                  className="rounded-full px-3 py-1 text-[13px] font-semibold text-[#5d668c] transition hover:text-[var(--accent)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleRemove(removeTargetMessage.numericId, removeScope);
+                  }}
+                  disabled={deleteMessageMutation.isPending}
+                  className="rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-3.5 py-1.5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {deleteMessageMutation.isPending ? "Removing..." : "Remove"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

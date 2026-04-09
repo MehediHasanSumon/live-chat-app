@@ -347,3 +347,44 @@ it('adds and removes reactions for active members', function () {
 
     expect(MessageReaction::query()->count())->toBe(0);
 });
+
+it('allows only one reaction per user per message and replaces the previous emoji', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $conversation = createDirectConversationWithMembers($sender, $recipient);
+
+    $message = Message::query()->create([
+        'conversation_id' => $conversation->id,
+        'seq' => 1,
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'text_body' => 'Choose one reaction',
+        'editable_until_at' => now()->addMinutes(15),
+    ]);
+
+    $firstReactionResponse = $this->actingAs($recipient, 'web')
+        ->postJson("/api/messages/{$message->id}/reactions", [
+            'emoji' => '👍',
+        ]);
+
+    $firstReactionResponse
+        ->assertCreated()
+        ->assertJsonPath('data.emoji', '👍');
+
+    $replacementReactionResponse = $this->actingAs($recipient, 'web')
+        ->postJson("/api/messages/{$message->id}/reactions", [
+            'emoji' => '❤️',
+        ]);
+
+    $replacementReactionResponse
+        ->assertOk()
+        ->assertJsonPath('data.emoji', '❤️');
+
+    expect(MessageReaction::query()->count())->toBe(1)
+        ->and(
+            MessageReaction::query()
+                ->where('message_id', $message->id)
+                ->where('user_id', $recipient->id)
+                ->value('emoji')
+        )->toBe('❤️');
+});

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { PencilLine, Send, SmilePlus, Trash2, Undo2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { PencilLine, Send, SmilePlus, Trash2, X } from "lucide-react";
 
 import { type ChatMessage } from "@/lib/messages-data";
 
@@ -13,11 +13,10 @@ type MessageBubbleProps = {
   onEdit?: () => void;
   onForward?: () => void;
   onRemove?: () => void;
-  onUnsend?: () => void;
   isReacting?: boolean;
 };
 
-const quickReactions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F525}"];
+const quickReactions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F525}", "\u{1F602}", "\u{1F62E}"];
 
 export function MessageBubble({
   message,
@@ -27,17 +26,17 @@ export function MessageBubble({
   onEdit,
   onForward,
   onRemove,
-  onUnsend,
   isReacting = false,
 }: MessageBubbleProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const bubbleRef = useRef<HTMLDivElement>(null);
 
   const railPositionClass = message.sender === "me"
     ? "right-full mr-3"
     : "left-full ml-3";
 
   const surfaceActionClass =
-    "flex h-9 w-9 items-center justify-center rounded-2xl border border-[rgba(111,123,176,0.14)] bg-white/96 text-[#6f769b] shadow-[0_12px_24px_rgba(96,109,160,0.08)] transition hover:border-[rgba(96,91,255,0.18)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60";
+    "flex h-8 w-8 items-center justify-center rounded-xl border border-[rgba(111,123,176,0.14)] bg-white/96 text-[#6f769b] shadow-[0_10px_20px_rgba(96,109,160,0.07)] transition hover:border-[rgba(96,91,255,0.18)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60";
 
   const reactionSummaryClass = "bg-transparent";
 
@@ -51,8 +50,27 @@ export function MessageBubble({
     [message.reactions, reactionSummaryClass],
   );
 
+  useEffect(() => {
+    if (!showReactionPicker) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!bubbleRef.current?.contains(event.target as Node)) {
+        setShowReactionPicker(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [showReactionPicker]);
+
   return (
-    <div className={`group flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
+    <div
+      ref={bubbleRef}
+      className={`group flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}
+      onMouseLeave={() => setShowReactionPicker(false)}
+    >
       <div className={`relative max-w-[78%] ${renderedReactionBadges.length > 0 ? "pb-5" : ""}`}>
         <div
           className={`pointer-events-none absolute top-1/2 z-20 hidden -translate-y-1/2 items-center gap-2 transition md:flex ${railPositionClass} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100`}
@@ -65,7 +83,7 @@ export function MessageBubble({
                 className={surfaceActionClass}
                 aria-label="React to message"
               >
-                {showReactionPicker ? <X className="h-4 w-4" /> : <SmilePlus className="h-4 w-4" />}
+                {showReactionPicker ? <X className="h-3.5 w-3.5" /> : <SmilePlus className="h-3.5 w-3.5" />}
               </button>
 
               {showReactionPicker ? (
@@ -100,25 +118,19 @@ export function MessageBubble({
 
             {onForward ? (
               <button type="button" onClick={onForward} className={surfaceActionClass} aria-label="Forward message">
-                <Send className="h-4 w-4" />
+                  <Send className="h-3.5 w-3.5" />
               </button>
             ) : null}
 
             {message.canEdit && onEdit ? (
               <button type="button" onClick={onEdit} className={surfaceActionClass} aria-label="Edit message">
-                <PencilLine className="h-4 w-4" />
-              </button>
-            ) : null}
-
-            {message.canUnsend && onUnsend ? (
-              <button type="button" onClick={onUnsend} className={surfaceActionClass} aria-label="Unsend message">
-                <Undo2 className="h-4 w-4" />
+                  <PencilLine className="h-3.5 w-3.5" />
               </button>
             ) : null}
 
             {onRemove ? (
               <button type="button" onClick={onRemove} className={surfaceActionClass} aria-label="Remove message">
-                <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
               </button>
             ) : null}
           </div>
