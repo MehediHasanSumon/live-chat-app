@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
 import { MessageBubble } from "@/components/messages/message-bubble";
@@ -8,11 +8,18 @@ import { MessageComposer } from "@/components/messages/message-composer";
 import { ApiClientError } from "@/lib/api-client";
 import { useStartCallMutation, useJoinCallMutation } from "@/lib/hooks/use-call-mutations";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
+import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { useConversationMessagesQuery } from "@/lib/hooks/use-conversation-messages-query";
 import { useMarkConversationReadMutation } from "@/lib/hooks/use-mark-read-mutation";
-import { useSendMessageMutation, useToggleReactionMutation } from "@/lib/hooks/use-message-mutations";
+import {
+  useDeleteMessageMutation,
+  useEditMessageMutation,
+  useForwardMessageMutation,
+  useSendMessageMutation,
+  useToggleReactionMutation,
+} from "@/lib/hooks/use-message-mutations";
 import { useTypingUsersQuery } from "@/lib/hooks/use-typing-users-query";
-import { toChatMessage, type MessageThread } from "@/lib/messages-data";
+import { toChatMessage, toConversationThread, type MessageThread } from "@/lib/messages-data";
 import { useCallStore } from "@/lib/stores/call-store";
 import { useConversationRealtimeStore } from "@/lib/stores/conversation-realtime-store";
 
@@ -41,9 +48,13 @@ export function MessagesThreadView({
   } = useConversationMessagesQuery(thread.id);
   const sendMessageMutation = useSendMessageMutation();
   const toggleReactionMutation = useToggleReactionMutation(thread.id);
+  const editMessageMutation = useEditMessageMutation(thread.id);
+  const deleteMessageMutation = useDeleteMessageMutation(thread.id);
+  const forwardMessageMutation = useForwardMessageMutation(thread.id);
   const markReadMutation = useMarkConversationReadMutation();
   const startCallMutation = useStartCallMutation();
   const joinCallMutation = useJoinCallMutation();
+  const { data: forwardConversations = [] } = useConversationsQuery(true);
   const activeCall = useCallStore((state) => state.activeCall);
   const realtimeTypingUsers = useConversationRealtimeStore(
     (state) => state.typingUsersByConversation[thread.id] ?? EMPTY_TYPING_USERS,
@@ -55,6 +66,10 @@ export function MessagesThreadView({
   const previousScrollTopRef = useRef<number>(0);
   const previousLatestSeqRef = useRef<number | null>(null);
   const hasInitialScrollRef = useRef(false);
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [forwardingMessageId, setForwardingMessageId] = useState<number | null>(null);
+  const [removeTargetMessageId, setRemoveTargetMessageId] = useState<number | null>(null);
 
   const mappedMessages = useMemo(
     () => messages.map((message) => toChatMessage(message, authMe?.data.user.id)),
@@ -80,6 +95,16 @@ export function MessagesThreadView({
     activeCall?.callRoom.conversation_id === thread.numericId ? activeCall : null;
   const typingUsers = polledTypingUsers.length > 0 ? polledTypingUsers : realtimeTypingUsers;
   const isTimelineRefreshing = isRefetching && !isFetchingNextPage;
+  const removeTargetMessage = useMemo(
+    () => mappedMessages.find((message) => message.numericId === removeTargetMessageId) ?? null,
+    [mappedMessages, removeTargetMessageId],
+  );
+  const forwardTargets = useMemo(
+    () => forwardConversations
+      .filter((conversation) => String(conversation.id) !== thread.id)
+      .map((conversation) => toConversationThread(conversation)),
+    [forwardConversations, thread.id],
+  );
 
   useEffect(() => {
     hasInitialScrollRef.current = false;
@@ -161,6 +186,66 @@ export function MessagesThreadView({
       roomUuid: callRoom.room_uuid,
       wantsVideo: mediaType === "video",
     });
+  };
+
+  const startEditing = (messageId: number, currentBody: string) => {
+    setEditingMessageId(messageId);
+    setEditingValue(currentBody);
+  };
+
+  const cancelEditing = () => {
+    setEditingMessageId(null);
+    setEditingValue("");
+  };
+
+  const handleSaveEdit = async (messageId: number) => {
+    if (!editingValue.trim()) {
+      return;
+    }
+
+    await editMessageMutation.mutateAsync({
+      conversationId: thread.id,
+      messageId,
+      text: editingValue,
+    });
+
+    cancelEditing();
+  };
+
+  const handleRemove = async (messageId: number, scope: "self" | "everyone") => {
+    await deleteMessageMutation.mutateAsync({
+      conversationId: thread.id,
+      messageId,
+      scope,
+    });
+
+    setRemoveTargetMessageId(null);
+  };
+
+  const handleQuickUnsend = async (messageId: number) => {
+    if (!window.confirm("Unsend this message for everyone?")) {
+      return;
+    }
+
+    await deleteMessageMutation.mutateAsync({
+      conversationId: thread.id,
+      messageId,
+      scope: "everyone",
+    });
+  };
+
+  const handleForward = async (targetConversationId: string) => {
+    if (!forwardingMessageId) {
+      return;
+    }
+
+    await forwardMessageMutation.mutateAsync({
+      sourceConversationId: thread.id,
+      targetConversationId,
+      messageId: forwardingMessageId,
+    });
+
+    setForwardingMessageId(null);
   };
 
   return (
@@ -254,6 +339,24 @@ export function MessagesThreadView({
               key={message.id}
               message={message}
               authUserId={authMe?.data.user.id ?? null}
+              onEdit={() => startEditing(message.numericId, message.body)}
+              onForward={() => setForwardingMessageId(message.numericId)}
+              onRemove={() => setRemoveTargetMessageId(message.numericId)}
+              onUnsend={
+                message.sender === "me" && message.canUnsend
+                  ? () => {
+                      void handleQuickUnsend(message.numericId);
+                    }
+                  : undefined
+              }
+              isEditing={editingMessageId === message.numericId}
+              editValue={editingMessageId === message.numericId ? editingValue : message.body}
+              onEditValueChange={setEditingValue}
+              onSaveEdit={() => {
+                void handleSaveEdit(message.numericId);
+              }}
+              onCancelEdit={cancelEditing}
+              isSavingEdit={editMessageMutation.isPending && editingMessageId === message.numericId}
               readLabel={
                 !thread.isGroup && message.sender === "me" && peerMembership
                   ? peerMembership.last_read_seq >= message.seq
@@ -279,6 +382,102 @@ export function MessagesThreadView({
         {typingUsers.length > 0 ? (
           <div className="inline-flex rounded-full border border-[rgba(96,91,255,0.16)] bg-[linear-gradient(135deg,rgba(96,91,255,0.12)_0%,rgba(122,117,255,0.18)_100%)] px-4 py-2 text-sm text-[#5a6388] shadow-[0_10px_24px_rgba(96,109,160,0.08)]">
             {typingUsers.map((user) => user.name).join(", ")} {typingUsers.length > 1 ? "are" : "is"} typing...
+          </div>
+        ) : null}
+
+        {forwardingMessageId ? (
+          <div className="rounded-[22px] border border-[rgba(111,123,176,0.12)] bg-white/96 p-4 shadow-[0_18px_40px_rgba(96,109,160,0.08)]">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#2f3655]">Forward message</p>
+                <p className="text-xs text-[#8f97bb]">Choose a conversation to forward this message into.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForwardingMessageId(null)}
+                className="rounded-full border border-[rgba(111,123,176,0.12)] px-3 py-1 text-xs font-medium text-[#5a6388] transition hover:border-[rgba(96,91,255,0.16)] hover:text-[var(--accent)]"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+              {forwardTargets.length > 0 ? (
+                forwardTargets.map((target) => (
+                  <button
+                    key={target.id}
+                    type="button"
+                    onClick={() => {
+                      void handleForward(target.id);
+                    }}
+                    disabled={forwardMessageMutation.isPending}
+                    className="flex w-full items-center justify-between rounded-2xl border border-[rgba(111,123,176,0.12)] bg-[rgba(246,248,255,0.84)] px-4 py-3 text-left transition hover:border-[rgba(96,91,255,0.16)] hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-[#2f3655]">{target.name}</p>
+                      <p className="text-xs text-[#8f97bb]">{target.handle}</p>
+                    </div>
+                    <span className="text-xs font-medium text-[var(--accent)]">
+                      {forwardMessageMutation.isPending ? "Forwarding..." : "Forward"}
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-[rgba(111,123,176,0.12)] bg-[rgba(246,248,255,0.84)] px-4 py-3 text-sm text-[#8f97bb]">
+                  No other conversations available yet.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {removeTargetMessage ? (
+          <div className="rounded-[22px] border border-[rgba(111,123,176,0.12)] bg-white/96 p-4 shadow-[0_18px_40px_rgba(96,109,160,0.08)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#2f3655]">Remove message</p>
+                <p className="mt-1 text-xs text-[#8f97bb]">
+                  Choose whether to remove this message only for you or for everyone in the conversation.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRemoveTargetMessageId(null)}
+                className="rounded-full border border-[rgba(111,123,176,0.12)] px-3 py-1 text-xs font-medium text-[#5a6388] transition hover:border-[rgba(96,91,255,0.16)] hover:text-[var(--accent)]"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-[rgba(111,123,176,0.12)] bg-[rgba(246,248,255,0.84)] px-4 py-3 text-sm text-[#5a6388]">
+              {removeTargetMessage.body}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleRemove(removeTargetMessage.numericId, "self");
+                }}
+                disabled={deleteMessageMutation.isPending}
+                className="rounded-full border border-[rgba(111,123,176,0.16)] bg-[rgba(246,248,255,0.92)] px-4 py-2 text-sm font-medium text-[#5d668c] transition hover:border-[rgba(96,91,255,0.16)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleteMessageMutation.isPending ? "Removing..." : "Remove for you"}
+              </button>
+
+              {removeTargetMessage.sender === "me" && removeTargetMessage.canUnsend ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleRemove(removeTargetMessage.numericId, "everyone");
+                  }}
+                  disabled={deleteMessageMutation.isPending}
+                  className="rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-medium text-white shadow-[0_12px_24px_rgba(96,91,255,0.24)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {deleteMessageMutation.isPending ? "Removing..." : "Remove for everyone"}
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
 

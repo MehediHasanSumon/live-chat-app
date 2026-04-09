@@ -33,6 +33,24 @@ type SendMessagePayload = {
   gif: ComposerGifInput | null;
 };
 
+type EditMessagePayload = {
+  conversationId: string;
+  messageId: number;
+  text: string;
+};
+
+type DeleteMessagePayload = {
+  conversationId: string;
+  messageId: number;
+  scope: "self" | "everyone";
+};
+
+type ForwardMessagePayload = {
+  sourceConversationId: string;
+  targetConversationId: string;
+  messageId: number;
+};
+
 async function uploadAttachment(file: File) {
   const formData = new FormData();
   formData.append("file", file);
@@ -138,6 +156,60 @@ export function useToggleReactionMutation(conversationId: string) {
     },
     onSuccess: () => {
       invalidateMessageQueries(queryClient, conversationId);
+    },
+  });
+}
+
+export function useEditMessageMutation(conversationId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageId, text }: EditMessagePayload) => {
+      const response = await apiClient.patch<MessageResponse>(`/api/messages/${messageId}`, {
+        text: text.trim(),
+      });
+
+      return response.data;
+    },
+    onSuccess: () => {
+      invalidateMessageQueries(queryClient, conversationId);
+    },
+  });
+}
+
+export function useDeleteMessageMutation(conversationId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageId, scope }: DeleteMessagePayload) => {
+      await apiClient.delete(`/api/messages/${messageId}`, {
+        body: { scope },
+      });
+    },
+    onSuccess: () => {
+      invalidateMessageQueries(queryClient, conversationId);
+    },
+  });
+}
+
+export function useForwardMessageMutation(sourceConversationId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageId, targetConversationId }: ForwardMessagePayload) => {
+      const response = await apiClient.post<MessageResponse>(`/api/messages/${messageId}/forward`, {
+        target_conversation_id: Number(targetConversationId),
+        client_uuid: crypto.randomUUID(),
+      });
+
+      return {
+        data: response.data,
+        targetConversationId,
+      };
+    },
+    onSuccess: (_, variables) => {
+      invalidateMessageQueries(queryClient, sourceConversationId);
+      invalidateMessageQueries(queryClient, variables.targetConversationId);
     },
   });
 }
