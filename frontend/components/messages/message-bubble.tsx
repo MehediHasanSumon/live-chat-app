@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PencilLine, Send, SmilePlus, Trash2, X } from "lucide-react";
+import { CornerUpLeft, PencilLine, Send, SmilePlus, Trash2, X } from "lucide-react";
 
 import { type ChatMessage } from "@/lib/messages-data";
 
@@ -10,6 +10,7 @@ type MessageBubbleProps = {
   authUserId: number | null;
   readLabel?: string | null;
   onToggleReaction?: (emoji: string, hasReacted: boolean) => void;
+  onReply?: () => void;
   onEdit?: () => void;
   onForward?: () => void;
   onRemove?: () => void;
@@ -23,6 +24,7 @@ export function MessageBubble({
   authUserId,
   readLabel = null,
   onToggleReaction,
+  onReply,
   onEdit,
   onForward,
   onRemove,
@@ -31,14 +33,21 @@ export function MessageBubble({
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const bubbleRef = useRef<HTMLDivElement>(null);
 
-  const railPositionClass = message.sender === "me"
-    ? "right-full mr-3"
-    : "left-full ml-3";
-
+  const railPositionClass = message.sender === "me" ? "right-full mr-3" : "left-full ml-3";
   const surfaceActionClass =
     "flex h-8 w-8 items-center justify-center rounded-xl border border-[rgba(111,123,176,0.14)] bg-white/96 text-[#6f769b] shadow-[0_10px_20px_rgba(96,109,160,0.07)] transition hover:border-[rgba(96,91,255,0.18)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60";
-
   const reactionSummaryClass = "bg-transparent";
+  const baseBubbleClass =
+    message.sender === "me"
+      ? "bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white"
+      : "border border-[rgba(111,123,176,0.14)] bg-white text-[var(--foreground)]";
+  const replyQuoteBubbleClass =
+    message.sender === "me"
+      ? "bg-[rgba(22,37,86,0.28)] text-white/92"
+      : "bg-[rgba(238,240,255,0.9)] text-[var(--foreground)]";
+  const replyBodyBubbleClass = message.sender === "me"
+    ? "ml-auto bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white"
+    : "border border-[rgba(111,123,176,0.14)] bg-white text-[var(--foreground)]";
 
   const renderedReactionBadges = useMemo(
     () =>
@@ -47,8 +56,30 @@ export function MessageBubble({
           {reaction.emoji} {reaction.count}
         </span>
       )) ?? [],
-    [message.reactions, reactionSummaryClass],
+    [message.reactions],
   );
+
+  const replyLabel = useMemo(() => {
+    if (!message.quote) {
+      return null;
+    }
+
+    const quotedName = message.quote.senderName?.trim();
+
+    if (message.sender === "me") {
+      if (!quotedName || quotedName === "You") {
+        return "You replied to yourself";
+      }
+
+      return `You replied to ${quotedName}`;
+    }
+
+    if (quotedName) {
+      return `Replied to ${quotedName}`;
+    }
+
+    return "Reply";
+  }, [message.quote, message.sender]);
 
   useEffect(() => {
     if (!showReactionPicker) {
@@ -116,99 +147,118 @@ export function MessageBubble({
               ) : null}
             </div>
 
+            {onReply ? (
+              <button type="button" onClick={onReply} className={surfaceActionClass} aria-label="Reply to message">
+                <CornerUpLeft className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+
             {onForward ? (
               <button type="button" onClick={onForward} className={surfaceActionClass} aria-label="Forward message">
-                  <Send className="h-3.5 w-3.5" />
+                <Send className="h-3.5 w-3.5" />
               </button>
             ) : null}
 
             {message.canEdit && onEdit ? (
               <button type="button" onClick={onEdit} className={surfaceActionClass} aria-label="Edit message">
-                  <PencilLine className="h-3.5 w-3.5" />
+                <PencilLine className="h-3.5 w-3.5" />
               </button>
             ) : null}
 
             {onRemove ? (
               <button type="button" onClick={onRemove} className={surfaceActionClass} aria-label="Remove message">
-                  <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-3.5 w-3.5" />
               </button>
             ) : null}
           </div>
         </div>
 
-        <div
-          className={`rounded-[26px] px-4 py-3 text-sm leading-5 shadow-[0_14px_36px_rgba(96,109,160,0.06)] ${
-            message.sender === "me"
-              ? "bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white"
-              : "border border-[rgba(111,123,176,0.14)] bg-white text-[var(--foreground)]"
-          }`}
-        >
+        <div className="space-y-1.5">
           {message.isForwarded ? (
-            <p className={`mb-2 text-[11px] ${message.sender === "me" ? "text-white/80" : "text-[var(--muted)]"}`}>
+            <p className={`text-[11px] ${message.sender === "me" ? "text-white/80" : "text-[var(--muted)]"}`}>
               Forwarded
             </p>
           ) : null}
 
           {message.quote ? (
-            <div
-              className={`mb-3 rounded-xl border px-3 py-2 text-xs ${
-                message.sender === "me"
-                  ? "border-white/15 bg-white/10 text-white/85"
-                  : "border-[var(--line)] bg-[var(--accent-soft)] text-[var(--foreground)]"
-              }`}
-            >
-              {message.quote.senderName ? <p className="font-semibold">{message.quote.senderName}</p> : null}
-              <p className="mt-1 line-clamp-2">{message.quote.text}</p>
-            </div>
-          ) : null}
-
-          {message.gifUrl ? (
-            <a
-              href={message.gifUrl}
-              target="_blank"
-              rel="noreferrer"
-              className={`mb-3 block rounded-2xl border px-3 py-3 text-xs ${
-                message.sender === "me"
-                  ? "border-white/15 bg-white/10 text-white"
-                  : "border-[var(--line)] bg-[var(--accent-soft)] text-[var(--foreground)]"
-              }`}
-            >
-              Open GIF
-            </a>
-          ) : null}
-
-          <p className="leading-5">{message.body}</p>
-
-          {message.attachments?.length ? (
-            <div className="mt-3 space-y-2">
-              {message.attachments.map((attachment) => (
-                <a
-                  key={attachment.id}
-                  href={attachment.downloadUrl ?? undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`block rounded-xl border px-3 py-2 text-xs ${
-                    message.sender === "me"
-                      ? "border-white/20 bg-white/10 text-white"
-                      : "border-[var(--line)] bg-[var(--accent-soft)] text-[var(--foreground)]"
+            <div className="relative pb-1">
+              <div
+                className={`max-w-[88%] overflow-hidden rounded-[20px] px-3 py-2 shadow-[0_10px_24px_rgba(96,109,160,0.08)] ${replyQuoteBubbleClass} ${
+                  message.sender === "me" ? "mr-auto" : "ml-auto"
+                }`}
+              >
+                <div
+                  className={`flex items-center gap-1.5 text-[11px] font-medium ${
+                    message.sender === "me" ? "text-white/88" : "text-[#5e6790]"
                   }`}
                 >
-                  <p className="truncate font-medium">{attachment.name}</p>
-                  <p className={message.sender === "me" ? "text-white/75" : "text-[var(--muted)]"}>
-                    {attachment.isExpired
-                      ? attachment.placeholderText ?? "File expired / removed by storage policy"
-                      : `${Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB`}
-                  </p>
-                </a>
-              ))}
+                  <CornerUpLeft className="h-3 w-3" />
+                  <span>{replyLabel}</span>
+                </div>
+                <div
+                  className={`mt-1 rounded-[16px] px-3 py-2 text-[13px] leading-snug ${
+                    message.sender === "me" ? "bg-[rgba(255,255,255,0.14)] text-white" : "bg-white text-[#475073]"
+                  }`}
+                >
+                  <p className="line-clamp-2">{message.quote.text}</p>
+                </div>
+              </div>
             </div>
           ) : null}
 
-          <p className={`mt-1 text-[11px] leading-none ${message.sender === "me" ? "text-white/75" : "text-[var(--muted)]"}`}>
-            {message.time}
-            {message.isEdited ? " · Edited" : ""}
-            {message.sender === "me" && readLabel ? ` · ${readLabel}` : ""}
-          </p>
+          <div
+            className={`rounded-[26px] px-4 py-3 text-sm leading-5 shadow-[0_14px_36px_rgba(96,109,160,0.06)] ${
+              message.quote ? replyBodyBubbleClass : baseBubbleClass
+            } ${message.quote ? "-mt-6 relative z-10 max-w-[72%]" : ""}`}
+          >
+            {message.gifUrl ? (
+              <a
+                href={message.gifUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={`mb-3 block rounded-2xl border px-3 py-3 text-xs ${
+                  message.sender === "me"
+                    ? "border-white/15 bg-white/10 text-white"
+                    : "border-[var(--line)] bg-[var(--accent-soft)] text-[var(--foreground)]"
+                }`}
+              >
+                Open GIF
+              </a>
+            ) : null}
+
+            {message.quote ? <p className="break-words text-[14px] leading-snug">{message.body}</p> : <p className="leading-5">{message.body}</p>}
+
+            {message.attachments?.length ? (
+              <div className="mt-3 space-y-2">
+                {message.attachments.map((attachment) => (
+                  <a
+                    key={attachment.id}
+                    href={attachment.downloadUrl ?? undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`block rounded-xl border px-3 py-2 text-xs ${
+                      message.sender === "me"
+                        ? "border-white/20 bg-white/10 text-white"
+                        : "border-[var(--line)] bg-[var(--accent-soft)] text-[var(--foreground)]"
+                    }`}
+                  >
+                    <p className="truncate font-medium">{attachment.name}</p>
+                    <p className={message.sender === "me" ? "text-white/75" : "text-[var(--muted)]"}>
+                      {attachment.isExpired
+                        ? attachment.placeholderText ?? "File expired / removed by storage policy"
+                        : `${Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB`}
+                    </p>
+                  </a>
+                ))}
+              </div>
+            ) : null}
+
+            <p className={`mt-1 text-[11px] leading-none ${message.sender === "me" ? "text-white/75" : "text-[var(--muted)]"}`}>
+              {message.time}
+              {message.isEdited ? " · Edited" : ""}
+              {message.sender === "me" && readLabel ? ` · ${readLabel}` : ""}
+            </p>
+          </div>
         </div>
 
         {renderedReactionBadges.length > 0 ? (

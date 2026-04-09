@@ -31,6 +31,7 @@ type SendMessagePayload = {
   attachments: ComposerAttachmentInput[];
   voice: ComposerVoiceInput | null;
   gif: ComposerGifInput | null;
+  replyToMessageId?: number | null;
 };
 
 type EditMessagePayload = {
@@ -76,7 +77,7 @@ export function useSendMessageMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ conversationId, text, attachments, voice, gif }: SendMessagePayload) => {
+    mutationFn: async ({ conversationId, text, attachments, voice, gif, replyToMessageId }: SendMessagePayload) => {
       const normalizedText = text.trim();
 
       if (gif) {
@@ -130,6 +131,7 @@ export function useSendMessageMutation() {
         {
           text: normalizedText,
           client_uuid: crypto.randomUUID(),
+          reply_to_message_id: replyToMessageId ?? null,
         },
       );
 

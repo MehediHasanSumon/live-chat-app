@@ -69,6 +69,7 @@ export function MessagesThreadView({
   const hasInitialScrollRef = useRef(false);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  const [replyingMessageId, setReplyingMessageId] = useState<number | null>(null);
   const [forwardingMessageId, setForwardingMessageId] = useState<number | null>(null);
   const [forwardingSearch, setForwardingSearch] = useState("");
   const [removeTargetMessageId, setRemoveTargetMessageId] = useState<number | null>(null);
@@ -108,6 +109,10 @@ export function MessagesThreadView({
   const editingMessage = useMemo(
     () => mappedMessages.find((message) => message.numericId === editingMessageId) ?? null,
     [mappedMessages, editingMessageId],
+  );
+  const replyingMessage = useMemo(
+    () => mappedMessages.find((message) => message.numericId === replyingMessageId) ?? null,
+    [mappedMessages, replyingMessageId],
   );
   const forwardTargets = useMemo(
     () => forwardConversations
@@ -212,13 +217,24 @@ export function MessagesThreadView({
   };
 
   const startEditing = (messageId: number, currentBody: string) => {
+    setReplyingMessageId(null);
     setEditingMessageId(messageId);
     setEditingValue(currentBody);
+  };
+
+  const startReplying = (messageId: number) => {
+    setEditingMessageId(null);
+    setEditingValue("");
+    setReplyingMessageId(messageId);
   };
 
   const cancelEditing = () => {
     setEditingMessageId(null);
     setEditingValue("");
+  };
+
+  const cancelReplying = () => {
+    setReplyingMessageId(null);
   };
 
   const handleSaveEdit = async (messageId: number) => {
@@ -357,6 +373,7 @@ export function MessagesThreadView({
               key={message.id}
               message={message}
               authUserId={authMe?.data.user.id ?? null}
+              onReply={() => startReplying(message.numericId)}
               onEdit={() => startEditing(message.numericId, message.body)}
               onForward={() => setForwardingMessageId(message.numericId)}
               onRemove={() => openRemoveModal(message.numericId, "self")}
@@ -394,8 +411,17 @@ export function MessagesThreadView({
           isEditing={Boolean(editingMessage)}
           editingValue={editingValue}
           editingMessagePreview={editingMessage?.body ?? null}
+          replyPreview={
+            replyingMessage
+              ? {
+                  senderName: replyingMessage.sender === "me" ? "You" : (replyingMessage.senderName ?? undefined),
+                  text: replyingMessage.body,
+                }
+              : null
+          }
           onEditingValueChange={setEditingValue}
           onCancelEditing={cancelEditing}
+          onCancelReply={cancelReplying}
           isSending={sendMessageMutation.isPending || editMessageMutation.isPending}
           errorMessage={composerErrorMessage}
           onSend={async ({ text, attachments, voice, gif }) => {
@@ -410,7 +436,10 @@ export function MessagesThreadView({
               attachments,
               voice,
               gif,
+              replyToMessageId: replyingMessageId,
             });
+
+            cancelReplying();
           }}
         />
       </footer>

@@ -20,8 +20,13 @@ type MessageComposerProps = {
   isEditing?: boolean;
   editingValue?: string;
   editingMessagePreview?: string | null;
+  replyPreview?: {
+    senderName?: string;
+    text: string;
+  } | null;
   onEditingValueChange?: (value: string) => void;
   onCancelEditing?: () => void;
+  onCancelReply?: () => void;
   onSend: (payload: {
     text: string;
     attachments: ComposerAttachmentInput[];
@@ -38,8 +43,10 @@ export function MessageComposer({
   isEditing = false,
   editingValue = "",
   editingMessagePreview = null,
+  replyPreview = null,
   onEditingValueChange,
   onCancelEditing,
+  onCancelReply,
   onSend,
   isSending = false,
   errorMessage,
@@ -59,9 +66,12 @@ export function MessageComposer({
   const stopTypingMutation = useStopTypingMutation();
   void threadName;
 
+  const isReplying = Boolean(replyPreview);
   const composerValue = isEditing ? editingValue : value;
   const hasText = composerValue.trim().length > 0;
-  const hasMessagePayload = hasText || attachments.length > 0 || voiceAttachment !== null || gifAttachment !== null;
+  const hasMessagePayload = isReplying
+    ? hasText
+    : hasText || attachments.length > 0 || voiceAttachment !== null || gifAttachment !== null;
 
   const resizeTextarea = (ta: HTMLTextAreaElement) => {
     ta.style.height = "auto";
@@ -148,7 +158,7 @@ export function MessageComposer({
       return;
     }
 
-    if (isEditing) {
+    if (isEditing || isReplying) {
       return;
     }
 
@@ -226,9 +236,9 @@ export function MessageComposer({
 
     await onSend({
       text: composerValue,
-      attachments: [...attachments],
-      voice: voiceAttachment,
-      gif: gifAttachment,
+      attachments: isReplying ? [] : [...attachments],
+      voice: isReplying ? null : voiceAttachment,
+      gif: isReplying ? null : gifAttachment,
     });
 
     clearComposer();
@@ -248,7 +258,7 @@ export function MessageComposer({
       return;
     }
 
-    if (isEditing) {
+    if (isEditing || isReplying) {
       return;
     }
 
@@ -323,6 +333,22 @@ export function MessageComposer({
             <button
               type="button"
               onClick={onCancelEditing}
+              className="rounded-full border border-[rgba(111,123,176,0.12)] px-3 py-1 text-xs font-medium text-[#5a6388] transition hover:border-[rgba(96,91,255,0.16)] hover:text-[var(--accent)]"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : replyPreview ? (
+          <div className="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-[rgba(111,123,176,0.12)] bg-white/80 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-[#5a6388]">
+                Replying {replyPreview.senderName ? `to ${replyPreview.senderName}` : "to message"}
+              </p>
+              <p className="mt-1 line-clamp-1 text-sm text-[#8f97bb]">{replyPreview.text}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onCancelReply}
               className="rounded-full border border-[rgba(111,123,176,0.12)] px-3 py-1 text-xs font-medium text-[#5a6388] transition hover:border-[rgba(96,91,255,0.16)] hover:text-[var(--accent)]"
             >
               Cancel
@@ -430,7 +456,7 @@ export function MessageComposer({
             type="button"
             onClick={() => {
               if (!hasText && attachments.length === 0 && !voiceAttachment && !gifAttachment) {
-                if (isEditing) {
+                if (isEditing || isReplying) {
                   return;
                 }
 
@@ -467,7 +493,7 @@ export function MessageComposer({
             <button
               aria-label="Attach file"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isSending || isEditing}
+              disabled={isSending || isEditing || isReplying}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Paperclip className="h-3.5 w-3.5" />
@@ -475,7 +501,7 @@ export function MessageComposer({
             <button
               aria-label="Upload image"
               onClick={() => imageInputRef.current?.click()}
-              disabled={isSending || isEditing}
+              disabled={isSending || isEditing || isReplying}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <ImageIcon className="h-3.5 w-3.5" />
@@ -491,7 +517,7 @@ export function MessageComposer({
             <button
               aria-label="Attach GIF"
               onClick={handleAttachGif}
-              disabled={isSending || isEditing}
+              disabled={isSending || isEditing || isReplying}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Film className="h-3.5 w-3.5" />
@@ -499,7 +525,7 @@ export function MessageComposer({
             <button
               aria-label="Upload voice note"
               onClick={() => audioInputRef.current?.click()}
-              disabled={isSending || isEditing}
+              disabled={isSending || isEditing || isReplying}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <FileAudio className="h-3.5 w-3.5" />
