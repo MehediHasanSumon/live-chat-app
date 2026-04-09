@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { type MessageThread } from "@/lib/messages-data";
 import { MessagesAsidePanel } from "@/components/messages/messages-aside-panel";
 import { MessagesConfirmationModal } from "@/components/messages/messages-confirmation-modal";
+import { MessagesImageViewer, type MessagesImageViewerItem } from "@/components/messages/messages-image-viewer";
 import { MessagesMediaSidebar } from "@/components/messages/messages-media-sidebar";
 import { MessagesMuteModal } from "@/components/messages/messages-mute-modal";
 import { MessagesNewMessageModal } from "@/components/messages/messages-new-message-modal";
@@ -19,6 +20,9 @@ type MessagesThreadLayoutProps = {
 };
 
 export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
+  const [viewerImages, setViewerImages] = useState<MessagesImageViewerItem[]>([]);
+  const [viewerThreadId, setViewerThreadId] = useState<string | null>(null);
+  const [activeViewerImageId, setActiveViewerImageId] = useState<string | null>(null);
   const activeThreadId = useChatUiStore((state) => state.activeThreadId);
   const asideView = useChatUiStore((state) => state.asideView);
   const confirmationAction = useChatUiStore((state) => state.confirmationAction);
@@ -41,6 +45,12 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
     resetThreadPanels();
   }, [resetThreadPanels, setActiveThreadId, thread.id]);
 
+  const openImageViewer = (images: MessagesImageViewerItem[], activeImageId: string) => {
+    setViewerThreadId(thread.id);
+    setViewerImages(images);
+    setActiveViewerImageId(activeImageId);
+  };
+
   const aside =
     asideView === "info" ? (
       <MessagesAsidePanel key="info">
@@ -56,6 +66,7 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
           thread={thread}
           initialTab={asideView}
           onBack={() => openAsideView("info")}
+          onOpenImageViewer={openImageViewer}
         />
       </MessagesAsidePanel>
     );
@@ -76,10 +87,20 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
             thread={thread}
             isInfoSidebarOpen={isInfoSidebarOpen}
             onToggleInfoSidebar={toggleInfoSidebar}
+            onOpenImageViewer={openImageViewer}
           />
         }
         aside={aside}
         asideVisible={isInfoSidebarOpen}
+      />
+      <MessagesImageViewer
+        images={viewerThreadId === thread.id ? viewerImages : []}
+        activeImageId={viewerThreadId === thread.id ? activeViewerImageId : null}
+        onClose={() => {
+          setActiveViewerImageId(null);
+          setViewerThreadId(null);
+        }}
+        onSelectImage={setActiveViewerImageId}
       />
       <MessagesMuteModal isOpen={isMuteModalOpen} onClose={closeMuteModal} />
       <MessagesNewMessageModal

@@ -17,12 +17,16 @@ export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
 
   if (isLoading) {
     return (
-      <MessagesShell
+        <MessagesShell
         sidebar={<MessagesSidebar activeThreadId={threadId} onOpenNewMessageModal={openNewMessageModal} />}
         content={
-          <section className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]" />
-            <p className="mt-4 text-sm text-[var(--muted)]">Loading conversation...</p>
+          <section className="h-full w-full px-6">
+            <div className="flex h-full w-full items-center justify-center">
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]" />
+                <p className="mt-4 text-sm text-[var(--muted)]">Loading conversation...</p>
+              </div>
+            </div>
           </section>
         }
       />
@@ -31,14 +35,18 @@ export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
 
   if (isError || !conversation) {
     return (
-      <MessagesShell
+        <MessagesShell
         sidebar={<MessagesSidebar activeThreadId={threadId} onOpenNewMessageModal={openNewMessageModal} />}
         content={
-          <section className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Conversation unavailable</h1>
-            <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted)]">
-              We could not load this conversation. Try another one from the sidebar.
-            </p>
+          <section className="h-full w-full px-6">
+            <div className="flex h-full w-full items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-2xl font-semibold tracking-tight">Conversation unavailable</h1>
+                <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted)]">
+                  We could not load this conversation. Try another one from the sidebar.
+                </p>
+              </div>
+            </div>
           </section>
         }
       />

@@ -206,15 +206,18 @@ export type ChatMessage = {
   } | null;
   gifUrl?: string | null;
   reactions?: ChatReaction[];
-  attachments?: {
-    id: string;
-    name: string;
-    mimeType: string;
-    sizeBytes: number;
-    downloadUrl: string | null;
-    isExpired: boolean;
-    placeholderText: string | null;
-  }[];
+    attachments?: {
+      id: string;
+      name: string;
+      mimeType: string;
+      mediaKind: "image" | "video" | "audio" | "voice" | "file" | "gif";
+      sizeBytes: number;
+      width: number | null;
+      height: number | null;
+      downloadUrl: string | null;
+      isExpired: boolean;
+      placeholderText: string | null;
+    }[];
 };
 
 export type ThreadMediaItem = {
@@ -222,6 +225,7 @@ export type ThreadMediaItem = {
   type: "media" | "file";
   title: string;
   preview?: string;
+  previewUrl?: string | null;
   meta?: string;
   downloadUrl?: string | null;
   isExpired?: boolean;
@@ -292,6 +296,10 @@ export function toThreadMediaItems(items: MessageAttachmentApiItem[]): ThreadMed
     preview: item.storage_object?.media_kind === "image" || item.storage_object?.media_kind === "gif"
       ? item.storage_object.original_name.slice(0, 2).toUpperCase()
       : undefined,
+    previewUrl:
+      item.storage_object?.media_kind === "image" || item.storage_object?.media_kind === "gif"
+        ? item.storage_object.download_url
+        : null,
     meta: item.storage_object
       ? `${Math.max(1, Math.round(item.storage_object.size_bytes / 1024))} KB`
       : undefined,
@@ -351,7 +359,10 @@ export function toChatMessage(message: MessageApiItem, authUserId?: number | nul
         id: String(attachment.id),
         name: attachment.storage_object?.original_name ?? `Attachment #${attachment.storage_object_id}`,
         mimeType: attachment.storage_object?.mime_type ?? "application/octet-stream",
+        mediaKind: attachment.storage_object?.media_kind ?? "file",
         sizeBytes: attachment.storage_object?.size_bytes ?? 0,
+        width: attachment.storage_object?.width ?? null,
+        height: attachment.storage_object?.height ?? null,
         downloadUrl: attachment.storage_object?.download_url ?? null,
         isExpired: Boolean(attachment.storage_object?.deleted_at),
         placeholderText: attachment.storage_object?.placeholder_text ?? null,

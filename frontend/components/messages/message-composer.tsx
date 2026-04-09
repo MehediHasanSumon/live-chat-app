@@ -7,11 +7,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { FileAudio, Film, ImageIcon, Mic, Paperclip, SendHorizonal, Smile, X } from "lucide-react";
+import { ImageIcon, Paperclip, SendHorizonal, Smile } from "lucide-react";
 
-import { MessageComposerPreview } from "@/components/messages/message-composer-preview";
 import { MessageComposerEmojiPicker } from "@/components/messages/message-composer-emoji-picker";
-import { type ComposerAttachmentInput, type ComposerGifInput, type ComposerVoiceInput } from "@/lib/messages-data";
+import { MessageComposerPreview } from "@/components/messages/message-composer-preview";
+import { type ComposerAttachmentInput } from "@/lib/messages-data";
 import { useStartTypingMutation, useStopTypingMutation } from "@/lib/hooks/use-typing-mutation";
 
 type MessageComposerProps = {
@@ -30,8 +30,8 @@ type MessageComposerProps = {
   onSend: (payload: {
     text: string;
     attachments: ComposerAttachmentInput[];
-    voice: ComposerVoiceInput | null;
-    gif: ComposerGifInput | null;
+    voice: null;
+    gif: null;
   }) => Promise<void>;
   isSending?: boolean;
   errorMessage?: string | null;
@@ -53,14 +53,11 @@ export function MessageComposer({
 }: MessageComposerProps) {
   const [value, setValue] = useState("");
   const [attachments, setAttachments] = useState<ComposerAttachmentInput[]>([]);
-  const [voiceAttachment, setVoiceAttachment] = useState<ComposerVoiceInput | null>(null);
-  const [gifAttachment, setGifAttachment] = useState<ComposerGifInput | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const audioInputRef = useRef<HTMLInputElement>(null);
   const typingTimerRef = useRef<number | null>(null);
   const startTypingMutation = useStartTypingMutation();
   const stopTypingMutation = useStopTypingMutation();
@@ -69,9 +66,7 @@ export function MessageComposer({
   const isReplying = Boolean(replyPreview);
   const composerValue = isEditing ? editingValue : value;
   const hasText = composerValue.trim().length > 0;
-  const hasMessagePayload = isReplying
-    ? hasText
-    : hasText || attachments.length > 0 || voiceAttachment !== null || gifAttachment !== null;
+  const hasMessagePayload = hasText || attachments.length > 0;
 
   const resizeTextarea = (ta: HTMLTextAreaElement) => {
     ta.style.height = "auto";
@@ -136,8 +131,8 @@ export function MessageComposer({
     } else {
       setValue(event.target.value);
     }
-    resizeTextarea(event.target);
 
+    resizeTextarea(event.target);
     startTypingMutation.mutate({ conversationId });
 
     if (typingTimerRef.current) {
@@ -154,16 +149,9 @@ export function MessageComposer({
     kind: "image" | "file",
     input?: HTMLInputElement | null,
   ) => {
-    if (!files?.length || isSending) {
+    if (!files?.length || isSending || isEditing || isReplying) {
       return;
     }
-
-    if (isEditing || isReplying) {
-      return;
-    }
-
-    setVoiceAttachment(null);
-    setGifAttachment(null);
 
     const nextItems = Array.from(files).map((file) => ({
       id: `${file.name}-${file.size}-${crypto.randomUUID()}`,
@@ -192,12 +180,12 @@ export function MessageComposer({
   };
 
   const appendEmoji = (emoji: string) => {
-    const next = `${value}${emoji}`;
     if (isEditing) {
       onEditingValueChange?.(`${composerValue}${emoji}`);
     } else {
-      setValue(next);
+      setValue(`${value}${emoji}`);
     }
+
     setShowEmojiPicker(false);
 
     requestAnimationFrame(() => {
@@ -220,8 +208,6 @@ export function MessageComposer({
       return [];
     });
     setShowEmojiPicker(false);
-    setVoiceAttachment(null);
-    setGifAttachment(null);
     stopTyping();
 
     if (textareaRef.current) {
@@ -237,8 +223,8 @@ export function MessageComposer({
     await onSend({
       text: composerValue,
       attachments: isReplying ? [] : [...attachments],
-      voice: isReplying ? null : voiceAttachment,
-      gif: isReplying ? null : gifAttachment,
+      voice: null,
+      gif: null,
     });
 
     clearComposer();
@@ -249,73 +235,6 @@ export function MessageComposer({
       event.preventDefault();
       await handleSend();
     }
-  };
-
-  const handleAudioSelection = async (files: FileList | null, input?: HTMLInputElement | null) => {
-    const file = files?.[0];
-
-    if (!file || isSending) {
-      return;
-    }
-
-    if (isEditing || isReplying) {
-      return;
-    }
-
-    setAttachments([]);
-    setGifAttachment(null);
-
-    const audio = document.createElement("audio");
-    audio.preload = "metadata";
-
-    const durationMs = await new Promise<number>((resolve) => {
-      const url = URL.createObjectURL(file);
-      audio.src = url;
-      audio.onloadedmetadata = () => {
-        const value = Number.isFinite(audio.duration) ? Math.round(audio.duration * 1000) : 1000;
-        URL.revokeObjectURL(url);
-        resolve(Math.max(value, 1000));
-      };
-      audio.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve(1000);
-      };
-    });
-
-    setVoiceAttachment({
-      id: `${file.name}-${file.size}-${crypto.randomUUID()}`,
-      file,
-      durationMs,
-    });
-
-    if (input) {
-      input.value = "";
-    }
-  };
-
-  const handleAttachGif = () => {
-    if (isSending) {
-      return;
-    }
-
-    if (isEditing) {
-      return;
-    }
-
-    const url = window.prompt("Paste a GIF URL");
-
-    if (!url) {
-      return;
-    }
-
-    setAttachments([]);
-    setVoiceAttachment(null);
-    setGifAttachment({
-      url,
-      previewUrl: url,
-      title: "GIF",
-      provider: "custom",
-    });
   };
 
   return (
@@ -371,65 +290,12 @@ export function MessageComposer({
           className="hidden"
           onChange={(event) => addFiles(event.target.files, "image", event.currentTarget)}
         />
-        <input
-          ref={audioInputRef}
-          type="file"
-          accept="audio/*"
-          className="hidden"
-          onChange={(event) => {
-            void handleAudioSelection(event.target.files, event.currentTarget);
-          }}
-        />
 
         {attachments.length > 0 ? (
           <MessageComposerPreview
             attachments={attachments}
             onRemove={removeAttachment}
           />
-        ) : null}
-
-        {voiceAttachment ? (
-          <div className="mb-3 flex items-center justify-between rounded-2xl border border-[var(--line)] bg-white/85 px-4 py-3 text-sm text-[var(--foreground)]">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                <FileAudio className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="font-medium">{voiceAttachment.file.name}</p>
-                <p className="text-xs text-[var(--muted)]">
-                  Voice note · {Math.max(1, Math.round(voiceAttachment.durationMs / 1000))}s
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setVoiceAttachment(null)}
-              className="rounded-full p-2 text-[var(--muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : null}
-
-        {gifAttachment ? (
-          <div className="mb-3 flex items-center justify-between rounded-2xl border border-[var(--line)] bg-white/85 px-4 py-3 text-sm text-[var(--foreground)]">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                <Film className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="font-medium">GIF attached</p>
-                <p className="text-xs text-[var(--muted)]">{gifAttachment.url}</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setGifAttachment(null)}
-              className="rounded-full p-2 text-[var(--muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
         ) : null}
 
         <div className="relative rounded-[18px] bg-white/88 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_22px_rgba(96,109,160,0.05)] transition-all duration-200 ease-out">
@@ -455,32 +321,17 @@ export function MessageComposer({
           <button
             type="button"
             onClick={() => {
-              if (!hasText && attachments.length === 0 && !voiceAttachment && !gifAttachment) {
-                if (isEditing || isReplying) {
-                  return;
-                }
-
-                audioInputRef.current?.click();
+              if (!hasText && attachments.length === 0) {
                 return;
               }
 
               void handleSend();
             }}
-            aria-label={
-              hasMessagePayload
-                ? isEditing
-                  ? "Save message"
-                  : "Send message"
-                : "Record voice message"
-            }
+            aria-label={isEditing ? "Save message" : "Send message"}
             disabled={isSending}
             className="absolute bottom-2 right-2 flex h-10 w-10 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white shadow-[0_12px_24px_rgba(96,91,255,0.24)] transition-all duration-200 ease-out hover:brightness-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {hasMessagePayload ? (
-              <SendHorizonal className="h-3.5 w-3.5" />
-            ) : (
-              <Mic className="h-3.5 w-3.5" />
-            )}
+            <SendHorizonal className="h-3.5 w-3.5" />
           </button>
         </div>
 
@@ -513,22 +364,6 @@ export function MessageComposer({
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Smile className="h-3.5 w-3.5" />
-            </button>
-            <button
-              aria-label="Attach GIF"
-              onClick={handleAttachGif}
-              disabled={isSending || isEditing || isReplying}
-              className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Film className="h-3.5 w-3.5" />
-            </button>
-            <button
-              aria-label="Upload voice note"
-              onClick={() => audioInputRef.current?.click()}
-              disabled={isSending || isEditing || isReplying}
-              className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <FileAudio className="h-3.5 w-3.5" />
             </button>
           </div>
           {isSending ? (

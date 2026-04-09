@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { ArrowLeft, FileText } from "lucide-react";
 
+import { type MessagesImageViewerItem } from "@/components/messages/messages-image-viewer";
 import { useSharedFilesQuery, useSharedMediaQuery } from "@/lib/hooks/use-shared-attachments-query";
 import { toThreadMediaItems, type MessageThread } from "@/lib/messages-data";
 
@@ -11,18 +12,27 @@ type MessagesMediaSidebarProps = {
   thread: MessageThread;
   initialTab?: "media" | "file";
   onBack: () => void;
+  onOpenImageViewer?: (images: MessagesImageViewerItem[], activeImageId: string) => void;
 };
 
 export function MessagesMediaSidebar({
   thread,
   initialTab = "media",
   onBack,
+  onOpenImageViewer,
 }: MessagesMediaSidebarProps) {
   const [activeTab, setActiveTab] = useState<"media" | "file">(initialTab);
   const { data: media = [], isLoading: isMediaLoading } = useSharedMediaQuery(thread.id, activeTab === "media");
   const { data: files = [], isLoading: isFilesLoading } = useSharedFilesQuery(thread.id, activeTab === "file");
   const items = activeTab === "media" ? toThreadMediaItems(media) : toThreadMediaItems(files);
   const isLoading = activeTab === "media" ? isMediaLoading : isFilesLoading;
+  const galleryImages = items
+    .filter((item) => item.type === "media" && (item.previewUrl || item.downloadUrl) && !item.isExpired)
+    .map((item) => ({
+      id: item.id,
+      name: item.title,
+      url: (item.previewUrl ?? item.downloadUrl) as string,
+    }));
 
   return (
     <div className="surface h-full bg-[#fbfcff]">
@@ -74,23 +84,27 @@ export function MessagesMediaSidebar({
           {!isLoading && activeTab === "media" ? (
             <div className="grid grid-cols-2 gap-3">
               {items.map((item) => (
-                <a
+                <button
                   key={item.id}
-                  href={item.downloadUrl ?? undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white"
+                  type="button"
+                  onClick={() => {
+                    if ((item.previewUrl || item.downloadUrl) && !item.isExpired) {
+                      onOpenImageViewer?.(galleryImages, item.id);
+                    }
+                  }}
+                  className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white text-left"
                 >
-                  <div className="flex aspect-square items-center justify-center bg-[var(--accent-soft)] text-2xl font-semibold text-[var(--accent)]">
-                    {item.preview ?? "M"}
+                  <div className="flex aspect-square items-center justify-center overflow-hidden bg-[var(--accent-soft)]">
+                    {(item.previewUrl || item.downloadUrl) && !item.isExpired ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={item.previewUrl ?? item.downloadUrl ?? undefined} alt={item.title} className="h-full w-full object-cover" />
+                      </>
+                    ) : (
+                      <span className="text-2xl font-semibold text-[var(--accent)]">{item.preview ?? "M"}</span>
+                    )}
                   </div>
-                  <div className="px-3 py-2">
-                    <p className="truncate text-sm font-medium text-[var(--foreground)]">{item.title}</p>
-                    <p className="mt-1 text-xs text-[var(--muted)]">
-                      {item.isExpired ? "Expired file" : item.meta}
-                    </p>
-                  </div>
-                </a>
+                </button>
               ))}
             </div>
           ) : null}
@@ -120,6 +134,7 @@ export function MessagesMediaSidebar({
           ) : null}
         </div>
       </div>
+
     </div>
   );
 }

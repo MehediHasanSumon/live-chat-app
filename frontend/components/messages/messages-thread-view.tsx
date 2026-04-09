@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 
 import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
+import { type MessagesImageViewerItem } from "@/components/messages/messages-image-viewer";
 import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
 import { ApiClientError } from "@/lib/api-client";
@@ -30,12 +31,14 @@ type MessagesThreadViewProps = {
   thread: MessageThread;
   isInfoSidebarOpen: boolean;
   onToggleInfoSidebar: () => void;
+  onOpenImageViewer?: (images: MessagesImageViewerItem[], activeImageId: string) => void;
 };
 
 export function MessagesThreadView({
   thread,
   isInfoSidebarOpen,
   onToggleInfoSidebar,
+  onOpenImageViewer,
 }: MessagesThreadViewProps) {
   const { data: authMe } = useAuthMeQuery(true);
   const {
@@ -113,6 +116,19 @@ export function MessagesThreadView({
   const replyingMessage = useMemo(
     () => mappedMessages.find((message) => message.numericId === replyingMessageId) ?? null,
     [mappedMessages, replyingMessageId],
+  );
+  const galleryImages = useMemo(
+    () =>
+      mappedMessages.flatMap((message) =>
+        (message.attachments ?? [])
+          .filter((attachment) => attachment.mediaKind === "image" && attachment.downloadUrl && !attachment.isExpired)
+          .map((attachment) => ({
+            id: attachment.id,
+            url: attachment.downloadUrl as string,
+            name: attachment.name,
+          })),
+      ),
+    [mappedMessages],
   );
   const forwardTargets = useMemo(
     () => forwardConversations
@@ -377,6 +393,7 @@ export function MessagesThreadView({
               onEdit={() => startEditing(message.numericId, message.body)}
               onForward={() => setForwardingMessageId(message.numericId)}
               onRemove={() => openRemoveModal(message.numericId, "self")}
+              onOpenImage={(attachmentId) => onOpenImageViewer?.(galleryImages, attachmentId)}
               readLabel={
                 !thread.isGroup && message.sender === "me" && peerMembership
                   ? peerMembership.last_read_seq >= message.seq
@@ -642,6 +659,7 @@ export function MessagesThreadView({
           </div>
         </div>
       ) : null}
+
     </section>
   );
 }

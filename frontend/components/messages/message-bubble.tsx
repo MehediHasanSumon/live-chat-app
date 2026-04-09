@@ -10,6 +10,7 @@ type MessageBubbleProps = {
   authUserId: number | null;
   readLabel?: string | null;
   onToggleReaction?: (emoji: string, hasReacted: boolean) => void;
+  onOpenImage?: (attachmentId: string) => void;
   onReply?: () => void;
   onEdit?: () => void;
   onForward?: () => void;
@@ -24,6 +25,7 @@ export function MessageBubble({
   authUserId,
   readLabel = null,
   onToggleReaction,
+  onOpenImage,
   onReply,
   onEdit,
   onForward,
@@ -36,7 +38,6 @@ export function MessageBubble({
   const railPositionClass = message.sender === "me" ? "right-full mr-3" : "left-full ml-3";
   const surfaceActionClass =
     "flex h-8 w-8 items-center justify-center rounded-xl border border-[rgba(111,123,176,0.14)] bg-white/96 text-[#6f769b] shadow-[0_10px_20px_rgba(96,109,160,0.07)] transition hover:border-[rgba(96,91,255,0.18)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60";
-  const reactionSummaryClass = "bg-transparent";
   const baseBubbleClass =
     message.sender === "me"
       ? "bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white"
@@ -45,19 +46,29 @@ export function MessageBubble({
     message.sender === "me"
       ? "bg-[rgba(22,37,86,0.28)] text-white/92"
       : "bg-[rgba(238,240,255,0.9)] text-[var(--foreground)]";
-  const replyBodyBubbleClass = message.sender === "me"
-    ? "ml-auto bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white"
-    : "border border-[rgba(111,123,176,0.14)] bg-white text-[var(--foreground)]";
+  const replyBodyBubbleClass =
+    message.sender === "me"
+      ? "ml-auto bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white"
+      : "border border-[rgba(111,123,176,0.14)] bg-white text-[var(--foreground)]";
 
   const renderedReactionBadges = useMemo(
     () =>
       message.reactions?.map((reaction) => (
-        <span key={reaction.emoji} className={`rounded-full px-2 py-1 ${reactionSummaryClass}`}>
+        <span key={reaction.emoji} className="rounded-full px-2 py-1">
           {reaction.emoji} {reaction.count}
         </span>
       )) ?? [],
     [message.reactions],
   );
+
+  const imageAttachments = message.attachments?.filter((attachment) => attachment.mediaKind === "image") ?? [];
+  const fileAttachments = message.attachments?.filter((attachment) => attachment.mediaKind !== "image") ?? [];
+  const isImageOnlyMessage =
+    imageAttachments.length > 0 &&
+    fileAttachments.length === 0 &&
+    !message.gifUrl &&
+    !message.quote &&
+    (!message.body.trim() || /^shared (photo|image)$/i.test(message.body.trim()));
 
   const replyLabel = useMemo(() => {
     if (!message.quote) {
@@ -208,7 +219,11 @@ export function MessageBubble({
 
           <div
             className={`rounded-[26px] px-4 py-3 text-sm leading-5 shadow-[0_14px_36px_rgba(96,109,160,0.06)] ${
-              message.quote ? replyBodyBubbleClass : baseBubbleClass
+              isImageOnlyMessage
+                ? "bg-transparent px-0 py-0 shadow-none"
+                : message.quote
+                  ? replyBodyBubbleClass
+                  : baseBubbleClass
             } ${message.quote ? "-mt-6 relative z-10 max-w-[72%]" : ""}`}
           >
             {message.gifUrl ? (
@@ -226,11 +241,55 @@ export function MessageBubble({
               </a>
             ) : null}
 
-            {message.quote ? <p className="break-words text-[14px] leading-snug">{message.body}</p> : <p className="leading-5">{message.body}</p>}
+            {!isImageOnlyMessage ? (
+              message.quote ? <p className="break-words text-[14px] leading-snug">{message.body}</p> : <p className="leading-5">{message.body}</p>
+            ) : null}
 
-            {message.attachments?.length ? (
+            {imageAttachments.length > 0 ? (
+              <div className={`${isImageOnlyMessage ? "" : "mt-3"} space-y-2`}>
+                {imageAttachments.map((attachment) => (
+                  <div
+                    key={attachment.id}
+                    className={`block overflow-hidden rounded-[22px] ${
+                      attachment.isExpired
+                        ? message.sender === "me"
+                          ? "border border-white/20 bg-white/10"
+                          : "border border-[var(--line)] bg-[var(--accent-soft)]"
+                        : ""
+                    }`}
+                  >
+                    {attachment.isExpired || !attachment.downloadUrl ? (
+                      <div
+                        className={`px-3 py-3 text-xs ${
+                          message.sender === "me" ? "text-white/75" : "text-[var(--muted)]"
+                        }`}
+                      >
+                        {attachment.placeholderText ?? "Image expired / removed by storage policy"}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onOpenImage?.(attachment.id)}
+                        className="block w-full"
+                        aria-label={`Open ${attachment.name}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={attachment.downloadUrl}
+                          alt={attachment.name}
+                          className="max-h-[320px] w-full rounded-[22px] object-cover shadow-[0_14px_36px_rgba(96,109,160,0.12)]"
+                          loading="lazy"
+                        />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {fileAttachments.length > 0 ? (
               <div className="mt-3 space-y-2">
-                {message.attachments.map((attachment) => (
+                {fileAttachments.map((attachment) => (
                   <a
                     key={attachment.id}
                     href={attachment.downloadUrl ?? undefined}
@@ -253,7 +312,17 @@ export function MessageBubble({
               </div>
             ) : null}
 
-            <p className={`mt-1 text-[11px] leading-none ${message.sender === "me" ? "text-white/75" : "text-[var(--muted)]"}`}>
+            <p
+              className={`mt-1 text-[11px] leading-none ${
+                isImageOnlyMessage
+                  ? message.sender === "me"
+                    ? "text-right text-[var(--muted)]"
+                    : "text-left text-[var(--muted)]"
+                  : message.sender === "me"
+                    ? "text-white/75"
+                    : "text-[var(--muted)]"
+              }`}
+            >
               {message.time}
               {message.isEdited ? " · Edited" : ""}
               {message.sender === "me" && readLabel ? ` · ${readLabel}` : ""}
