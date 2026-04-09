@@ -8,7 +8,7 @@ type MessageBubbleProps = {
   isReacting?: boolean;
 };
 
-const quickReactions = ["👍", "❤️", "🔥"];
+const quickReactions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F525}"];
 
 export function MessageBubble({
   message,
@@ -20,10 +20,10 @@ export function MessageBubble({
   return (
     <div className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+        className={`max-w-[78%] rounded-[26px] px-4 py-3.5 text-sm leading-6 shadow-[0_14px_36px_rgba(96,109,160,0.06)] ${
           message.sender === "me"
-            ? "bg-[var(--accent)] text-white"
-            : "border border-[var(--line)] bg-white text-[var(--foreground)]"
+            ? "bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white"
+            : "border border-[rgba(111,123,176,0.14)] bg-white text-[var(--foreground)]"
         }`}
       >
         {message.sender === "other" && message.senderName ? (
@@ -123,7 +123,12 @@ export function MessageBubble({
           {message.reactions?.length ? (
             <div className={`flex flex-wrap gap-2 text-xs ${message.sender === "me" ? "text-white/80" : "text-[var(--muted)]"}`}>
               {message.reactions.map((reaction) => (
-                <span key={reaction.emoji} className="rounded-full bg-black/5 px-2 py-1">
+                <span
+                  key={reaction.emoji}
+                  className={`rounded-full px-2 py-1 ${
+                    message.sender === "me" ? "bg-white/10" : "bg-black/5"
+                  }`}
+                >
                   {reaction.emoji} {reaction.count}
                 </span>
               ))}

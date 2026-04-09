@@ -3,21 +3,11 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { type MessageApiItem } from "@/lib/messages-data";
 import { queryKeys } from "@/lib/query-keys";
 import { getEchoInstance } from "@/lib/reverb";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 import { useConversationRealtimeStore } from "@/lib/stores/conversation-realtime-store";
-import { useAuthStore } from "@/lib/stores/auth-store";
-
-type MessageEventPayload = {
-  message: MessageApiItem;
-};
-
-type ReactionEventPayload = {
-  message_id: number;
-  reactions: MessageApiItem["reactions"];
-};
 
 type TypingEventPayload = {
   conversation_id: number;
@@ -27,20 +17,13 @@ type TypingEventPayload = {
   };
 };
 
-function upsertMessage(current: MessageApiItem[] | undefined, nextMessage: MessageApiItem) {
-  const existing = current ?? [];
-  const next = existing.filter((message) => message.id !== nextMessage.id);
-  next.push(nextMessage);
-  return next.sort((left, right) => left.seq - right.seq);
-}
-
 export function ConversationRealtimeProvider() {
   const queryClient = useQueryClient();
   const activeThreadId = useChatUiStore((state) => state.activeThreadId);
+  const authUserId = useAuthStore((state) => state.user?.id ?? null);
   const addTypingUser = useConversationRealtimeStore((state) => state.addTypingUser);
   const removeTypingUser = useConversationRealtimeStore((state) => state.removeTypingUser);
   const clearConversation = useConversationRealtimeStore((state) => state.clearConversation);
-  const authUserId = useAuthStore((state) => state.user?.id ?? null);
 
   useEffect(() => {
     if (!activeThreadId) {
@@ -53,51 +36,20 @@ export function ConversationRealtimeProvider() {
       return;
     }
 
+    const invalidateConversationState = () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.messages.list(activeThreadId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(activeThreadId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+    };
+
     const channel = echo.private(`conversation.${activeThreadId}`);
     const presenceChannel = echo.join(`conversation.${activeThreadId}`);
 
-    const invalidateConversation = () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(activeThreadId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
-    };
-
-    channel.listen(".message.created", (payload: MessageEventPayload) => {
-      queryClient.setQueryData<MessageApiItem[]>(queryKeys.messages.list(activeThreadId), (current) =>
-        upsertMessage(current, payload.message),
-      );
-      invalidateConversation();
-    });
-
-    channel.listen(".message.updated", (payload: MessageEventPayload) => {
-      queryClient.setQueryData<MessageApiItem[]>(queryKeys.messages.list(activeThreadId), (current) =>
-        upsertMessage(current, payload.message),
-      );
-      invalidateConversation();
-    });
-
-    channel.listen(".message.deleted", (payload: MessageEventPayload) => {
-      queryClient.setQueryData<MessageApiItem[]>(queryKeys.messages.list(activeThreadId), (current) =>
-        upsertMessage(current, payload.message),
-      );
-      invalidateConversation();
-    });
-
-    channel.listen(".reaction.changed", (payload: ReactionEventPayload) => {
-      queryClient.setQueryData<MessageApiItem[]>(queryKeys.messages.list(activeThreadId), (current) =>
-        (current ?? []).map((message) =>
-          message.id === payload.message_id
-            ? {
-                ...message,
-                reactions: payload.reactions ?? [],
-              }
-            : message,
-        ),
-      );
-    });
-
-    channel.listen(".conversation.read", () => {
-      invalidateConversation();
-    });
+    channel.listen(".message.created", invalidateConversationState);
+    channel.listen(".message.updated", invalidateConversationState);
+    channel.listen(".message.deleted", invalidateConversationState);
+    channel.listen(".reaction.changed", invalidateConversationState);
+    channel.listen(".conversation.read", invalidateConversationState);
 
     presenceChannel.listen(".typing.started", (payload: TypingEventPayload) => {
       if (payload.user.id === authUserId) {
