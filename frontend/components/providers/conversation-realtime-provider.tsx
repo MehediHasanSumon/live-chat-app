@@ -3,13 +3,12 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { shouldBootstrapAuth } from "@/lib/api-client";
-import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { type MessageApiItem } from "@/lib/messages-data";
 import { queryKeys } from "@/lib/query-keys";
 import { getEchoInstance } from "@/lib/reverb";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 import { useConversationRealtimeStore } from "@/lib/stores/conversation-realtime-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 type MessageEventPayload = {
   message: MessageApiItem;
@@ -41,8 +40,7 @@ export function ConversationRealtimeProvider() {
   const addTypingUser = useConversationRealtimeStore((state) => state.addTypingUser);
   const removeTypingUser = useConversationRealtimeStore((state) => state.removeTypingUser);
   const clearConversation = useConversationRealtimeStore((state) => state.clearConversation);
-  const { data: authMe } = useAuthMeQuery(shouldBootstrapAuth());
-  const authUserId = authMe?.data.user.id ?? null;
+  const authUserId = useAuthStore((state) => state.user?.id ?? null);
 
   useEffect(() => {
     if (!activeThreadId) {

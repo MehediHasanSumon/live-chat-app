@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactNode, useState } from "react";
 
 import { AuthQuerySync } from "@/components/providers/auth-query-sync";
+import { AuthStoreSync } from "@/components/providers/auth-store-sync";
 import { CallDock } from "@/components/providers/call-dock";
 import { CallRoomOverlay } from "@/components/providers/call-room-overlay";
 import { CallRealtimeProvider } from "@/components/providers/call-realtime-provider";
@@ -33,6 +34,7 @@ export function AppProviders({ children }: AppProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <NavigationProgress />
       <AuthQuerySync />
+      <AuthStoreSync />
       <ReverbProvider />
       <CallRealtimeProvider />
       <ConversationRealtimeProvider />

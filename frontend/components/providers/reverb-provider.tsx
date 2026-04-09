@@ -2,13 +2,11 @@
 
 import { useEffect } from "react";
 
-import { shouldBootstrapAuth } from "@/lib/api-client";
-import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { connectEcho, disconnectEcho } from "@/lib/reverb";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 export function ReverbProvider() {
-  const { data: authMe } = useAuthMeQuery(shouldBootstrapAuth());
-  const userId = authMe?.data.user.id ?? null;
+  const userId = useAuthStore((state) => state.user?.id ?? null);
 
   useEffect(() => {
     if (!userId) {

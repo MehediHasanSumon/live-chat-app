@@ -3,17 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { Auth } from "@/components/auth/auth";
+import { Guest } from "@/components/auth/guest";
 import { Button } from "@/components/ui/button";
-import { shouldBootstrapAuth } from "@/lib/api-client";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useLogoutMutation } from "@/lib/hooks/use-auth-mutations";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 export default function Home() {
   const router = useRouter();
-  const { data, isLoading, isError } = useAuthMeQuery(shouldBootstrapAuth());
+  const { data: authMe, isLoading } = useAuthMeQuery(true);
   const logoutMutation = useLogoutMutation();
+  const user = useAuthStore((state) => state.user);
+  const hasActiveSession = authMe?.authenticated && Boolean(user);
 
-async function handleLogout() {
+  async function handleLogout() {
     await logoutMutation.mutateAsync();
     router.replace("/login");
   }
@@ -27,7 +31,26 @@ async function handleLogout() {
             <p className="text-sm text-[var(--muted)]">Session-based auth is now connected to Laravel Sanctum.</p>
           </div>
 
-          {data?.data.user ? (
+          <Auth
+            fallback={
+              <Guest>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href="/login"
+                    className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-medium text-white"
+                  >
+                    Register
+                  </Link>
+                </div>
+              </Guest>
+            }
+          >
             <div className="flex items-center gap-3">
               <Link
                 href="/messages"
@@ -57,22 +80,7 @@ async function handleLogout() {
                 {logoutMutation.isPending ? "Signing out..." : "Logout"}
               </Button>
             </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <Link
-                href="/login"
-                className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
-              >
-                Login
-              </Link>
-              <Link
-                href="/register"
-                className="rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-medium text-white"
-              >
-                Register
-              </Link>
-            </div>
-          )}
+          </Auth>
         </div>
 
         <div className="mt-6 rounded-[1.25rem] border border-[var(--line)] bg-white/70 p-5">
@@ -80,30 +88,30 @@ async function handleLogout() {
 
           {isLoading ? <p className="mt-3 text-sm text-[var(--muted)]">Loading your profile...</p> : null}
 
-          {!isLoading && isError ? (
+          {!isLoading && !hasActiveSession ? (
             <p className="mt-3 text-sm text-[var(--muted)]">No active session found. Sign in or create an account.</p>
           ) : null}
 
-          {data?.data.user ? (
+          <Auth>
             <dl className="mt-4 grid gap-3 sm:grid-cols-2">
               <div>
                 <dt className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Name</dt>
-                <dd className="mt-1 text-sm font-medium text-[var(--foreground)]">{data.data.user.name}</dd>
+                <dd className="mt-1 text-sm font-medium text-[var(--foreground)]">{user?.name}</dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Username</dt>
-                <dd className="mt-1 text-sm font-medium text-[var(--foreground)]">@{data.data.user.username}</dd>
+                <dd className="mt-1 text-sm font-medium text-[var(--foreground)]">@{user?.username}</dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Email</dt>
-                <dd className="mt-1 text-sm font-medium text-[var(--foreground)]">{data.data.user.email ?? "Not set"}</dd>
+                <dd className="mt-1 text-sm font-medium text-[var(--foreground)]">{user?.email ?? "Not set"}</dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Status</dt>
-                <dd className="mt-1 text-sm font-medium text-[var(--foreground)] capitalize">{data.data.user.status}</dd>
+                <dd className="mt-1 text-sm font-medium capitalize text-[var(--foreground)]">{user?.status}</dd>
               </div>
             </dl>
-          ) : null}
+          </Auth>
         </div>
       </section>
     </main>

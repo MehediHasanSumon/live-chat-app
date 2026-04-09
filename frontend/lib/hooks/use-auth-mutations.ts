@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiClientError, apiClient, clearSessionHint, markSessionHintAuthenticated } from "@/lib/api-client";
 import { fetchAuthMe, type AuthMeResponse } from "@/lib/hooks/use-auth-me-query";
 import { queryKeys } from "@/lib/query-keys";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 type LoginPayload = {
   login: string;
@@ -46,7 +47,12 @@ export function useLoginMutation() {
     onSuccess: async (response) => {
       const authenticatedUser = await resolveAuthenticatedUser();
       markSessionHintAuthenticated();
-      queryClient.setQueryData(queryKeys.auth.me, authenticatedUser ?? response);
+      const payload = authenticatedUser ?? response;
+      queryClient.setQueryData(queryKeys.auth.me, payload);
+      useAuthStore.getState().setAuthenticated({
+        user: payload.data.user,
+        settings: payload.data.settings,
+      });
     },
   });
 }
@@ -59,7 +65,12 @@ export function useRegisterMutation() {
     onSuccess: async (response) => {
       const authenticatedUser = await resolveAuthenticatedUser();
       markSessionHintAuthenticated();
-      queryClient.setQueryData(queryKeys.auth.me, authenticatedUser ?? response);
+      const payload = authenticatedUser ?? response;
+      queryClient.setQueryData(queryKeys.auth.me, payload);
+      useAuthStore.getState().setAuthenticated({
+        user: payload.data.user,
+        settings: payload.data.settings,
+      });
     },
   });
 }
@@ -72,11 +83,13 @@ export function useLogoutMutation() {
     onSuccess: () => {
       clearSessionHint();
       queryClient.removeQueries({ queryKey: queryKeys.auth.me });
+      useAuthStore.getState().clearAuthenticated();
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.status === 401) {
         clearSessionHint();
         queryClient.removeQueries({ queryKey: queryKeys.auth.me });
+        useAuthStore.getState().clearAuthenticated();
       }
     },
   });

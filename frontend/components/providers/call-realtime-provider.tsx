@@ -3,12 +3,11 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { shouldBootstrapAuth } from "@/lib/api-client";
-import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { getEchoInstance } from "@/lib/reverb";
 import { queryKeys } from "@/lib/query-keys";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 import { useCallStore } from "@/lib/stores/call-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { type CallSignalPayload, isCallTerminal } from "@/lib/calls-data";
 
 function invalidateConversationQueries(
@@ -21,12 +20,11 @@ function invalidateConversationQueries(
 
 export function CallRealtimeProvider() {
   const queryClient = useQueryClient();
-  const { data: authMe } = useAuthMeQuery(shouldBootstrapAuth());
   const activeThreadId = useChatUiStore((state) => state.activeThreadId);
   const receiveIncomingCall = useCallStore((state) => state.receiveIncomingCall);
   const syncCallState = useCallStore((state) => state.syncCallState);
   const clearActiveCall = useCallStore((state) => state.clearActiveCall);
-  const userId = authMe?.data.user.id ?? null;
+  const userId = useAuthStore((state) => state.user?.id ?? null);
 
   useEffect(() => {
     if (!userId) {

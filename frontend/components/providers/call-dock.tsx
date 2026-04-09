@@ -4,7 +4,6 @@ import { PhoneCall, PhoneOff, Video } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { shouldBootstrapAuth } from "@/lib/api-client";
 import {
   formatCallStatus,
   getCallLabel,
@@ -16,22 +15,21 @@ import {
   useEndCallMutation,
   useJoinCallMutation,
 } from "@/lib/hooks/use-call-mutations";
-import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { toConversationThread } from "@/lib/messages-data";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useCallStore } from "@/lib/stores/call-store";
 
 export function CallDock() {
   const router = useRouter();
-  const { data: authMe } = useAuthMeQuery(shouldBootstrapAuth());
-  const { data: conversations = [] } = useConversationsQuery(Boolean(authMe?.data.user.id));
+  const userId = useAuthStore((state) => state.user?.id ?? null);
+  const { data: conversations = [] } = useConversationsQuery(Boolean(userId));
   const incomingCall = useCallStore((state) => state.incomingCall);
   const activeCall = useCallStore((state) => state.activeCall);
   const isRoomOpen = useCallStore((state) => state.isRoomOpen);
   const openRoom = useCallStore((state) => state.openRoom);
   const clearIncomingCall = useCallStore((state) => state.clearIncomingCall);
   const clearActiveCall = useCallStore((state) => state.clearActiveCall);
-  const userId = authMe?.data.user.id ?? null;
   const acceptCallMutation = useAcceptCallMutation();
   const declineCallMutation = useDeclineCallMutation();
   const endCallMutation = useEndCallMutation();
