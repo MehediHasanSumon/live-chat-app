@@ -4,7 +4,7 @@ import { PhoneCall, PhoneOff, Video } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { hasSessionHint } from "@/lib/api-client";
+import { shouldBootstrapAuth } from "@/lib/api-client";
 import {
   formatCallStatus,
   getCallLabel,
@@ -23,7 +23,7 @@ import { useCallStore } from "@/lib/stores/call-store";
 
 export function CallDock() {
   const router = useRouter();
-  const { data: authMe } = useAuthMeQuery(hasSessionHint());
+  const { data: authMe } = useAuthMeQuery(shouldBootstrapAuth());
   const { data: conversations = [] } = useConversationsQuery(Boolean(authMe?.data.user.id));
   const incomingCall = useCallStore((state) => state.incomingCall);
   const activeCall = useCallStore((state) => state.activeCall);

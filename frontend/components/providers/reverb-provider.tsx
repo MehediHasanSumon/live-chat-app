@@ -2,12 +2,12 @@
 
 import { useEffect } from "react";
 
-import { hasSessionHint } from "@/lib/api-client";
+import { shouldBootstrapAuth } from "@/lib/api-client";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { connectEcho, disconnectEcho } from "@/lib/reverb";
 
 export function ReverbProvider() {
-  const { data: authMe } = useAuthMeQuery(hasSessionHint());
+  const { data: authMe } = useAuthMeQuery(shouldBootstrapAuth());
   const userId = authMe?.data.user.id ?? null;
 
   useEffect(() => {

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { apiClient } from "@/lib/api-client";
+import { apiClient, hasSessionCookie } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 
 export type AuthMeResponse = {
@@ -40,7 +40,7 @@ export function useAuthMeQuery(enabled = false) {
   return useQuery({
     queryKey: queryKeys.auth.me,
     queryFn: fetchAuthMe,
-    enabled,
+    enabled: enabled && hasSessionCookie(),
     retry: false,
     refetchOnMount: "always",
     refetchOnReconnect: true,

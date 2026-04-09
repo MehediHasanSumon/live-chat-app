@@ -1,5 +1,6 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const AUTH_SESSION_HINT_KEY = "chat-app:has-session";
+const sessionCookiePattern = /(?:^|;\s)[^=]*session[^=]*=/i;
 
 type ApiPrimitive = string | number | boolean | null;
 type ApiBodyValue = ApiPrimitive | ApiBodyValue[] | { [key: string]: ApiBodyValue };
@@ -53,12 +54,29 @@ function getCookie(name: string): string | null {
   return cookie ? decodeURIComponent(cookie.split("=")[1] ?? "") : null;
 }
 
+export function hasSessionCookie(): boolean {
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  return sessionCookiePattern.test(document.cookie);
+}
+
 export function hasSessionHint(): boolean {
   if (typeof window === "undefined") {
     return false;
   }
 
+  if (!hasSessionCookie()) {
+    clearSessionHint();
+    return false;
+  }
+
   return window.localStorage.getItem(AUTH_SESSION_HINT_KEY) === "1";
+}
+
+export function shouldBootstrapAuth(): boolean {
+  return hasSessionCookie() || hasSessionHint();
 }
 
 export function markSessionHintAuthenticated(): void {

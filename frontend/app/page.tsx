@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { hasSessionHint } from "@/lib/api-client";
+import { shouldBootstrapAuth } from "@/lib/api-client";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useLogoutMutation } from "@/lib/hooks/use-auth-mutations";
 
 export default function Home() {
   const router = useRouter();
-  const { data, isLoading, isError } = useAuthMeQuery(hasSessionHint());
+  const { data, isLoading, isError } = useAuthMeQuery(shouldBootstrapAuth());
   const logoutMutation = useLogoutMutation();
 
 async function handleLogout() {

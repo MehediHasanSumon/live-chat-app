@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { hasSessionHint } from "@/lib/api-client";
+import { shouldBootstrapAuth } from "@/lib/api-client";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { type MessageApiItem } from "@/lib/messages-data";
 import { queryKeys } from "@/lib/query-keys";
@@ -41,7 +41,7 @@ export function ConversationRealtimeProvider() {
   const addTypingUser = useConversationRealtimeStore((state) => state.addTypingUser);
   const removeTypingUser = useConversationRealtimeStore((state) => state.removeTypingUser);
   const clearConversation = useConversationRealtimeStore((state) => state.clearConversation);
-  const { data: authMe } = useAuthMeQuery(hasSessionHint());
+  const { data: authMe } = useAuthMeQuery(shouldBootstrapAuth());
   const authUserId = authMe?.data.user.id ?? null;
 
   useEffect(() => {

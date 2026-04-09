@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "@livekit/components-styles";
 
 :root {
   --background: #f4f7ff;

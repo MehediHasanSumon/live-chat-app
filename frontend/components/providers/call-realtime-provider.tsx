@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { hasSessionHint } from "@/lib/api-client";
+import { shouldBootstrapAuth } from "@/lib/api-client";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { getEchoInstance } from "@/lib/reverb";
 import { queryKeys } from "@/lib/query-keys";
@@ -21,7 +21,7 @@ function invalidateConversationQueries(
 
 export function CallRealtimeProvider() {
   const queryClient = useQueryClient();
-  const { data: authMe } = useAuthMeQuery(hasSessionHint());
+  const { data: authMe } = useAuthMeQuery(shouldBootstrapAuth());
   const activeThreadId = useChatUiStore((state) => state.activeThreadId);
   const receiveIncomingCall = useCallStore((state) => state.receiveIncomingCall);
   const syncCallState = useCallStore((state) => state.syncCallState);

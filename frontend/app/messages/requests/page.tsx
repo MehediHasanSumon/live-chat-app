@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 
-import { ProtectedRouteGuard } from "@/components/auth/protected-route-guard";
 import { Button } from "@/components/ui/button";
 import { useAcceptMessageRequestMutation, useRejectMessageRequestMutation } from "@/lib/hooks/use-message-request-mutations";
 import { useMessageRequestsQuery } from "@/lib/hooks/use-message-requests-query";
@@ -14,9 +13,8 @@ export default function MessageRequestsPage() {
   const rejectMutation = useRejectMessageRequestMutation();
 
   return (
-    <ProtectedRouteGuard>
-      <main className="shell px-4 py-6 sm:px-6">
-        <section className="glass-card mx-auto w-full max-w-4xl rounded-[1.5rem] px-5 py-5 sm:px-6">
+    <main className="shell px-4 py-6 sm:px-6">
+      <section className="glass-card mx-auto w-full max-w-4xl rounded-[1.5rem] px-5 py-5 sm:px-6">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-lg font-semibold text-[#2d3150]">Message requests</p>
@@ -77,8 +75,7 @@ export default function MessageRequestsPage() {
               );
             })}
           </div>
-        </section>
-      </main>
-    </ProtectedRouteGuard>
+      </section>
+    </main>
   );
 }

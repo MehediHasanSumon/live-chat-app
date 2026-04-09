@@ -21,18 +21,32 @@ type RegisterPayload = {
   password_confirmation: string;
 };
 
+async function resolveAuthenticatedUser(attempts = 3): Promise<AuthMeResponse> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fetchAuthMe();
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 150 * (attempt + 1));
+      });
+    }
+  }
+
+  throw lastError;
+}
+
 export function useLoginMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (payload: LoginPayload) => apiClient.post<AuthMeResponse>("/login", payload),
     onSuccess: async (response) => {
+      const authenticatedUser = await resolveAuthenticatedUser();
       markSessionHintAuthenticated();
-      queryClient.setQueryData(queryKeys.auth.me, response);
-      await queryClient.fetchQuery({
-        queryKey: queryKeys.auth.me,
-        queryFn: fetchAuthMe,
-      });
+      queryClient.setQueryData(queryKeys.auth.me, authenticatedUser ?? response);
     },
   });
 }
@@ -43,12 +57,9 @@ export function useRegisterMutation() {
   return useMutation({
     mutationFn: (payload: RegisterPayload) => apiClient.post<AuthMeResponse>("/register", payload),
     onSuccess: async (response) => {
+      const authenticatedUser = await resolveAuthenticatedUser();
       markSessionHintAuthenticated();
-      queryClient.setQueryData(queryKeys.auth.me, response);
-      await queryClient.fetchQuery({
-        queryKey: queryKeys.auth.me,
-        queryFn: fetchAuthMe,
-      });
+      queryClient.setQueryData(queryKeys.auth.me, authenticatedUser ?? response);
     },
   });
 }

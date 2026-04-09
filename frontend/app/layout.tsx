@@ -3,6 +3,7 @@ import { Poppins } from "next/font/google";
 
 import { AppProviders } from "@/components/providers/app-providers";
 
+import "@livekit/components-styles";
 import "./globals.css";
 
 const poppins = Poppins({
