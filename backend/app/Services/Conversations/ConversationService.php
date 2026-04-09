@@ -29,9 +29,8 @@ class ConversationService
             ->with([
                 'creator',
                 'avatarObject',
-                'members.user',
                 'lastMessage.sender',
-                'members' => fn ($query) => $query->where('user_id', $userId),
+                'members.user',
             ])
             ->orderByDesc('last_message_at')
             ->orderByDesc('updated_at')
@@ -280,7 +279,6 @@ class ConversationService
             'avatarObject',
             'lastMessage.sender',
             'members.user',
-            'members' => fn ($query) => $query->where('user_id', $userId),
         ]);
     }
 }

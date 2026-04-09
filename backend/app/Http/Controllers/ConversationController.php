@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\Domain\ConversationReadStateUpdated;
 use App\Http\Requests\Conversation\MarkConversationReadRequest;
 use App\Http\Requests\Conversation\StoreDirectConversationRequest;
 use App\Http\Requests\Conversation\UpdateConversationNotificationScheduleRequest;
@@ -113,14 +114,20 @@ class ConversationController extends Controller
 
     public function markRead(MarkConversationReadRequest $request, Conversation $conversation): JsonResponse
     {
+        $updatedConversation = $this->conversationService->markRead(
+            $conversation,
+            $request->user()->getKey(),
+            (int) $request->integer('last_seq')
+        );
+
+        event(new ConversationReadStateUpdated(
+            $updatedConversation,
+            $request->user()->getKey(),
+            (int) $request->integer('last_seq'),
+        ));
+
         return response()->json([
-            'data' => new ConversationResource(
-                $this->conversationService->markRead(
-                    $conversation,
-                    $request->user()->getKey(),
-                    (int) $request->integer('last_seq')
-                )
-            ),
+            'data' => new ConversationResource($updatedConversation),
         ]);
     }
 

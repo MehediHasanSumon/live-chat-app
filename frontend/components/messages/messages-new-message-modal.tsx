@@ -2,12 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Check, Search, X } from "lucide-react";
 
 import { MessageAvatar } from "@/components/messages/message-avatar";
-import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
-import { toConversationThread } from "@/lib/messages-data";
+import { apiClient } from "@/lib/api-client";
+import { useUserSearchQuery } from "@/lib/hooks/use-user-search-query";
+import { type ConversationApiItem } from "@/lib/messages-data";
+import { queryKeys } from "@/lib/query-keys";
 
 type MessagesNewMessageModalProps = {
   isOpen: boolean;
@@ -19,46 +22,49 @@ export function MessagesNewMessageModal({
   onClose,
 }: MessagesNewMessageModalProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { data: conversations = [], isLoading } = useConversationsQuery(isOpen);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [isOpening, setIsOpening] = useState(false);
+  const usersQuery = query.trim();
+  const { data: users = [], isLoading } = useUserSearchQuery(usersQuery, isOpen);
 
   const contacts = useMemo(
     () =>
-      conversations.map((conversation) => {
-        const thread = toConversationThread(conversation);
-
-        return {
-          id: thread.id,
-          name: thread.name,
-          subtitle: thread.lastMessage,
-          online: thread.online,
-        };
-      }),
-    [conversations],
+      users.map((user) => ({
+        id: user.id,
+        name: user.name,
+        subtitle: user.username ? `@${user.username}` : user.email ?? "User",
+        online: false,
+      })),
+    [users],
   );
 
-  const filteredContacts = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-
-    if (!normalized) {
-      return contacts;
-    }
-
-    return contacts.filter((contact) => contact.name.toLowerCase().includes(normalized));
-  }, [contacts, query]);
-
-  function selectConversation(id: string) {
+  function selectConversation(id: number) {
     setSelectedId((current) => (current === id ? null : id));
   }
 
-  function handleOpenConversation() {
+  async function handleOpenConversation() {
     if (!selectedId) {
       return;
     }
 
-    onClose();
-    router.push(`/messages/t/${selectedId}`);
+    setIsOpening(true);
+
+    try {
+      const response = await apiClient.post<{ data: ConversationApiItem }>("/api/conversations/direct", {
+        target_user_id: selectedId,
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.conversations.all,
+      });
+
+      onClose();
+      router.push(`/messages/t/${response.data.id}`);
+    } finally {
+      setIsOpening(false);
+    }
   }
 
   if (!isOpen) {
@@ -67,44 +73,47 @@ export function MessagesNewMessageModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(35,37,58,0.28)] px-4 backdrop-blur-sm">
-      <div className="w-full max-w-[460px] overflow-hidden rounded-[1rem] border border-[var(--line)] bg-[rgba(255,255,255,0.97)] text-[var(--foreground)] shadow-[0_24px_60px_rgba(35,37,58,0.16)]">
-        <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-          <h2 className="text-[16px] font-semibold">Open conversation</h2>
+      <div className="w-full max-w-[520px] overflow-hidden rounded-[1.6rem] border border-[rgba(111,123,176,0.16)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99)_0%,rgba(247,249,255,0.98)_100%)] text-[var(--foreground)] shadow-[0_28px_80px_rgba(35,37,58,0.18)]">
+        <div className="flex items-start justify-between border-b border-[var(--line)] px-5 py-4 sm:px-6">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8f97bb]">New message</p>
+            <h2 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-[#2f3655]">Open conversation</h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close new message modal"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)] transition hover:bg-[rgba(96,91,255,0.16)]"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(96,91,255,0.08)] bg-[var(--accent-soft)] text-[var(--accent)] transition hover:border-[rgba(96,91,255,0.18)] hover:bg-[rgba(96,91,255,0.16)]"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="px-4 py-4">
-          <div className="pill-input flex h-10 items-center gap-2 px-3 text-sm text-[var(--muted)]">
+        <div className="px-5 py-5 sm:px-6">
+          <div className="pill-input flex h-12 items-center gap-2 rounded-2xl px-4 text-sm text-[var(--muted)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
             <Search className="h-4 w-4" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search conversations"
+              placeholder="Search people"
               className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[var(--muted)]"
             />
           </div>
 
           <div className="mt-4 max-h-[320px] space-y-2 overflow-y-auto pr-1">
             {isLoading ? (
-              <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
+              <div className="rounded-[1.25rem] border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
                 Loading conversations...
               </div>
             ) : null}
 
-            {!isLoading && filteredContacts.length === 0 ? (
-              <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
-                No conversations found yet.
+            {!isLoading && contacts.length === 0 ? (
+              <div className="rounded-[1.25rem] border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
+                {usersQuery ? "No users matched your search." : "No users available yet."}
               </div>
             ) : null}
 
-            {filteredContacts.map((contact) => {
+            {contacts.map((contact) => {
               const isSelected = selectedId === contact.id;
 
               return (
@@ -112,9 +121,9 @@ export function MessagesNewMessageModal({
                   key={contact.id}
                   type="button"
                   onClick={() => selectConversation(contact.id)}
-                  className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition ${
+                  className={`flex w-full items-center gap-3 rounded-[1.25rem] border px-3 py-3 text-left transition ${
                     isSelected
-                      ? "border-[rgba(96,91,255,0.24)] bg-[var(--accent-soft)]"
+                      ? "border-[rgba(96,91,255,0.24)] bg-[linear-gradient(180deg,rgba(238,240,255,0.92)_0%,rgba(245,247,255,0.98)_100%)] shadow-[0_14px_30px_rgba(96,91,255,0.08)]"
                       : "border-[var(--line)] bg-white hover:bg-[var(--accent-soft)]/50"
                   }`}
                 >
@@ -124,7 +133,7 @@ export function MessagesNewMessageModal({
                     <p className="mt-1 truncate text-[13px] text-[var(--muted)]">{contact.subtitle}</p>
                   </div>
                   <span
-                    className={`flex h-5 w-5 items-center justify-center rounded-full border transition ${
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition ${
                       isSelected
                         ? "border-[var(--accent)] bg-[var(--accent)] text-white"
                         : "border-[var(--line)] text-transparent"
@@ -137,25 +146,27 @@ export function MessagesNewMessageModal({
             })}
           </div>
 
-          <div className="mt-5 flex items-center justify-between gap-3 border-t border-[var(--line)] pt-4">
+          <div className="mt-5 flex flex-col gap-4 border-t border-[var(--line)] pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[13px] text-[var(--muted)]">
-              {selectedId ? "1 conversation selected" : "Select a conversation to open"}
+              {selectedId ? "1 user selected" : "Select a user to start chatting"}
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex w-full items-center gap-3 sm:w-auto sm:justify-end">
               <button
                 type="button"
                 onClick={onClose}
-                className="h-10 rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--accent-soft)]"
+                className="h-11 min-w-[112px] flex-1 rounded-2xl border border-[var(--line)] bg-white px-5 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--accent-soft)] sm:flex-none"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleOpenConversation}
-                disabled={!selectedId}
-                className="h-10 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => {
+                  void handleOpenConversation();
+                }}
+                disabled={!selectedId || isOpening}
+                className="h-11 min-w-[178px] flex-1 whitespace-nowrap rounded-2xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-5 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(96,91,255,0.22)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
               >
-                Open conversation
+                {isOpening ? "Opening..." : "Open conversation"}
               </button>
             </div>
           </div>

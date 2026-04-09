@@ -20,6 +20,8 @@ export function useConversationsQuery(enabled = true) {
     enabled,
     retry: false,
     staleTime: 10_000,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: true,
     select: (response) => response.data,
   });
 }

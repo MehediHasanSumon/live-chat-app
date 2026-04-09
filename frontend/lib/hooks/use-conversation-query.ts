@@ -20,6 +20,8 @@ export function useConversationQuery(conversationId: string) {
     enabled: Boolean(conversationId),
     retry: false,
     staleTime: 10_000,
+    refetchInterval: 2000,
+    refetchIntervalInBackground: true,
     select: (response) => response.data,
   });
 }

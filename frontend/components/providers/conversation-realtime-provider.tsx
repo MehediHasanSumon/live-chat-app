@@ -95,6 +95,10 @@ export function ConversationRealtimeProvider() {
       );
     });
 
+    channel.listen(".conversation.read", () => {
+      invalidateConversation();
+    });
+
     presenceChannel.listen(".typing.started", (payload: TypingEventPayload) => {
       if (payload.user.id === authUserId) {
         return;

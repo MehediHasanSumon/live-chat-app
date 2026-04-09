@@ -13,7 +13,7 @@ class ConversationResource extends JsonResource
     public function toArray(Request $request): array
     {
         $membership = $this->relationLoaded('members')
-            ? $this->members->first()
+            ? $this->members->firstWhere('user_id', $request->user()?->getAuthIdentifier())
             : null;
 
         return [
@@ -34,7 +34,7 @@ class ConversationResource extends JsonResource
             'updated_at' => $this->updated_at,
             'creator' => $this->whenLoaded('creator', fn () => (new UserResource($this->creator))->resolve($request)),
             'membership' => $membership ? (new ConversationMemberResource($membership))->resolve($request) : null,
-            'members' => $this->whenLoaded('members', fn () => ConversationMemberResource::collection($this->members)->resolve()),
+            'members' => $this->whenLoaded('members', fn () => ConversationMemberResource::collection($this->members)->resolve($request)),
         ];
     }
 }

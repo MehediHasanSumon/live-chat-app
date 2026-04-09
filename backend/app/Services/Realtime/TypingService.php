@@ -5,6 +5,7 @@ namespace App\Services\Realtime;
 use App\Events\Domain\ConversationTypingStarted;
 use App\Events\Domain\ConversationTypingStopped;
 use App\Models\Conversation;
+use App\Models\ConversationMember;
 use App\Models\User;
 use App\Services\Conversations\ConversationMemberService;
 use Illuminate\Support\Facades\Cache;
@@ -66,5 +67,31 @@ class TypingService
     public function cacheKey(int $conversationId, int $userId): string
     {
         return "typing:conversation:{$conversationId}:{$userId}";
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function listTyping(Conversation $conversation, int $viewerUserId): array
+    {
+        $this->conversationMemberService->requireActiveMembership($conversation, $viewerUserId);
+
+        return ConversationMember::query()
+            ->where('conversation_id', $conversation->getKey())
+            ->where('membership_state', 'active')
+            ->where('user_id', '!=', $viewerUserId)
+            ->with('user')
+            ->get()
+            ->filter(function (ConversationMember $membership) use ($conversation): bool {
+                return Cache::has($this->cacheKey($conversation->getKey(), $membership->user_id));
+            })
+            ->map(function (ConversationMember $membership): array {
+                return [
+                    'id' => $membership->user_id,
+                    'name' => $membership->user?->name ?? 'User',
+                ];
+            })
+            ->values()
+            ->all();
     }
 }

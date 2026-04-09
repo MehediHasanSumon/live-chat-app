@@ -1,3 +1,5 @@
+import { getSocketId } from "@/lib/reverb";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const AUTH_SESSION_HINT_KEY = "chat-app:has-session";
 const sessionCookiePattern = /(?:^|;\s)[^=]*session[^=]*=/i;
@@ -105,6 +107,11 @@ function createHeaders(options: ApiClientOptions): Headers {
   const token = getCookie("XSRF-TOKEN");
   if (token && !headers.has("X-XSRF-TOKEN")) {
     headers.set("X-XSRF-TOKEN", token);
+  }
+
+  const socketId = getSocketId();
+  if (socketId && !headers.has("X-Socket-Id")) {
+    headers.set("X-Socket-Id", socketId);
   }
 
   if (isPlainObject(options.body) && !headers.has("Content-Type")) {

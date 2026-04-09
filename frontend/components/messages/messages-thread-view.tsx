@@ -1,16 +1,22 @@
 "use client";
 
+import { useEffect } from "react";
+
+import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
+import { MessageBubble } from "@/components/messages/message-bubble";
+import { MessageComposer } from "@/components/messages/message-composer";
 import { ApiClientError } from "@/lib/api-client";
 import { useStartCallMutation, useJoinCallMutation } from "@/lib/hooks/use-call-mutations";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationMessagesQuery } from "@/lib/hooks/use-conversation-messages-query";
+import { useMarkConversationReadMutation } from "@/lib/hooks/use-mark-read-mutation";
 import { useSendMessageMutation, useToggleReactionMutation } from "@/lib/hooks/use-message-mutations";
+import { useTypingUsersQuery } from "@/lib/hooks/use-typing-users-query";
 import { toChatMessage, type MessageThread } from "@/lib/messages-data";
 import { useCallStore } from "@/lib/stores/call-store";
 import { useConversationRealtimeStore } from "@/lib/stores/conversation-realtime-store";
-import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
-import { MessageBubble } from "@/components/messages/message-bubble";
-import { MessageComposer } from "@/components/messages/message-composer";
+
+const EMPTY_TYPING_USERS: { id: number; name: string }[] = [];
 
 type MessagesThreadViewProps = {
   thread: MessageThread;
@@ -27,12 +33,21 @@ export function MessagesThreadView({
   const { data: messages = [], isLoading, isError } = useConversationMessagesQuery(thread.id);
   const sendMessageMutation = useSendMessageMutation();
   const toggleReactionMutation = useToggleReactionMutation(thread.id);
+  const markReadMutation = useMarkConversationReadMutation();
   const startCallMutation = useStartCallMutation();
   const joinCallMutation = useJoinCallMutation();
   const activeCall = useCallStore((state) => state.activeCall);
-  const typingUsers = useConversationRealtimeStore((state) => state.typingUsersByConversation[thread.id] ?? []);
+  const realtimeTypingUsers = useConversationRealtimeStore(
+    (state) => state.typingUsersByConversation[thread.id] ?? EMPTY_TYPING_USERS,
+  );
+  const { data: polledTypingUsers = [] } = useTypingUsersQuery(thread.id, true);
 
   const mappedMessages = messages.map((message) => toChatMessage(message, authMe?.data.user.id));
+  const latestMessage = messages.at(-1) ?? null;
+  const activeMembership = thread.membership ?? null;
+  const peerMembership = thread.isGroup
+    ? null
+    : (thread.members ?? []).find((member) => member.user_id !== authMe?.data.user.id) ?? null;
 
   const composerErrorMessage =
     sendMessageMutation.error instanceof ApiClientError
@@ -46,6 +61,22 @@ export function MessagesThreadView({
 
   const currentCallForThread =
     activeCall?.callRoom.conversation_id === thread.numericId ? activeCall : null;
+  const typingUsers = polledTypingUsers.length > 0 ? polledTypingUsers : realtimeTypingUsers;
+
+  useEffect(() => {
+    if (!latestMessage || !activeMembership || markReadMutation.isPending) {
+      return;
+    }
+
+    if (latestMessage.seq <= activeMembership.last_read_seq) {
+      return;
+    }
+
+    void markReadMutation.mutateAsync({
+      conversationId: thread.id,
+      lastSeq: latestMessage.seq,
+    });
+  }, [activeMembership, latestMessage, markReadMutation, thread.id]);
 
   const handleStartCall = async (mediaType: "voice" | "video") => {
     if (!authMe?.data.user.id) {
@@ -130,6 +161,13 @@ export function MessagesThreadView({
             key={message.id}
             message={message}
             authUserId={authMe?.data.user.id ?? null}
+            readLabel={
+              !thread.isGroup && message.sender === "me" && peerMembership
+                ? peerMembership.last_read_seq >= message.seq
+                  ? "Seen"
+                  : "Sent"
+                : null
+            }
             onToggleReaction={(emoji, hasReacted) => {
               void toggleReactionMutation.mutateAsync({
                 messageId: message.numericId,

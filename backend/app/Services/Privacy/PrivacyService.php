@@ -108,7 +108,6 @@ class PrivacyService
                 'avatarObject',
                 'members.user',
                 'lastMessage.sender',
-                'members' => fn ($query) => $query->where('user_id', $userId),
             ])
             ->orderByDesc('updated_at')
             ->get();
@@ -142,7 +141,6 @@ class PrivacyService
                 'avatarObject',
                 'lastMessage.sender',
                 'members.user',
-                'members' => fn ($query) => $query->where('user_id', $userId),
             ]);
         });
     }
@@ -174,7 +172,6 @@ class PrivacyService
                 'avatarObject',
                 'lastMessage.sender',
                 'members.user',
-                'members' => fn ($query) => $query->where('user_id', $userId),
             ]);
         });
     }

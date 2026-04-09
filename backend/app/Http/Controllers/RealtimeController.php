@@ -38,6 +38,16 @@ class RealtimeController extends Controller
         ]);
     }
 
+    public function typing(Conversation $conversation): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->typingService->listTyping(
+                $conversation,
+                auth()->id(),
+            ),
+        ]);
+    }
+
     public function stopTyping(TypingRequest $request, Conversation $conversation): JsonResponse
     {
         return response()->json([

@@ -12,23 +12,18 @@ class UserDirectoryController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = trim((string) $request->query('query', ''));
-
-        if ($query === '') {
-            return response()->json([
-                'data' => [],
-            ]);
-        }
-
         $users = User::query()
             ->where('id', '!=', $request->user()->getKey())
-            ->where(function ($builder) use ($query): void {
-                $builder
-                    ->where('name', 'like', "%{$query}%")
-                    ->orWhere('username', 'like', "%{$query}%")
-                    ->orWhere('email', 'like', "%{$query}%");
+            ->when($query !== '', function ($builder) use ($query): void {
+                $builder->where(function ($nestedBuilder) use ($query): void {
+                    $nestedBuilder
+                        ->where('name', 'like', "%{$query}%")
+                        ->orWhere('username', 'like', "%{$query}%")
+                        ->orWhere('email', 'like', "%{$query}%");
+                });
             })
             ->orderBy('name')
-            ->limit(10)
+            ->limit($query === '' ? 30 : 10)
             ->get();
 
         return response()->json([

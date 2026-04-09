@@ -36,7 +36,38 @@ function buildAuthHeaders(): HeadersInit {
     headers["X-XSRF-TOKEN"] = token;
   }
 
+  const socketId = getSocketId();
+
+  if (socketId) {
+    headers["X-Socket-Id"] = socketId;
+  }
+
   return headers;
+}
+
+type BroadcastAuthPayload = {
+  auth?: string;
+  channel_data?: string;
+};
+
+async function parseBroadcastAuthResponse(response: Response): Promise<BroadcastAuthPayload | null> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    return response.json().catch(() => null) as Promise<BroadcastAuthPayload | null>;
+  }
+
+  const text = await response.text().catch(() => "");
+
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as BroadcastAuthPayload;
+  } catch {
+    return null;
+  }
 }
 
 function createEchoInstance(): Echo<"reverb"> | null {
@@ -69,10 +100,20 @@ function createEchoInstance(): Echo<"reverb"> | null {
             }),
           });
 
-          const data = await response.json().catch(() => null);
+          const data = await parseBroadcastAuthResponse(response);
 
           if (!response.ok) {
             callback(data ?? new Error("Broadcast authorization failed."), null);
+            return;
+          }
+
+          if (!data?.auth) {
+            callback(new Error("Broadcast authorization payload was invalid."), null);
+            return;
+          }
+
+          if (channel.name.startsWith("presence-") && !data.channel_data) {
+            callback(new Error("Presence authorization payload was incomplete."), null);
             return;
           }
 
@@ -103,6 +144,12 @@ export function connectEcho(): Echo<"reverb"> | null {
   echo.connector.pusher.connect();
 
   return echo;
+}
+
+export function getSocketId(): string | null {
+  const socketId = echoInstance?.connector?.pusher?.connection.socket_id;
+
+  return typeof socketId === "string" && socketId.length > 0 ? socketId : null;
 }
 
 export function disconnectEcho(): void {

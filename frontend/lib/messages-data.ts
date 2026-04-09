@@ -189,6 +189,7 @@ export type ChatReaction = {
 export type ChatMessage = {
   id: string;
   numericId: number;
+  seq: number;
   sender: "me" | "other";
   senderId: number;
   body: string;
@@ -317,6 +318,7 @@ export function toChatMessage(message: MessageApiItem, authUserId?: number | nul
   return {
     id: String(message.id),
     numericId: message.id,
+    seq: message.seq,
     sender: authUserId !== undefined && authUserId !== null && message.sender_id === authUserId ? "me" : "other",
     senderId: message.sender_id,
     body: message.display_text ?? message.text_body ?? "Unsupported message",

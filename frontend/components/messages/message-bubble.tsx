@@ -3,6 +3,7 @@ import { type ChatMessage } from "@/lib/messages-data";
 type MessageBubbleProps = {
   message: ChatMessage;
   authUserId: number | null;
+  readLabel?: string | null;
   onToggleReaction?: (emoji: string, hasReacted: boolean) => void;
   isReacting?: boolean;
 };
@@ -12,6 +13,7 @@ const quickReactions = ["👍", "❤️", "🔥"];
 export function MessageBubble({
   message,
   authUserId,
+  readLabel = null,
   onToggleReaction,
   isReacting = false,
 }: MessageBubbleProps) {
@@ -132,6 +134,7 @@ export function MessageBubble({
         <p className={`mt-1 text-[11px] ${message.sender === "me" ? "text-white/75" : "text-[var(--muted)]"}`}>
           {message.time}
           {message.isEdited ? " · Edited" : ""}
+          {message.sender === "me" && readLabel ? ` · ${readLabel}` : ""}
         </p>
       </div>
     </div>

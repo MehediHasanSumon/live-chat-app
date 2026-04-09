@@ -22,6 +22,8 @@ export function useConversationMessagesQuery(conversationId: string) {
       }),
     enabled: Boolean(conversationId),
     retry: false,
+    refetchInterval: 2000,
+    refetchIntervalInBackground: true,
     refetchOnMount: "always",
     refetchOnReconnect: true,
     select: (response) => response.data,

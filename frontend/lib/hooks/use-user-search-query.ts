@@ -17,7 +17,7 @@ export function useUserSearchQuery(query: string, enabled = true) {
       apiClient.get<UsersResponse>(`/api/users/search?query=${encodeURIComponent(query)}`, {
         skipAuthRedirect: true,
       }),
-    enabled: enabled && query.trim().length >= 2,
+    enabled,
     retry: false,
     staleTime: 20_000,
     select: (response) => response.data,

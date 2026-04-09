@@ -42,6 +42,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/conversations/{conversation}/messages/voice', [MessageController::class, 'storeVoice']);
     Route::post('/conversations/{conversation}/messages/media', [MessageController::class, 'storeMedia']);
     Route::post('/conversations/{conversation}/messages/gif', [MessageController::class, 'storeGif']);
+    Route::get('/conversations/{conversation}/typing', [RealtimeController::class, 'typing']);
     Route::post('/conversations/{conversation}/typing', [RealtimeController::class, 'startTyping']);
     Route::delete('/conversations/{conversation}/typing', [RealtimeController::class, 'stopTyping']);
     Route::post('/conversations/{conversation}/calls/group/voice', [CallController::class, 'startGroup'])->defaults('mediaType', 'voice');

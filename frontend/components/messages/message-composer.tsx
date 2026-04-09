@@ -29,6 +29,7 @@ type MessageComposerProps = {
 
 export function MessageComposer({
   threadName,
+  conversationId,
   onSend,
   isSending = false,
   errorMessage,
@@ -264,14 +265,6 @@ export function MessageComposer({
 
   return (
     <div className="space-y-3">
-      <div className="px-1">
-        <div className="inline-flex items-center rounded-full bg-white/92 px-3 py-1.5 shadow-[0_8px_18px_rgba(96,109,160,0.06)] transition-all duration-200 ease-out">
-          <p className="text-[12px] font-medium text-[#8f97bb]">
-            Ready to message
-          </p>
-        </div>
-      </div>
-
       <div
         ref={composerRef}
         className="rounded-[22px] border border-[rgba(111,123,176,0.12)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(246,248,255,0.98)_100%)] p-2 shadow-[0_18px_40px_rgba(96,109,160,0.08)] transition-shadow duration-200 ease-out hover:shadow-[0_20px_46px_rgba(96,109,160,0.1)]"
