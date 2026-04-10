@@ -15,6 +15,7 @@ export function useStartTypingMutation() {
       apiClient.post(`/api/conversations/${conversationId}/typing`, {
         ...(deviceUuid ? { device_uuid: deviceUuid } : {}),
       }),
+    retry: false,
   });
 }
 
@@ -27,5 +28,6 @@ export function useStopTypingMutation() {
           "Content-Type": "application/json",
         },
       }),
+    retry: false,
   });
 }

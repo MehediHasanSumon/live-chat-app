@@ -3,6 +3,7 @@
 import {
   type ChangeEvent,
   type KeyboardEvent,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -58,7 +59,11 @@ export function MessageComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const attachmentsRef = useRef<ComposerAttachmentInput[]>([]);
+  const stopTypingRef = useRef<() => void>(() => {});
   const typingTimerRef = useRef<number | null>(null);
+  const isTypingActiveRef = useRef(false);
+  const lastTypingPingAtRef = useRef(0);
   const startTypingMutation = useStartTypingMutation();
   const stopTypingMutation = useStopTypingMutation();
   void threadName;
@@ -73,28 +78,39 @@ export function MessageComposer({
     ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
   };
 
-  const stopTyping = () => {
+  const stopTyping = useCallback(() => {
     if (typingTimerRef.current) {
       window.clearTimeout(typingTimerRef.current);
       typingTimerRef.current = null;
     }
 
+    if (!isTypingActiveRef.current) {
+      return;
+    }
+
+    isTypingActiveRef.current = false;
     stopTypingMutation.mutate({ conversationId });
-  };
+  }, [conversationId, stopTypingMutation]);
+
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    stopTypingRef.current = stopTyping;
+  }, [stopTyping]);
 
   useEffect(() => {
     return () => {
-      attachments.forEach((item) => {
+      attachmentsRef.current.forEach((item) => {
         if (item.previewUrl) {
           URL.revokeObjectURL(item.previewUrl);
         }
       });
 
-      if (typingTimerRef.current) {
-        window.clearTimeout(typingTimerRef.current);
-      }
+      stopTypingRef.current();
     };
-  }, [attachments]);
+  }, []);
 
   useEffect(() => {
     if (!isEditing) {
@@ -126,14 +142,30 @@ export function MessageComposer({
   }, [showEmojiPicker]);
 
   const handleInput = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    const nextValue = event.target.value;
+
     if (isEditing) {
-      onEditingValueChange?.(event.target.value);
+      onEditingValueChange?.(nextValue);
     } else {
-      setValue(event.target.value);
+      setValue(nextValue);
     }
 
     resizeTextarea(event.target);
-    startTypingMutation.mutate({ conversationId });
+
+    if (!nextValue.trim()) {
+      stopTyping();
+      return;
+    }
+
+    const now = Date.now();
+    const shouldSendTypingPing =
+      !isTypingActiveRef.current || now - lastTypingPingAtRef.current > 1500;
+
+    if (shouldSendTypingPing) {
+      isTypingActiveRef.current = true;
+      lastTypingPingAtRef.current = now;
+      startTypingMutation.mutate({ conversationId });
+    }
 
     if (typingTimerRef.current) {
       window.clearTimeout(typingTimerRef.current);
@@ -180,11 +212,31 @@ export function MessageComposer({
   };
 
   const appendEmoji = (emoji: string) => {
+    const nextValue = `${composerValue}${emoji}`;
+
     if (isEditing) {
-      onEditingValueChange?.(`${composerValue}${emoji}`);
+      onEditingValueChange?.(nextValue);
     } else {
-      setValue(`${value}${emoji}`);
+      setValue(nextValue);
     }
+
+    const now = Date.now();
+    const shouldSendTypingPing =
+      nextValue.trim().length > 0 && (!isTypingActiveRef.current || now - lastTypingPingAtRef.current > 1500);
+
+    if (shouldSendTypingPing) {
+      isTypingActiveRef.current = true;
+      lastTypingPingAtRef.current = now;
+      startTypingMutation.mutate({ conversationId });
+    }
+
+    if (typingTimerRef.current) {
+      window.clearTimeout(typingTimerRef.current);
+    }
+
+    typingTimerRef.current = window.setTimeout(() => {
+      stopTyping();
+    }, 1800);
 
     setShowEmojiPicker(false);
 
@@ -219,6 +271,8 @@ export function MessageComposer({
     if (!hasMessagePayload || isSending) {
       return;
     }
+
+    stopTyping();
 
     await onSend({
       text: composerValue,
