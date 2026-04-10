@@ -42,6 +42,8 @@ export function MessagesThreadView({
   onOpenImageViewer,
 }: MessagesThreadViewProps) {
   const { data: authMe } = useAuthMeQuery(true);
+  const currentUserId = authMe?.data.user?.id ?? null;
+  const currentUserName = authMe?.data.user?.name ?? "You";
   const {
     data,
     isLoading,
@@ -81,8 +83,8 @@ export function MessagesThreadView({
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([]);
 
   const serverMessages = useMemo(
-    () => messages.map((message) => toChatMessage(message, authMe?.data.user.id)),
-    [messages, authMe?.data.user.id],
+    () => messages.map((message) => toChatMessage(message, currentUserId ?? undefined)),
+    [currentUserId, messages],
   );
   const mappedMessages = useMemo(
     () => [...serverMessages, ...pendingMessages].sort((left, right) => left.seq - right.seq),
@@ -92,7 +94,7 @@ export function MessagesThreadView({
   const activeMembership = thread.membership ?? null;
   const peerMembership = thread.isGroup
     ? null
-    : (thread.members ?? []).find((member) => member.user_id !== authMe?.data.user.id) ?? null;
+    : (thread.members ?? []).find((member) => member.user_id !== currentUserId) ?? null;
 
   const activeComposerError = editingMessageId ? editMessageMutation.error : sendMessageMutation.error;
   const composerErrorMessage =
@@ -222,14 +224,14 @@ export function MessagesThreadView({
   };
 
   const handleStartCall = async (mediaType: "voice" | "video") => {
-    if (!authMe?.data.user.id) {
+    if (!currentUserId) {
       return;
     }
 
     const callRoom = await startCallMutation.mutateAsync({
       thread,
       mediaType,
-      authUserId: authMe.data.user.id,
+      authUserId: currentUserId,
     });
 
     await joinCallMutation.mutateAsync({
@@ -324,10 +326,10 @@ export function MessagesThreadView({
       numericId: -Date.now(),
       seq: nextSeq,
       sender: "me",
-      senderId: authMe?.data.user.id ?? 0,
+      senderId: currentUserId ?? 0,
       body: text.trim() || (attachments.some((item) => item.kind === "image") ? "Photo" : "File"),
       time: "Now",
-      senderName: authMe?.data.user.name ?? "You",
+      senderName: currentUserName,
       canEdit: false,
       canUnsend: false,
       isPending: true,
@@ -443,7 +445,7 @@ export function MessagesThreadView({
             <MessageBubble
               key={message.id}
               message={message}
-              authUserId={authMe?.data.user.id ?? null}
+              authUserId={currentUserId}
               onReply={() => startReplying(message.numericId)}
               onEdit={() => startEditing(message.numericId, message.body)}
               onForward={() => setForwardingMessageId(message.numericId)}

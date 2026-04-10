@@ -56,7 +56,7 @@ export function MessageThreadItem({
             <Ellipsis className="h-4 w-4" />
           </button>
 
-          {thread.unreadCount ? (
+          {thread.unreadCount && !isActive ? (
             <span
               className={`absolute right-3 top-1/2 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-semibold text-white transition ${
                 isMenuOpen ? "opacity-0" : "opacity-100 group-hover:opacity-0 group-focus-within:opacity-0"

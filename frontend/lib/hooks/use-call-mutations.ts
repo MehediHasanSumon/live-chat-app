@@ -8,7 +8,7 @@ import {
   type JoinCallApiPayload,
   getDirectCallTargetUserId,
 } from "@/lib/calls-data";
-import { type ConversationThread } from "@/lib/messages-data";
+import { type MessageThread } from "@/lib/messages-data";
 import { queryKeys } from "@/lib/query-keys";
 import { useCallStore } from "@/lib/stores/call-store";
 
@@ -21,7 +21,7 @@ type JoinTokenResponse = {
 };
 
 type StartCallPayload = {
-  thread: ConversationThread;
+  thread: MessageThread;
   mediaType: "voice" | "video";
   authUserId: number;
 };

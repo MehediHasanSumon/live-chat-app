@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { AuthFormShell } from "@/components/auth/auth-form-shell";
@@ -11,7 +11,7 @@ import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
 import { useLoginMutation } from "@/lib/hooks/use-auth-mutations";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const searchParams = useSearchParams();
   const loginMutation = useLoginMutation();
   const [login, setLogin] = useState("");
@@ -103,5 +103,13 @@ export default function LoginPage() {
         </AuthFormShell>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

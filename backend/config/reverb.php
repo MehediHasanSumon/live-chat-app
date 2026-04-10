@@ -37,6 +37,17 @@ return [
                 'tls' => [],
             ],
             'max_request_size' => env('REVERB_MAX_REQUEST_SIZE', 10_000),
+            // Message batching for performance optimization
+            'message_batching' => [
+                'enabled' => env('REVERB_MESSAGE_BATCHING_ENABLED', true),
+                'batch_size' => env('REVERB_MESSAGE_BATCH_SIZE', 10), // Messages to batch before sending
+                'batch_interval_ms' => env('REVERB_MESSAGE_BATCH_INTERVAL_MS', 50), // Maximum wait time in milliseconds
+                'channels' => [
+                    'presence:*' => ['batch_size' => 5, 'batch_interval_ms' => 100],
+                    'typing:*' => ['batch_size' => 5, 'batch_interval_ms' => 100],
+                    'messages:*' => ['batch_size' => 10, 'batch_interval_ms' => 50],
+                ],
+            ],
             'scaling' => [
                 'enabled' => env('REVERB_SCALING_ENABLED', false),
                 'channel' => env('REVERB_SCALING_CHANNEL', 'reverb'),

@@ -16,14 +16,22 @@ export type ConversationMessagesResponse = {
 export function useConversationMessagesQuery(conversationId: string) {
   return useInfiniteQuery({
     queryKey: queryKeys.messages.list(conversationId),
-    queryFn: ({ pageParam }) =>
-      apiClient.get<ConversationMessagesResponse>(`/api/conversations/${conversationId}/messages`, {
-        skipAuthRedirect: true,
-        query: {
-          limit: 10,
-          ...(pageParam ? { cursor: pageParam } : {}),
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        limit: "10",
+      });
+
+      if (pageParam !== null && pageParam !== undefined) {
+        params.set("cursor", String(pageParam));
+      }
+
+      return apiClient.get<ConversationMessagesResponse>(
+        `/api/conversations/${conversationId}/messages?${params.toString()}`,
+        {
+          skipAuthRedirect: true,
         },
-      }),
+      );
+    },
     initialPageParam: null as number | null,
     getNextPageParam: (lastPage) => lastPage.meta.next_cursor,
     enabled: Boolean(conversationId),

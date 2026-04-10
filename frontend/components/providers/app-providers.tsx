@@ -1,7 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactNode, useState } from "react";
+import { ReactNode, Suspense, useState } from "react";
 
 import { AuthQuerySync } from "@/components/providers/auth-query-sync";
 import { AuthStoreSync } from "@/components/providers/auth-store-sync";
@@ -32,7 +32,9 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <NavigationProgress />
+      <Suspense fallback={null}>
+        <NavigationProgress />
+      </Suspense>
       <AuthQuerySync />
       <AuthStoreSync />
       <ReverbProvider />

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 
 import { AppProviders } from "@/components/providers/app-providers";
+import { PerformanceInitializer } from "@/components/providers/performance-initializer";
 
 import "@livekit/components-styles";
 import "./globals.css";
@@ -30,6 +31,7 @@ export default function RootLayout({
       className={`${poppins.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
+        <PerformanceInitializer />
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

@@ -49,10 +49,14 @@ export function useLoginMutation() {
       markSessionHintAuthenticated();
       const payload = authenticatedUser ?? response;
       queryClient.setQueryData(queryKeys.auth.me, payload);
-      useAuthStore.getState().setAuthenticated({
-        user: payload.data.user,
-        settings: payload.data.settings,
-      });
+      if (payload.data.user) {
+        useAuthStore.getState().setAuthenticated({
+          user: payload.data.user,
+          settings: payload.data.settings,
+        });
+      } else {
+        useAuthStore.getState().clearAuthenticated();
+      }
     },
   });
 }
@@ -67,10 +71,14 @@ export function useRegisterMutation() {
       markSessionHintAuthenticated();
       const payload = authenticatedUser ?? response;
       queryClient.setQueryData(queryKeys.auth.me, payload);
-      useAuthStore.getState().setAuthenticated({
-        user: payload.data.user,
-        settings: payload.data.settings,
-      });
+      if (payload.data.user) {
+        useAuthStore.getState().setAuthenticated({
+          user: payload.data.user,
+          settings: payload.data.settings,
+        });
+      } else {
+        useAuthStore.getState().clearAuthenticated();
+      }
     },
   });
 }

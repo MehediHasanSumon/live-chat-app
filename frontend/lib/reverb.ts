@@ -17,9 +17,7 @@ function getCookie(name: string): string | null {
     return null;
   }
 
-  const cookie = document.cookie
-    .split("; ")
-    .find((entry) => entry.startsWith(`${name}=`));
+  const cookie = document.cookie.split("; ").find((entry) => entry.startsWith(`${name}=`));
 
   return cookie ? decodeURIComponent(cookie.split("=")[1] ?? "") : null;
 }
@@ -47,6 +45,11 @@ function buildAuthHeaders(): HeadersInit {
 
 type BroadcastAuthPayload = {
   auth?: string;
+  channel_data?: string;
+};
+
+type ResolvedBroadcastAuthPayload = {
+  auth: string;
   channel_data?: string;
 };
 
@@ -87,6 +90,13 @@ function createEchoInstance(): Echo<"reverb"> | null {
     enabledTransports: ["ws", "wss"],
     authEndpoint: `${API_BASE_URL}/broadcasting/auth`,
     ...(REVERB_PATH ? { wsPath: REVERB_PATH } : {}),
+    // Connection pooling and optimization settings
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 10000,
+    reconnectionDelayBackoff: 2,
+    activityTimeout: 120000, // 2 minutes
+    pongTimeout: 30000, // 30 seconds
     authorizer: (channel) => ({
       authorize: async (socketId, callback) => {
         try {
@@ -103,7 +113,14 @@ function createEchoInstance(): Echo<"reverb"> | null {
           const data = await parseBroadcastAuthResponse(response);
 
           if (!response.ok) {
-            callback(data ?? new Error("Broadcast authorization failed."), null);
+            callback(
+              new Error(
+                typeof data?.auth === "string"
+                  ? "Broadcast authorization failed."
+                  : "Broadcast authorization failed.",
+              ),
+              null,
+            );
             return;
           }
 
@@ -117,7 +134,12 @@ function createEchoInstance(): Echo<"reverb"> | null {
             return;
           }
 
-          callback(null, data);
+          const authorizationData: ResolvedBroadcastAuthPayload = {
+            auth: data.auth,
+            ...(data.channel_data ? { channel_data: data.channel_data } : {}),
+          };
+
+          callback(null, authorizationData);
         } catch (error) {
           callback(error as Error, null);
         }

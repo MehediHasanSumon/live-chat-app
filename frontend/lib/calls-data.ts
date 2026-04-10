@@ -1,4 +1,4 @@
-import { type ConversationThread } from "@/lib/messages-data";
+import { type MessageThread } from "@/lib/messages-data";
 
 export type CallRoomParticipantApiItem = {
   id: number;
@@ -52,7 +52,7 @@ export type CallSignalPayload = {
 };
 
 export function getDirectCallTargetUserId(
-  thread: ConversationThread,
+  thread: MessageThread,
   authUserId: number,
 ): number | null {
   const otherMember = thread.members?.find((member) => member.user_id !== authUserId);
