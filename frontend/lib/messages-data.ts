@@ -206,18 +206,19 @@ export type ChatMessage = {
   } | null;
   gifUrl?: string | null;
   reactions?: ChatReaction[];
-    attachments?: {
-      id: string;
-      name: string;
-      mimeType: string;
-      mediaKind: "image" | "video" | "audio" | "voice" | "file" | "gif";
-      sizeBytes: number;
-      width: number | null;
-      height: number | null;
-      downloadUrl: string | null;
-      isExpired: boolean;
-      placeholderText: string | null;
-    }[];
+  isPending?: boolean;
+  attachments?: {
+    id: string;
+    name: string;
+    mimeType: string;
+    mediaKind: "image" | "video" | "audio" | "voice" | "file" | "gif";
+    sizeBytes: number;
+    width: number | null;
+    height: number | null;
+    downloadUrl: string | null;
+    isExpired: boolean;
+    placeholderText: string | null;
+  }[];
 };
 
 export type ThreadMediaItem = {

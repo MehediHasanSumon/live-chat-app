@@ -17,19 +17,24 @@ function isProtectedPath(pathname: string): boolean {
 
 async function isAuthenticated(request: NextRequest): Promise<boolean> {
   const authUrl = `${API_BASE_URL}/api/me`;
-  const response = await fetch(authUrl, {
-    method: "GET",
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      Cookie: request.headers.get("cookie") ?? "",
-      Origin: APP_URL,
-      Referer: `${APP_URL}/`,
-      "X-Requested-With": "XMLHttpRequest",
-    },
-  });
 
-  return response.ok;
+  try {
+    const response = await fetch(authUrl, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        Cookie: request.headers.get("cookie") ?? "",
+        Origin: APP_URL,
+        Referer: `${APP_URL}/`,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    });
+
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 function createLoginRedirect(request: NextRequest, pathname: string, search: string) {

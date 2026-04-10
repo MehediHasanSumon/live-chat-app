@@ -22,6 +22,7 @@ import {
 } from "@/lib/hooks/use-message-mutations";
 import { useTypingUsersQuery } from "@/lib/hooks/use-typing-users-query";
 import { toChatMessage, toConversationThread, type MessageThread } from "@/lib/messages-data";
+import { type ChatMessage, type ComposerAttachmentInput } from "@/lib/messages-data";
 import { useCallStore } from "@/lib/stores/call-store";
 import { useConversationRealtimeStore } from "@/lib/stores/conversation-realtime-store";
 
@@ -77,10 +78,15 @@ export function MessagesThreadView({
   const [forwardingSearch, setForwardingSearch] = useState("");
   const [removeTargetMessageId, setRemoveTargetMessageId] = useState<number | null>(null);
   const [removeScope, setRemoveScope] = useState<"self" | "everyone">("self");
+  const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([]);
 
-  const mappedMessages = useMemo(
+  const serverMessages = useMemo(
     () => messages.map((message) => toChatMessage(message, authMe?.data.user.id)),
     [messages, authMe?.data.user.id],
+  );
+  const mappedMessages = useMemo(
+    () => [...serverMessages, ...pendingMessages].sort((left, right) => left.seq - right.seq),
+    [pendingMessages, serverMessages],
   );
   const latestMessage = messages.at(-1) ?? null;
   const activeMembership = thread.membership ?? null;
@@ -298,6 +304,55 @@ export function MessagesThreadView({
     setForwardingSearch("");
   };
 
+  const buildPendingMessage = ({
+    text,
+    attachments,
+    replyToMessageId,
+  }: {
+    text: string;
+    attachments: ComposerAttachmentInput[];
+    replyToMessageId?: number | null;
+  }): ChatMessage => {
+    const nextSeq = (mappedMessages.at(-1)?.seq ?? latestMessage?.seq ?? 0) + 1;
+    const quotedMessage =
+      replyToMessageId !== undefined && replyToMessageId !== null
+        ? mappedMessages.find((message) => message.numericId === replyToMessageId) ?? null
+        : null;
+
+    return {
+      id: `pending-${crypto.randomUUID()}`,
+      numericId: -Date.now(),
+      seq: nextSeq,
+      sender: "me",
+      senderId: authMe?.data.user.id ?? 0,
+      body: text.trim() || (attachments.some((item) => item.kind === "image") ? "Photo" : "File"),
+      time: "Now",
+      senderName: authMe?.data.user.name ?? "You",
+      canEdit: false,
+      canUnsend: false,
+      isPending: true,
+      quote: quotedMessage
+        ? {
+            senderName: quotedMessage.sender === "me" ? "You" : quotedMessage.senderName,
+            text: quotedMessage.body,
+          }
+        : null,
+      reactions: [],
+      attachments: attachments.map((attachment) => ({
+        id: attachment.id,
+        name: attachment.file.name,
+        mimeType: attachment.file.type || "application/octet-stream",
+        mediaKind: attachment.kind === "image" ? "image" : "file",
+        sizeBytes: attachment.file.size,
+        width: null,
+        height: null,
+        downloadUrl: attachment.previewUrl ?? null,
+        isExpired: false,
+        placeholderText: null,
+      })),
+    };
+  };
+
   return (
     <section className="flex h-full min-h-0 w-full flex-col bg-white/60">
       <MessagesChatHeader
@@ -395,7 +450,9 @@ export function MessagesThreadView({
               onRemove={() => openRemoveModal(message.numericId, "self")}
               onOpenImage={(attachmentId) => onOpenImageViewer?.(galleryImages, attachmentId)}
               readLabel={
-                !thread.isGroup && message.sender === "me" && peerMembership
+                message.isPending
+                  ? "Sending"
+                  : !thread.isGroup && message.sender === "me" && peerMembership
                   ? peerMembership.last_read_seq >= message.seq
                     ? "Seen"
                     : "Sent"
@@ -447,14 +504,29 @@ export function MessagesThreadView({
               return;
             }
 
-            await sendMessageMutation.mutateAsync({
-              conversationId: thread.id,
+            const optimisticMessage = buildPendingMessage({
               text,
               attachments,
-              voice,
-              gif,
               replyToMessageId: replyingMessageId,
             });
+
+            setPendingMessages((current) => [...current, optimisticMessage]);
+
+            try {
+              await sendMessageMutation.mutateAsync({
+                conversationId: thread.id,
+                text,
+                attachments,
+                voice,
+                gif,
+                replyToMessageId: replyingMessageId,
+              });
+            } catch (error) {
+              setPendingMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
+              throw error;
+            }
+
+            setPendingMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
 
             cancelReplying();
           }}

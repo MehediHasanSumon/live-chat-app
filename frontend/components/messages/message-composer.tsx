@@ -366,9 +366,7 @@ export function MessageComposer({
               <Smile className="h-3.5 w-3.5" />
             </button>
           </div>
-          {isSending ? (
-            <span className="text-[11px] text-[#8f97bb]">Sending...</span>
-          ) : composerValue.length > 60 ? (
+          {composerValue.length > 60 ? (
             <span className="text-[11px] text-[#b0b7d3] transition-opacity duration-200">
               {composerValue.length}
             </span>
