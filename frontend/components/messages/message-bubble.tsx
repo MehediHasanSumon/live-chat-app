@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CornerUpLeft, PencilLine, Send, SmilePlus, Trash2, X } from "lucide-react";
+import { CornerUpLeft, Download, FileText, PencilLine, Send, SmilePlus, Trash2, X } from "lucide-react";
 
 import { type ChatMessage } from "@/lib/messages-data";
 
@@ -69,6 +69,12 @@ export function MessageBubble({
     !message.gifUrl &&
     !message.quote &&
     (!message.body.trim() || /^shared (photo|image)$/i.test(message.body.trim()));
+  const isFileOnlyMessage =
+    fileAttachments.length > 0 &&
+    imageAttachments.length === 0 &&
+    !message.gifUrl &&
+    !message.quote &&
+    !message.body.trim();
 
   const replyLabel = useMemo(() => {
     if (!message.quote) {
@@ -241,7 +247,7 @@ export function MessageBubble({
               </a>
             ) : null}
 
-            {!isImageOnlyMessage ? (
+            {!isImageOnlyMessage && !isFileOnlyMessage ? (
               message.quote ? <p className="break-words text-[14px] leading-snug">{message.body}</p> : <p className="leading-5">{message.body}</p>
             ) : null}
 
@@ -288,26 +294,50 @@ export function MessageBubble({
             ) : null}
 
             {fileAttachments.length > 0 ? (
-              <div className="mt-3 space-y-2">
+              <div className={`${isFileOnlyMessage ? "" : "mt-3"} space-y-2`}>
                 {fileAttachments.map((attachment) => (
-                  <a
+                  <div
                     key={attachment.id}
-                    href={attachment.downloadUrl ?? undefined}
-                    target="_blank"
-                    rel="noreferrer"
                     className={`block rounded-xl border px-3 py-2 text-xs ${
                       message.sender === "me"
                         ? "border-white/20 bg-white/10 text-white"
                         : "border-[var(--line)] bg-[var(--accent-soft)] text-[var(--foreground)]"
                     }`}
                   >
-                    <p className="truncate font-medium">{attachment.name}</p>
-                    <p className={message.sender === "me" ? "text-white/75" : "text-[var(--muted)]"}>
-                      {attachment.isExpired
-                        ? attachment.placeholderText ?? "File expired / removed by storage policy"
-                        : `${Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB`}
-                    </p>
-                  </a>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                          message.sender === "me" ? "bg-white/12 text-white" : "bg-white text-[var(--accent)]"
+                        }`}
+                      >
+                        <FileText className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{attachment.name}</p>
+                        <p className={message.sender === "me" ? "text-white/75" : "text-[var(--muted)]"}>
+                          {attachment.isExpired
+                            ? attachment.placeholderText ?? "File expired / removed by storage policy"
+                            : `${Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB`}
+                        </p>
+                      </div>
+                      {!attachment.isExpired && attachment.downloadUrl ? (
+                        <a
+                          href={attachment.downloadUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          download={attachment.name}
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                            message.sender === "me"
+                              ? "bg-white/12 text-white hover:bg-white/18"
+                              : "bg-white text-[var(--accent)] hover:bg-[var(--accent-soft)]"
+                          } transition`}
+                          aria-label={`Download ${attachment.name}`}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : null}

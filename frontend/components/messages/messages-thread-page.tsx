@@ -13,7 +13,7 @@ type MessagesThreadPageProps = {
 
 export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
   const openNewMessageModal = useChatUiStore((state) => state.openNewMessageModal);
-  const { data: conversation, isLoading, isError } = useConversationQuery(threadId);
+  const { data: conversation, isLoading, isError, isFetching } = useConversationQuery(threadId);
 
   if (isLoading) {
     return (
@@ -33,7 +33,25 @@ export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
     );
   }
 
-  if (isError || !conversation) {
+  if (!conversation && (isLoading || isFetching)) {
+    return (
+      <MessagesShell
+        sidebar={<MessagesSidebar activeThreadId={threadId} onOpenNewMessageModal={openNewMessageModal} />}
+        content={
+          <section className="h-full w-full px-6">
+            <div className="flex h-full w-full items-center justify-center">
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]" />
+                <p className="mt-4 text-sm text-[var(--muted)]">Loading conversation...</p>
+              </div>
+            </div>
+          </section>
+        }
+      />
+    );
+  }
+
+  if (isError && !conversation) {
     return (
         <MessagesShell
         sidebar={<MessagesSidebar activeThreadId={threadId} onOpenNewMessageModal={openNewMessageModal} />}
@@ -51,6 +69,10 @@ export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
         }
       />
     );
+  }
+
+  if (!conversation) {
+    return null;
   }
 
   return <MessagesThreadLayout thread={toConversationThread(conversation)} />;

@@ -153,13 +153,22 @@ class StorageObjectService
 
     protected function validateMimeType(string $detectedMimeType, UploadedFile $file): void
     {
-        if (! in_array($detectedMimeType, config('uploads.allowed_mime_types'), true)) {
+        $allowUnlistedFileTypes = (bool) config('uploads.allow_unlisted_file_types', true);
+        $detectedKind = $this->resolveMediaKind($detectedMimeType);
+        $allowedMimeTypes = config('uploads.allowed_mime_types', []);
+
+        if (! in_array($detectedMimeType, $allowedMimeTypes, true) && ! ($allowUnlistedFileTypes && $detectedKind === 'file')) {
             throw new InvalidArgumentException('This file type is not allowed.');
         }
 
         $clientMimeType = $file->getClientMimeType();
+        $clientKind = $clientMimeType ? $this->resolveMediaKind($clientMimeType) : null;
 
-        if ($clientMimeType && ! in_array($clientMimeType, config('uploads.allowed_mime_types'), true)) {
+        if (
+            $clientMimeType
+            && ! in_array($clientMimeType, $allowedMimeTypes, true)
+            && ! ($allowUnlistedFileTypes && $clientKind === 'file')
+        ) {
             throw new InvalidArgumentException('The uploaded file reported an unsupported mime type.');
         }
 

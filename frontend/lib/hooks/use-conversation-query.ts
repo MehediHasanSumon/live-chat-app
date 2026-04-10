@@ -18,10 +18,11 @@ export function useConversationQuery(conversationId: string) {
         skipAuthRedirect: true,
       }),
     enabled: Boolean(conversationId),
-    retry: false,
+    retry: 1,
     staleTime: 10_000,
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
     select: (response) => response.data,
   });
 }

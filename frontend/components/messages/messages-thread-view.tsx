@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 
 import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
@@ -69,6 +69,7 @@ export function MessagesThreadView({
   const { data: polledTypingUsers = [] } = useTypingUsersQuery(thread.id, true);
   const messages = useMemo(() => data?.messages ?? [], [data?.messages]);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
   const previousScrollHeightRef = useRef<number | null>(null);
   const previousScrollTopRef = useRef<number>(0);
   const previousLatestSeqRef = useRef<number | null>(null);
@@ -212,7 +213,11 @@ export function MessagesThreadView({
     }
   }, [isFetchingNextPage, latestMessage?.seq, mappedMessages.length]);
 
-  const handleLoadOlder = async () => {
+  const handleLoadOlder = useCallback(async () => {
+    if (!hasNextPage || isFetchingNextPage) {
+      return;
+    }
+
     const container = scrollContainerRef.current;
 
     if (container) {
@@ -221,7 +226,37 @@ export function MessagesThreadView({
     }
 
     await fetchNextPage();
-  };
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    const sentinel = topSentinelRef.current;
+
+    if (!container || !sentinel || !hasNextPage) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+
+        if (entry?.isIntersecting) {
+          void handleLoadOlder();
+        }
+      },
+      {
+        root: container,
+        rootMargin: "120px 0px 0px 0px",
+        threshold: 0.01,
+      },
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [handleLoadOlder, hasNextPage, thread.id]);
 
   const handleStartCall = async (mediaType: "voice" | "video") => {
     if (!currentUserId) {
@@ -375,18 +410,14 @@ export function MessagesThreadView({
         ref={scrollContainerRef}
         className="flex-1 space-y-4 overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.45)_0%,rgba(246,248,255,0.72)_100%)] px-4 py-5 sm:px-6"
       >
+        <div ref={topSentinelRef} className="h-px w-full" aria-hidden="true" />
         <div className="-mx-1 flex justify-center pb-2 pt-1">
           {hasNextPage ? (
-            <button
-              type="button"
-              onClick={() => {
-                void handleLoadOlder();
-              }}
-              disabled={isFetchingNextPage}
-              className="rounded-full border border-[rgba(111,123,176,0.16)] bg-white/90 px-4 py-2 text-xs font-semibold text-[#5a6388] shadow-[0_10px_24px_rgba(96,109,160,0.08)] transition hover:border-[rgba(96,91,255,0.18)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isFetchingNextPage ? "Loading older messages..." : "Load older messages"}
-            </button>
+            isFetchingNextPage ? (
+              <div className="rounded-full border border-[rgba(111,123,176,0.16)] bg-white/90 px-4 py-2 text-xs font-semibold text-[#5a6388] shadow-[0_10px_24px_rgba(96,109,160,0.08)]">
+                Loading older messages...
+              </div>
+            ) : null
           ) : mappedMessages.length > 0 ? (
             <div className="rounded-full border border-[rgba(111,123,176,0.12)] bg-white/80 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-[#99a1c2]">
               Conversation start

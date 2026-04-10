@@ -234,6 +234,14 @@ export type ChatMessage = {
   }[];
 };
 
+const attachmentPlaceholderBodies = new Set([
+  "Shared photo",
+  "Shared video",
+  "Shared attachment",
+  "Photo",
+  "File",
+]);
+
 export type ThreadMediaItem = {
   id: string;
   type: "media" | "file";
@@ -296,21 +304,13 @@ export function toConversationThread(conversation: ConversationApiItem): Message
     time: formatRelativeTime(conversation.last_message_at ?? conversation.updated_at),
     unreadCount: conversation.membership?.unread_count_cache || undefined,
     online: false,
+    presence: null,
     isGroup: conversation.type === "group",
     membership: conversation.membership,
     members: conversation.members,
   };
 }
 
-export function toThreadMediaItems(items: MessageAttachmentApiItem[]): ThreadMediaItem[] {
-  return items.map((item) => ({
-    presence: null,
-    id: String(item.id),
-    type: item.storage_object?.media_kind === "file" ? "file" : "media",
-    title: item.storage_object?.original_name ?? `Attachment #${item.storage_object_id}`,
-    preview: item.storage_object?.media_kind === "image" || item.storage_object?.media_kind === "gif"
-      ? item.storage_object.original_name.slice(0, 2).toUpperCase()
-      : undefined,
 export function getDirectThreadPeer(thread: MessageThread) {
   if (thread.isGroup) {
     return null;
@@ -367,6 +367,14 @@ export function formatPresenceLabel(presence: MessageThread["presence"]): string
   }).format(date)}`;
 }
 
+export function toThreadMediaItems(items: MessageAttachmentApiItem[]): ThreadMediaItem[] {
+  return items.map((item) => ({
+    id: String(item.id),
+    type: item.storage_object?.media_kind === "file" ? "file" : "media",
+    title: item.storage_object?.original_name ?? `Attachment #${item.storage_object_id}`,
+    preview: item.storage_object?.media_kind === "image" || item.storage_object?.media_kind === "gif"
+      ? item.storage_object.original_name.slice(0, 2).toUpperCase()
+      : undefined,
     previewUrl:
       item.storage_object?.media_kind === "image" || item.storage_object?.media_kind === "gif"
         ? item.storage_object.download_url
@@ -394,13 +402,21 @@ export function toChatMessage(message: MessageApiItem, authUserId?: number | nul
     reactionsMap.set(reaction.emoji, current);
   });
 
+  const normalizedBody =
+    message.display_text ?? message.text_body ?? "";
+  const hasAttachments = (message.attachments?.length ?? 0) > 0;
+  const body =
+    hasAttachments && attachmentPlaceholderBodies.has(normalizedBody.trim())
+      ? ""
+      : normalizedBody || "Unsupported message";
+
   return {
     id: String(message.id),
     numericId: message.id,
     seq: message.seq,
     sender: authUserId !== undefined && authUserId !== null && message.sender_id === authUserId ? "me" : "other",
     senderId: message.sender_id,
-    body: message.display_text ?? message.text_body ?? "Unsupported message",
+    body,
     time: formatRelativeTime(message.created_at),
     senderName: message.sender?.name ?? undefined,
     isEdited: message.is_edited,
