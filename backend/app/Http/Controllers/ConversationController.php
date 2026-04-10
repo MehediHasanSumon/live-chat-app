@@ -131,6 +131,15 @@ class ConversationController extends Controller
         ]);
     }
 
+    public function markUnread(Request $request, Conversation $conversation): JsonResponse
+    {
+        return response()->json([
+            'data' => new ConversationResource(
+                $this->conversationService->markUnread($conversation, $request->user()->getKey())
+            ),
+        ]);
+    }
+
     public function updateNotificationSchedule(
         UpdateConversationNotificationScheduleRequest $request,
         Conversation $conversation,

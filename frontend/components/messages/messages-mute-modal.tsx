@@ -14,10 +14,12 @@ const muteOptions = [
 
 type MessagesMuteModalProps = {
   isOpen: boolean;
+  isPending?: boolean;
   onClose: () => void;
+  onConfirm: (option: (typeof muteOptions)[number]) => void;
 };
 
-export function MessagesMuteModal({ isOpen, onClose }: MessagesMuteModalProps) {
+export function MessagesMuteModal({ isOpen, isPending = false, onClose, onConfirm }: MessagesMuteModalProps) {
   const [selectedOption, setSelectedOption] =
     useState<(typeof muteOptions)[number]>("For 15 minutes");
 
@@ -65,16 +67,18 @@ export function MessagesMuteModal({ isOpen, onClose }: MessagesMuteModalProps) {
             <button
               type="button"
               onClick={onClose}
+              disabled={isPending}
               className="h-10 rounded-xl border border-[var(--line)] bg-white text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--accent-soft)]"
             >
               Cancel
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => onConfirm(selectedOption)}
+              disabled={isPending}
               className="h-10 rounded-xl bg-[var(--accent)] text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)]"
             >
-              Mute
+              {isPending ? "Please wait..." : "Mute"}
             </button>
           </div>
         </div>

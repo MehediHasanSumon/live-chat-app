@@ -68,7 +68,7 @@ it('creates a group and assigns the creator as owner', function () {
     )->toBe('owner');
 });
 
-it('allows a user to archive pin mute and mark a conversation as read', function () {
+it('allows a user to archive pin mute and manage conversation read state', function () {
     $creator = User::factory()->create();
     $target = User::factory()->create();
 
@@ -120,6 +120,13 @@ it('allows a user to archive pin mute and mark a conversation as read', function
         ->assertOk()
         ->assertJsonPath('data.membership.last_read_seq', 14)
         ->assertJsonPath('data.membership.unread_count_cache', 0);
+
+    $this->actingAs($creator, 'web')
+        ->postJson("/api/conversations/{$conversation->id}/unread")
+        ->assertOk()
+        ->assertJsonPath('data.membership.last_read_seq', 13)
+        ->assertJsonPath('data.membership.unread_count_cache', 1)
+        ->assertJsonPath('data.membership.archived_at', null);
 });
 
 it('prevents non group admins from updating group details', function () {

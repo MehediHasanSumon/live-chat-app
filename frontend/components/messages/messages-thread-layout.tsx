@@ -4,10 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { applyPresenceToThread, getDirectThreadPeer, type MessageThread } from "@/lib/messages-data";
 import { MessagesAsidePanel } from "@/components/messages/messages-aside-panel";
-import { MessagesConfirmationModal } from "@/components/messages/messages-confirmation-modal";
+import { MessagesConversationActionModals } from "@/components/messages/messages-conversation-action-modals";
 import { MessagesImageViewer, type MessagesImageViewerItem } from "@/components/messages/messages-image-viewer";
 import { MessagesMediaSidebar } from "@/components/messages/messages-media-sidebar";
-import { MessagesMuteModal } from "@/components/messages/messages-mute-modal";
 import { MessagesNewMessageModal } from "@/components/messages/messages-new-message-modal";
 import { MessagesShell } from "@/components/messages/messages-shell";
 import { MessagesSidebar } from "@/components/messages/messages-sidebar";
@@ -28,12 +27,8 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
   const { data: presence } = useUserPresenceQuery(directPeer?.user_id, !thread.isGroup && Boolean(directPeer?.user_id));
   const activeThreadId = useChatUiStore((state) => state.activeThreadId);
   const asideView = useChatUiStore((state) => state.asideView);
-  const confirmationAction = useChatUiStore((state) => state.confirmationAction);
   const isInfoSidebarOpen = useChatUiStore((state) => state.isInfoSidebarOpen);
-  const isMuteModalOpen = useChatUiStore((state) => state.isMuteModalOpen);
   const isNewMessageModalOpen = useChatUiStore((state) => state.isNewMessageModalOpen);
-  const closeConfirmation = useChatUiStore((state) => state.closeConfirmation);
-  const closeMuteModal = useChatUiStore((state) => state.closeMuteModal);
   const closeNewMessageModal = useChatUiStore((state) => state.closeNewMessageModal);
   const openAsideView = useChatUiStore((state) => state.openAsideView);
   const openConfirmation = useChatUiStore((state) => state.openConfirmation);
@@ -109,25 +104,11 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
         }}
         onSelectImage={setActiveViewerImageId}
       />
-      <MessagesMuteModal isOpen={isMuteModalOpen} onClose={closeMuteModal} />
       <MessagesNewMessageModal
         isOpen={isNewMessageModalOpen}
         onClose={closeNewMessageModal}
       />
-      <MessagesConfirmationModal
-        isOpen={confirmationAction === "block"}
-        title="Block conversation"
-        description="You won&apos;t receive new messages or calls from this conversation unless you unblock it later."
-        confirmLabel="Block"
-        onClose={closeConfirmation}
-      />
-      <MessagesConfirmationModal
-        isOpen={confirmationAction === "delete"}
-        title="Delete chat"
-        description="This will remove the chat from your list. You can only restore it if it appears again from a new message."
-        confirmLabel="Delete"
-        onClose={closeConfirmation}
-      />
+      <MessagesConversationActionModals />
     </>
   );
 }

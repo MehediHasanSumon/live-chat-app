@@ -191,6 +191,27 @@ class ConversationService
         return $this->loadConversationForUser($conversation, $userId);
     }
 
+    public function markUnread(Conversation $conversation, int $userId): Conversation
+    {
+        $membership = $this->conversationMemberService->requireActiveMembership($conversation, $userId);
+        $lastMessageSeq = (int) $conversation->last_message_seq;
+
+        if ($lastMessageSeq <= 0) {
+            return $this->loadConversationForUser($conversation, $userId);
+        }
+
+        $newLastReadSeq = min($membership->last_read_seq, $lastMessageSeq - 1);
+        $derivedUnreadCount = max(1, $lastMessageSeq - $newLastReadSeq);
+
+        $membership->forceFill([
+            'last_read_seq' => max(0, $newLastReadSeq),
+            'unread_count_cache' => max($membership->unread_count_cache, $derivedUnreadCount),
+            'archived_at' => null,
+        ])->save();
+
+        return $this->loadConversationForUser($conversation, $userId);
+    }
+
     public function setScheduledNotifications(Conversation $conversation, int $userId, array $payload): Conversation
     {
         $membership = $this->conversationMemberService->requireActiveMembership($conversation, $userId);

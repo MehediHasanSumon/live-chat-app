@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CornerUpLeft, Download, FileText, PencilLine, Send, SmilePlus, Trash2, X } from "lucide-react";
 
+import { MessageAvatar } from "@/components/messages/message-avatar";
+import { MessageUserHoverCard } from "@/components/messages/message-user-hover-card";
 import { type ChatMessage } from "@/lib/messages-data";
 
 type MessageBubbleProps = {
@@ -33,7 +35,11 @@ export function MessageBubble({
   isReacting = false,
 }: MessageBubbleProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showProfileCard, setShowProfileCard] = useState(false);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const profileHoverTimeoutRef = useRef<number | null>(null);
+  const isOtherMessage = message.sender === "other";
+  const senderDisplayName = message.senderName?.trim() || "Unknown user";
 
   const railPositionClass = message.sender === "me" ? "right-full mr-3" : "left-full ml-3";
   const surfaceActionClass =
@@ -113,12 +119,75 @@ export function MessageBubble({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [showReactionPicker]);
 
+  useEffect(() => {
+    return () => {
+      if (profileHoverTimeoutRef.current) {
+        window.clearTimeout(profileHoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleProfileCard = () => {
+    if (!isOtherMessage) {
+      return;
+    }
+
+    if (profileHoverTimeoutRef.current) {
+      window.clearTimeout(profileHoverTimeoutRef.current);
+    }
+
+    profileHoverTimeoutRef.current = window.setTimeout(() => {
+      setShowProfileCard(true);
+    }, 500);
+  };
+
+  const hideProfileCard = () => {
+    if (profileHoverTimeoutRef.current) {
+      window.clearTimeout(profileHoverTimeoutRef.current);
+      profileHoverTimeoutRef.current = null;
+    }
+
+    setShowProfileCard(false);
+  };
+
   return (
     <div
       ref={bubbleRef}
-      className={`group flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}
-      onMouseLeave={() => setShowReactionPicker(false)}
+      className={`group flex items-end gap-2 ${message.sender === "me" ? "justify-end" : "justify-start"}`}
+      onMouseLeave={() => {
+        setShowReactionPicker(false);
+        hideProfileCard();
+      }}
     >
+      {isOtherMessage ? (
+        <div
+          className="relative shrink-0"
+          onMouseEnter={scheduleProfileCard}
+          onMouseLeave={hideProfileCard}
+        >
+          <button
+            type="button"
+            className="rounded-full"
+            aria-label={`View ${senderDisplayName} profile card`}
+          >
+            <MessageAvatar
+              name={senderDisplayName}
+              sizeClass="h-9 w-9"
+              textClass="text-xs"
+            />
+          </button>
+
+          {showProfileCard ? (
+            <div onMouseEnter={scheduleProfileCard} onMouseLeave={hideProfileCard}>
+              <MessageUserHoverCard
+                name={senderDisplayName}
+                username={message.senderUsername}
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className={`relative max-w-[78%] ${renderedReactionBadges.length > 0 ? "pb-5" : ""}`}>
         <div
           className={`pointer-events-none absolute top-1/2 z-20 hidden -translate-y-1/2 items-center gap-2 transition md:flex ${railPositionClass} opacity-0 group-hover:opacity-100 group-focus-within:opacity-100`}

@@ -506,7 +506,10 @@ class MessageService
             ->where('conversation_id', $conversationId)
             ->where('membership_state', 'active')
             ->where('user_id', '!=', $senderId)
-            ->increment('unread_count_cache');
+            ->update([
+                'unread_count_cache' => DB::raw('unread_count_cache + 1'),
+                'archived_at' => null,
+            ]);
     }
 
     protected function syncConversationAfterMessageMutation(Conversation $conversation, Message $message): void

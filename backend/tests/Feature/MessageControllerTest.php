@@ -79,6 +79,34 @@ it('sends text messages with seq ordering and client uuid idempotency', function
     expect(Message::query()->count())->toBe(1);
 });
 
+it('restores archived conversations for recipients when a new message arrives', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $conversation = createDirectConversationWithMembers($sender, $recipient);
+
+    ConversationMember::query()
+        ->where('conversation_id', $conversation->id)
+        ->where('user_id', $recipient->id)
+        ->update([
+            'archived_at' => now()->subHour(),
+            'unread_count_cache' => 0,
+        ]);
+
+    $this->actingAs($sender, 'web')
+        ->postJson("/api/conversations/{$conversation->id}/messages/text", [
+            'text' => 'Wake this chat back up',
+        ])
+        ->assertCreated();
+
+    $recipientMembership = ConversationMember::query()
+        ->where('conversation_id', $conversation->id)
+        ->where('user_id', $recipient->id)
+        ->first();
+
+    expect($recipientMembership?->archived_at)->toBeNull()
+        ->and($recipientMembership?->unread_count_cache)->toBe(1);
+});
+
 it('stores reply quote snapshots and returns messages in seq order', function () {
     $sender = User::factory()->create();
     $recipient = User::factory()->create();

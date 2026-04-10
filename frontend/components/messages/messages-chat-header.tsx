@@ -1,4 +1,4 @@
-import { MoreVertical, Phone, Video } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 
 import { formatPresenceLabel, type MessageThread } from "@/lib/messages-data";
 import { MessageAvatar } from "@/components/messages/message-avatar";
@@ -7,20 +7,12 @@ type MessagesChatHeaderProps = {
   thread: MessageThread;
   isInfoSidebarOpen: boolean;
   onToggleInfoSidebar: () => void;
-  onStartVoiceCall?: () => void;
-  onStartVideoCall?: () => void;
-  isStartingVoiceCall?: boolean;
-  isStartingVideoCall?: boolean;
 };
 
 export function MessagesChatHeader({
   thread,
   isInfoSidebarOpen,
   onToggleInfoSidebar,
-  onStartVoiceCall,
-  onStartVideoCall,
-  isStartingVoiceCall = false,
-  isStartingVideoCall = false,
 }: MessagesChatHeaderProps) {
   const presenceLabel = formatPresenceLabel(thread.presence);
 
@@ -39,24 +31,6 @@ export function MessagesChatHeader({
       </div>
 
       <div className="flex items-center gap-2 text-[var(--muted)]">
-        <button
-          type="button"
-          onClick={onStartVoiceCall}
-          disabled={isStartingVoiceCall}
-          aria-label="Start voice call"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] bg-white transition hover:border-[rgba(96,91,255,0.28)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Phone className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={onStartVideoCall}
-          disabled={isStartingVideoCall}
-          aria-label="Start video call"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] bg-white transition hover:border-[rgba(96,91,255,0.28)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Video className="h-4 w-4" />
-        </button>
         <button
           type="button"
           onClick={onToggleInfoSidebar}

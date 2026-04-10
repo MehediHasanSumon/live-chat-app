@@ -7,7 +7,9 @@ type MessagesConfirmationModalProps = {
   title: string;
   description: string;
   confirmLabel: string;
+  isPending?: boolean;
   onClose: () => void;
+  onConfirm: () => void;
 };
 
 export function MessagesConfirmationModal({
@@ -15,7 +17,9 @@ export function MessagesConfirmationModal({
   title,
   description,
   confirmLabel,
+  isPending = false,
   onClose,
+  onConfirm,
 }: MessagesConfirmationModalProps) {
   if (!isOpen) {
     return null;
@@ -43,16 +47,18 @@ export function MessagesConfirmationModal({
             <button
               type="button"
               onClick={onClose}
+              disabled={isPending}
               className="h-10 rounded-xl border border-[var(--line)] bg-white text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--accent-soft)]"
             >
               Cancel
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={onConfirm}
+              disabled={isPending}
               className="h-10 rounded-xl bg-[var(--accent)] text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)]"
             >
-              {confirmLabel}
+              {isPending ? "Please wait..." : confirmLabel}
             </button>
           </div>
         </div>

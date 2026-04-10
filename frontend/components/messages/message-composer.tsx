@@ -70,6 +70,7 @@ export function MessageComposer({
 
   const isReplying = Boolean(replyPreview);
   const composerValue = isEditing ? editingValue : value;
+  const isComposerLocked = isEditing && isSending;
   const hasText = composerValue.trim().length > 0;
   const hasMessagePayload = hasText || attachments.length > 0;
 
@@ -181,7 +182,7 @@ export function MessageComposer({
     kind: "image" | "file",
     input?: HTMLInputElement | null,
   ) => {
-    if (!files?.length || isSending || isEditing || isReplying) {
+    if (!files?.length || isComposerLocked || isEditing || isReplying) {
       return;
     }
 
@@ -248,11 +249,13 @@ export function MessageComposer({
     });
   };
 
-  const clearComposer = () => {
+  const clearComposer = (options?: { revokePreviews?: boolean }) => {
+    const revokePreviews = options?.revokePreviews ?? true;
+
     setValue("");
     setAttachments((current) => {
       current.forEach((item) => {
-        if (item.previewUrl) {
+        if (revokePreviews && item.previewUrl) {
           URL.revokeObjectURL(item.previewUrl);
         }
       });
@@ -268,20 +271,50 @@ export function MessageComposer({
   };
 
   const handleSend = async () => {
-    if (!hasMessagePayload || isSending) {
+    if (!hasMessagePayload || isComposerLocked) {
       return;
     }
 
     stopTyping();
 
-    await onSend({
+    const payload = {
       text: composerValue,
       attachments: isReplying ? [] : [...attachments],
       voice: null,
       gif: null,
-    });
+    } as const;
 
-    clearComposer();
+    if (!isEditing) {
+      clearComposer({ revokePreviews: false });
+    }
+
+    try {
+      await onSend(payload);
+
+      if (isEditing) {
+        clearComposer();
+      } else {
+        payload.attachments.forEach((item) => {
+          if (item.previewUrl) {
+            URL.revokeObjectURL(item.previewUrl);
+          }
+        });
+      }
+    } catch (error) {
+      if (!isEditing) {
+        setValue(payload.text);
+        setAttachments(payload.attachments);
+
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+            resizeTextarea(textareaRef.current);
+          }
+        });
+      }
+
+      throw error;
+    }
   };
 
   const handleKeyDown = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -362,7 +395,7 @@ export function MessageComposer({
             }}
             placeholder="Write a message..."
             rows={2}
-            disabled={isSending}
+            disabled={isComposerLocked}
             className="min-h-[44px] w-full resize-none border-none bg-transparent py-2 pr-14 text-[14px] leading-relaxed text-[#3b4260] outline-none ring-0 transition-[height] duration-200 ease-out focus:border-none focus:outline-none focus:ring-0 placeholder:text-[#a2aacd] disabled:cursor-not-allowed disabled:opacity-70"
             style={{ boxShadow: "none" }}
           />
@@ -382,7 +415,7 @@ export function MessageComposer({
               void handleSend();
             }}
             aria-label={isEditing ? "Save message" : "Send message"}
-            disabled={isSending}
+            disabled={isComposerLocked}
             className="absolute bottom-2 right-2 flex h-10 w-10 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white shadow-[0_12px_24px_rgba(96,91,255,0.24)] transition-all duration-200 ease-out hover:brightness-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <SendHorizonal className="h-3.5 w-3.5" />
@@ -398,7 +431,7 @@ export function MessageComposer({
             <button
               aria-label="Attach file"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isSending || isEditing || isReplying}
+              disabled={isComposerLocked || isEditing || isReplying}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Paperclip className="h-3.5 w-3.5" />
@@ -406,7 +439,7 @@ export function MessageComposer({
             <button
               aria-label="Upload image"
               onClick={() => imageInputRef.current?.click()}
-              disabled={isSending || isEditing || isReplying}
+              disabled={isComposerLocked || isEditing || isReplying}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <ImageIcon className="h-3.5 w-3.5" />
@@ -414,7 +447,7 @@ export function MessageComposer({
             <button
               aria-label="Emoji"
               onClick={() => setShowEmojiPicker((current) => !current)}
-              disabled={isSending}
+              disabled={isComposerLocked}
               className="rounded-lg p-1.5 text-[#b0b7d3] transition-all duration-200 ease-out hover:bg-[rgba(96,91,255,0.06)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Smile className="h-3.5 w-3.5" />

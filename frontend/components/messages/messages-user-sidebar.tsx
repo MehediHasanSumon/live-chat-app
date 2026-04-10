@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { Archive, Bell, Crown, FileText, Image, Lock, LogOut, Plus, ShieldBan, UserPlus } from "lucide-react";
+import { Bell, Crown, FileText, Image, Lock, LogOut, Plus, ShieldBan } from "lucide-react";
 
 import { formatPresenceLabel, type MessageThread } from "@/lib/messages-data";
 import { useAddGroupMembersMutation, useChangeGroupRoleMutation, useLeaveGroupMutation, useRemoveGroupMemberMutation } from "@/lib/hooks/use-group-member-mutations";
@@ -37,9 +37,9 @@ export function MessagesUserSidebar({
   const canManageMembers = thread.isGroup && ["owner", "admin"].includes(currentMembership?.role ?? "");
   const { data: users = [] } = useUserSearchQuery(searchQuery, Boolean(canManageMembers));
   const addMembersMutation = useAddGroupMembersMutation(thread.id);
-  const removeMemberMutation = useRemoveGroupMemberMutation(thread.id);
   const changeRoleMutation = useChangeGroupRoleMutation(thread.id);
   const leaveGroupMutation = useLeaveGroupMutation(thread.id);
+  const removeMemberMutation = useRemoveGroupMemberMutation(thread.id);
 
   const visibleMembers = useMemo(
     () =>
@@ -51,19 +51,39 @@ export function MessagesUserSidebar({
         }),
     [thread.members],
   );
+  const existingMemberIds = useMemo(
+    () => new Set((thread.members ?? []).map((member) => member.user_id)),
+    [thread.members],
+  );
+  const addableUsers = useMemo(
+    () => users.filter((user) => !existingMemberIds.has(user.id)),
+    [existingMemberIds, users],
+  );
 
   const privacyItems = [
     { label: "Mute notifications", icon: Bell, action: () => onOpenMuteModal?.() },
-    { label: "Settings", icon: Lock, action: () => router.push("/settings") },
-    { label: "Message requests", icon: ShieldBan, action: () => router.push("/messages/requests") },
     ...(thread.isGroup
-      ? [{ label: "Leave Group", icon: LogOut, action: async () => {
-          await leaveGroupMutation.mutateAsync();
-          router.push("/messages");
-        } }]
+      ? [{
+          label: "Leave Group",
+          icon: LogOut,
+          action: async () => {
+            await leaveGroupMutation.mutateAsync();
+            router.push("/messages");
+          },
+        }]
       : [{ label: "Blocked accounts", icon: ShieldBan }]),
     { label: "Verify end-to-end encryption", icon: Lock },
   ];
+
+  const handleBadgeKeyDown = (
+    event: React.KeyboardEvent<HTMLSpanElement>,
+    action: () => void,
+  ) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      action();
+    }
+  };
 
   return (
     <div className="surface h-full bg-[#fbfcff]">
@@ -113,48 +133,66 @@ export function MessagesUserSidebar({
                         <p className="truncate text-sm font-semibold text-[var(--foreground)]">
                           {member.user?.name ?? `User #${member.user_id}`}
                         </p>
-                        <p className="mt-1 text-xs text-[var(--muted)]">
-                          {member.role}
-                          {member.membership_state !== "active" ? ` · ${member.membership_state}` : ""}
-                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {member.membership_state !== "active" ? (
+                            <span className="rounded-full bg-rose-100 px-1.5 py-[2px] text-[8px] font-medium text-rose-600">
+                              {member.membership_state}
+                            </span>
+                          ) : null}
+                          {canManageMembers && member.role !== "owner" ? (
+                            <>
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                  void changeRoleMutation.mutateAsync({
+                                    userId: member.user_id,
+                                    role: member.role === "admin" ? "member" : "admin",
+                                  });
+                                }}
+                                onKeyDown={(event) => {
+                                  handleBadgeKeyDown(event, () => {
+                                    void changeRoleMutation.mutateAsync({
+                                      userId: member.user_id,
+                                      role: member.role === "admin" ? "member" : "admin",
+                                    });
+                                  });
+                                }}
+                                className="cursor-pointer rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-[2px] text-[8px] font-normal text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                              >
+                                {member.role === "admin" ? "Make member" : "Make admin"}
+                              </span>
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                  void removeMemberMutation.mutateAsync(member.user_id);
+                                }}
+                                onKeyDown={(event) => {
+                                  handleBadgeKeyDown(event, () => {
+                                    void removeMemberMutation.mutateAsync(member.user_id);
+                                  });
+                                }}
+                                className="cursor-pointer rounded-full border border-rose-200 bg-rose-50 px-1.5 py-[2px] text-[8px] font-normal text-rose-600 transition hover:border-rose-300 hover:bg-rose-100"
+                              >
+                                Remove
+                              </span>
+                            </>
+                          ) : null}
+                        </div>
                       </div>
-                      {member.role === "owner" ? <Crown className="h-4 w-4 text-amber-500" /> : null}
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                        {member.role === "owner" || member.role === "admin" ? (
+                          <Crown className={`h-4 w-4 ${member.role === "owner" ? "text-amber-500" : "text-[var(--accent)]"}`} />
+                        ) : null}
+                      </div>
                     </div>
-
-                    {canManageMembers && member.role !== "owner" ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void changeRoleMutation.mutateAsync({
-                              userId: member.user_id,
-                              role: member.role === "admin" ? "member" : "admin",
-                            });
-                          }}
-                          className="rounded-full border border-[var(--line)] px-3 py-1 text-xs text-[var(--foreground)]"
-                        >
-                          {member.role === "admin" ? "Make member" : "Make admin"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void removeMemberMutation.mutateAsync(member.user_id);
-                          }}
-                          className="rounded-full border border-rose-200 px-3 py-1 text-xs text-rose-600"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ) : null}
                   </div>
                 ))}
 
                 {canManageMembers ? (
                   <div className="rounded-2xl border border-[var(--line)] bg-white px-3 py-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-                      <UserPlus className="h-4 w-4 text-[var(--accent)]" />
-                      <span>Add members</span>
-                    </div>
+                    <div className="text-sm font-semibold text-[var(--foreground)]">Add members</div>
                     <input
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
@@ -162,7 +200,7 @@ export function MessagesUserSidebar({
                       className="mt-3 w-full rounded-xl border border-[var(--line)] bg-[#fbfcff] px-3 py-2 text-sm outline-none"
                     />
                     <div className="mt-3 space-y-2">
-                      {users.map((user) => (
+                      {addableUsers.map((user) => (
                         <div key={user.id} className="flex items-center justify-between rounded-xl bg-[var(--accent-soft)]/50 px-3 py-2">
                           <div>
                             <p className="text-sm font-medium text-[var(--foreground)]">{user.name}</p>
@@ -180,7 +218,7 @@ export function MessagesUserSidebar({
                           </button>
                         </div>
                       ))}
-                      {searchQuery.trim().length >= 2 && users.length === 0 ? (
+                      {searchQuery.trim().length >= 2 && addableUsers.length === 0 ? (
                         <p className="text-xs text-[var(--muted)]">No users found for this search.</p>
                       ) : null}
                     </div>
@@ -199,7 +237,6 @@ export function MessagesUserSidebar({
                 onClick={item.action}
               />
             ))}
-            <MessagesListRow label="Admin ops" icon={Archive} onClick={() => router.push("/admin/ops")} />
           </MessagesAccordionSection>
         </div>
       </div>

@@ -8,7 +8,6 @@ import { type MessagesImageViewerItem } from "@/components/messages/messages-ima
 import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
 import { ApiClientError } from "@/lib/api-client";
-import { useStartCallMutation, useJoinCallMutation } from "@/lib/hooks/use-call-mutations";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { useConversationMessagesQuery } from "@/lib/hooks/use-conversation-messages-query";
@@ -51,7 +50,6 @@ export function MessagesThreadView({
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-    isRefetching,
   } = useConversationMessagesQuery(thread.id);
   const sendMessageMutation = useSendMessageMutation();
   const toggleReactionMutation = useToggleReactionMutation(thread.id);
@@ -59,8 +57,6 @@ export function MessagesThreadView({
   const deleteMessageMutation = useDeleteMessageMutation(thread.id);
   const forwardMessageMutation = useForwardMessageMutation(thread.id);
   const markReadMutation = useMarkConversationReadMutation();
-  const startCallMutation = useStartCallMutation();
-  const joinCallMutation = useJoinCallMutation();
   const { data: forwardConversations = [] } = useConversationsQuery(true);
   const activeCall = useCallStore((state) => state.activeCall);
   const realtimeTypingUsers = useConversationRealtimeStore(
@@ -113,7 +109,6 @@ export function MessagesThreadView({
   const currentCallForThread =
     activeCall?.callRoom.conversation_id === thread.numericId ? activeCall : null;
   const typingUsers = polledTypingUsers.length > 0 ? polledTypingUsers : realtimeTypingUsers;
-  const isTimelineRefreshing = isRefetching && !isFetchingNextPage;
   const removeTargetMessage = useMemo(
     () => mappedMessages.find((message) => message.numericId === removeTargetMessageId) ?? null,
     [mappedMessages, removeTargetMessageId],
@@ -258,23 +253,6 @@ export function MessagesThreadView({
     };
   }, [handleLoadOlder, hasNextPage, thread.id]);
 
-  const handleStartCall = async (mediaType: "voice" | "video") => {
-    if (!currentUserId) {
-      return;
-    }
-
-    const callRoom = await startCallMutation.mutateAsync({
-      thread,
-      mediaType,
-      authUserId: currentUserId,
-    });
-
-    await joinCallMutation.mutateAsync({
-      roomUuid: callRoom.room_uuid,
-      wantsVideo: mediaType === "video",
-    });
-  };
-
   const startEditing = (messageId: number, currentBody: string) => {
     setReplyingMessageId(null);
     setEditingMessageId(messageId);
@@ -396,14 +374,6 @@ export function MessagesThreadView({
         thread={thread}
         isInfoSidebarOpen={isInfoSidebarOpen}
         onToggleInfoSidebar={onToggleInfoSidebar}
-        onStartVoiceCall={() => {
-          void handleStartCall("voice");
-        }}
-        onStartVideoCall={() => {
-          void handleStartCall("video");
-        }}
-        isStartingVoiceCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "voice"}
-        isStartingVideoCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "video"}
       />
 
       <div
@@ -437,12 +407,6 @@ export function MessagesThreadView({
                 <span className="font-medium text-[#2f3655]">{currentCallForThread.callRoom.status}</span>.
               </span>
             )}
-          </div>
-        ) : null}
-
-        {isTimelineRefreshing ? (
-          <div className="rounded-full border border-[rgba(111,123,176,0.12)] bg-white/80 px-3 py-1 text-center text-[11px] font-medium text-[#8d95bb]">
-            Syncing latest messages...
           </div>
         ) : null}
 
@@ -484,7 +448,7 @@ export function MessagesThreadView({
               onOpenImage={(attachmentId) => onOpenImageViewer?.(galleryImages, attachmentId)}
               readLabel={
                 message.isPending
-                  ? "Sending"
+                  ? "Sending..."
                   : !thread.isGroup && message.sender === "me" && peerMembership
                   ? peerMembership.last_read_seq >= message.seq
                     ? "Seen"
@@ -529,7 +493,7 @@ export function MessagesThreadView({
           onEditingValueChange={setEditingValue}
           onCancelEditing={cancelEditing}
           onCancelReply={cancelReplying}
-          isSending={sendMessageMutation.isPending || editMessageMutation.isPending}
+          isSending={editMessageMutation.isPending}
           errorMessage={composerErrorMessage}
           onSend={async ({ text, attachments, voice, gif }) => {
             if (editingMessageId) {

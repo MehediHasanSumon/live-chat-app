@@ -12,13 +12,22 @@ type MessagesThreadPageProps = {
 };
 
 export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
+  const openConfirmation = useChatUiStore((state) => state.openConfirmation);
+  const openMuteModal = useChatUiStore((state) => state.openMuteModal);
   const openNewMessageModal = useChatUiStore((state) => state.openNewMessageModal);
   const { data: conversation, isLoading, isError, isFetching } = useConversationQuery(threadId);
 
   if (isLoading) {
-    return (
+      return (
         <MessagesShell
-        sidebar={<MessagesSidebar activeThreadId={threadId} onOpenNewMessageModal={openNewMessageModal} />}
+        sidebar={
+          <MessagesSidebar
+            activeThreadId={threadId}
+            onOpenMuteModal={openMuteModal}
+            onOpenConfirmation={openConfirmation}
+            onOpenNewMessageModal={openNewMessageModal}
+          />
+        }
         content={
           <section className="h-full w-full px-6">
             <div className="flex h-full w-full items-center justify-center">
@@ -36,7 +45,14 @@ export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
   if (!conversation && (isLoading || isFetching)) {
     return (
       <MessagesShell
-        sidebar={<MessagesSidebar activeThreadId={threadId} onOpenNewMessageModal={openNewMessageModal} />}
+        sidebar={
+          <MessagesSidebar
+            activeThreadId={threadId}
+            onOpenMuteModal={openMuteModal}
+            onOpenConfirmation={openConfirmation}
+            onOpenNewMessageModal={openNewMessageModal}
+          />
+        }
         content={
           <section className="h-full w-full px-6">
             <div className="flex h-full w-full items-center justify-center">
@@ -52,9 +68,16 @@ export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
   }
 
   if (isError && !conversation) {
-    return (
+      return (
         <MessagesShell
-        sidebar={<MessagesSidebar activeThreadId={threadId} onOpenNewMessageModal={openNewMessageModal} />}
+        sidebar={
+          <MessagesSidebar
+            activeThreadId={threadId}
+            onOpenMuteModal={openMuteModal}
+            onOpenConfirmation={openConfirmation}
+            onOpenNewMessageModal={openNewMessageModal}
+          />
+        }
         content={
           <section className="h-full w-full px-6">
             <div className="flex h-full w-full items-center justify-center">

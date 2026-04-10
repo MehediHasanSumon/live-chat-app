@@ -45,9 +45,17 @@ export function useMarkConversationReadMutation() {
 
   return useMutation({
     mutationFn: ({ conversationId, lastSeq }: MarkReadPayload) =>
-      apiClient.post(`/api/conversations/${conversationId}/read`, {
-        last_seq: lastSeq,
-      }),
+      apiClient.post(
+        `/api/conversations/${conversationId}/read`,
+        {
+          last_seq: lastSeq,
+        },
+        {
+          headers: {
+            "X-Skip-Debounce": "1",
+          },
+        },
+      ),
     onMutate: async ({ conversationId, lastSeq }) => {
       queryClient.setQueryData<ConversationApiItem[] | { data?: ConversationApiItem[] } | undefined>(
         queryKeys.conversations.all,

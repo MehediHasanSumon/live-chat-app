@@ -208,6 +208,7 @@ export type ChatMessage = {
   body: string;
   time: string;
   senderName?: string;
+  senderUsername?: string;
   isEdited?: boolean;
   isDeletedForEveryone?: boolean;
   isForwarded?: boolean;
@@ -419,6 +420,7 @@ export function toChatMessage(message: MessageApiItem, authUserId?: number | nul
     body,
     time: formatRelativeTime(message.created_at),
     senderName: message.sender?.name ?? undefined,
+    senderUsername: message.sender?.username ?? undefined,
     isEdited: message.is_edited,
     isDeletedForEveryone: Boolean(message.deleted_for_everyone_at),
     isForwarded: Boolean(message.forwarded_from_message_id),

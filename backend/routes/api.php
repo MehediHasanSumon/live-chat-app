@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::patch('/conversations/{conversation}/mute', [ConversationController::class, 'mute']);
     Route::patch('/conversations/{conversation}/notifications/schedule', [ConversationController::class, 'updateNotificationSchedule']);
     Route::post('/conversations/{conversation}/read', [ConversationController::class, 'markRead']);
+    Route::post('/conversations/{conversation}/unread', [ConversationController::class, 'markUnread']);
     Route::post('/conversations/{conversation}/messages/text', [MessageController::class, 'storeText']);
     Route::post('/conversations/{conversation}/messages/voice', [MessageController::class, 'storeVoice']);
     Route::post('/conversations/{conversation}/messages/media', [MessageController::class, 'storeMedia']);

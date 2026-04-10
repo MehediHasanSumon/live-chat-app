@@ -9,10 +9,8 @@ import {
   CheckCheck,
   Inbox,
   MessageCircleOff,
-  Phone,
   ShieldBan,
   Trash2,
-  Video,
 } from "lucide-react";
 
 import { applyPresenceToThread, toConversationThread } from "@/lib/messages-data";
@@ -21,27 +19,32 @@ import { MessagesSearchBar } from "@/components/messages/messages-search-bar";
 import { MessagesSidebarHeader } from "@/components/messages/messages-sidebar-header";
 import { MessagesThreadMenu } from "@/components/messages/messages-thread-menu";
 import { MessageThreadItem } from "@/components/messages/message-thread-item";
+import {
+  useArchiveConversationMutation,
+  useMarkConversationUnreadMutation,
+  useSetConversationMuteMutation,
+} from "@/lib/hooks/use-conversation-actions";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { useConversationPresenceMap } from "@/lib/hooks/use-user-presence-query";
 
 type MessagesSidebarProps = {
   activeThreadId?: string;
-  onOpenMuteModal?: () => void;
-  onOpenConfirmation?: (action: "block" | "delete") => void;
+  onOpenMuteModal?: (threadId?: string | null) => void;
+  onOpenConfirmation?: (action: "block" | "delete", threadId?: string | null) => void;
   onOpenNewMessageModal?: () => void;
 };
 
 const filters = ["All", "Unread", "Groups"] as const;
 
-const threadMenuItems = [
-  { label: "Mark as unread", icon: CheckCheck },
-  { label: "Mute notifications", icon: Bell },
-  { label: "Audio call", icon: Phone },
-  { label: "Video chat", icon: Video },
-  { label: "Block", icon: MessageCircleOff },
-  { label: "Archive chat", icon: Archive },
-  { label: "Delete chat", icon: Trash2 },
-];
+function isThreadMuted(mutedUntil: string | null | undefined) {
+  if (!mutedUntil) {
+    return false;
+  }
+
+  const mutedDate = new Date(mutedUntil);
+
+  return !Number.isNaN(mutedDate.getTime()) && mutedDate.getTime() > Date.now();
+}
 
 export function MessagesSidebar({
   activeThreadId,
@@ -56,6 +59,9 @@ export function MessagesSidebar({
   const [isSidebarMenuOpen, setIsSidebarMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement | null>(null);
   const { data: conversations = [], isLoading, isError } = useConversationsQuery();
+  const archiveConversationMutation = useArchiveConversationMutation();
+  const markConversationUnreadMutation = useMarkConversationUnreadMutation();
+  const setConversationMuteMutation = useSetConversationMuteMutation();
   const sidebarMenuItems = useMemo(
     () => [
       { label: "Message requests", icon: Inbox, onClick: () => router.push("/messages/requests") },
@@ -74,11 +80,15 @@ export function MessagesSidebar({
     () => threads.map((thread) => applyPresenceToThread(thread, presenceMap[thread.id])),
     [presenceMap, threads],
   );
+  const visibleThreads = useMemo(
+    () => threadsWithPresence.filter((thread) => !thread.membership?.archived_at),
+    [threadsWithPresence],
+  );
 
   const filteredThreads = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
-    return threadsWithPresence.filter((thread) => {
+    return visibleThreads.filter((thread) => {
       const matchesFilter =
         activeFilter === "All"
           ? true
@@ -99,7 +109,7 @@ export function MessagesSidebar({
         thread.handle.toLowerCase().includes(normalizedQuery)
       );
     });
-  }, [activeFilter, searchQuery, threadsWithPresence]);
+  }, [activeFilter, searchQuery, visibleThreads]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -176,7 +186,7 @@ export function MessagesSidebar({
 
         {!isLoading && !isError && filteredThreads.length === 0 ? (
           <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
-            {threadsWithPresence.length === 0
+            {visibleThreads.length === 0
               ? "No conversations yet. Start one from the compose button when user search is ready."
               : "No conversations match this filter."}
           </div>
@@ -185,6 +195,15 @@ export function MessagesSidebar({
         {filteredThreads.map((thread) => {
           const isActive = thread.id === activeThreadId;
           const isMenuOpen = openMenuThreadId === thread.id;
+          const muted = isThreadMuted(thread.membership?.muted_until);
+          const muteLabel = muted ? "Unmute notifications" : "Mute notifications";
+          const menuItems = [
+            { label: "Mark as unread", icon: CheckCheck },
+            { label: muteLabel, icon: Bell },
+            ...(!thread.isGroup ? [{ label: "Block", icon: MessageCircleOff }] : []),
+            { label: "Archive chat", icon: Archive },
+            { label: "Delete chat", icon: Trash2 },
+          ];
 
           return (
             <div key={thread.id} className="group relative">
@@ -206,17 +225,36 @@ export function MessagesSidebar({
 
               {isMenuOpen ? (
                 <MessagesThreadMenu
-                  items={threadMenuItems}
+                  items={menuItems}
                   onClose={() => setOpenMenuThreadId(null)}
                   onItemClick={(label) => {
-                    if (label === "Mute notifications") {
-                      onOpenMuteModal?.();
+                    if (label === "Mark as unread") {
+                      void markConversationUnreadMutation.mutateAsync(thread.id);
+                    }
+                    if (label === muteLabel) {
+                      if (muted) {
+                        void setConversationMuteMutation.mutateAsync({
+                          conversationId: thread.id,
+                          mutedUntil: null,
+                        });
+                      } else {
+                        onOpenMuteModal?.(thread.id);
+                      }
                     }
                     if (label === "Block") {
-                      onOpenConfirmation?.("block");
+                      onOpenConfirmation?.("block", thread.id);
+                    }
+                    if (label === "Archive chat") {
+                      void archiveConversationMutation.mutateAsync(thread.id)
+                        .then(() => {
+                          if (thread.id === activeThreadId) {
+                            router.push("/messages");
+                          }
+                        })
+                        .catch(() => undefined);
                     }
                     if (label === "Delete chat") {
-                      onOpenConfirmation?.("delete");
+                      onOpenConfirmation?.("delete", thread.id);
                     }
                   }}
                 />
