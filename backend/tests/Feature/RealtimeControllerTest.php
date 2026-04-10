@@ -161,14 +161,72 @@ it('stores a presence heartbeat using redis style keys', function () {
     $response
         ->assertOk()
         ->assertJsonPath('data.presence_key', "presence:user:{$user->id}")
-        ->assertJsonPath('data.ttl_seconds', PresenceService::HEARTBEAT_TTL_SECONDS);
+        ->assertJsonPath('data.ttl_seconds', PresenceService::HEARTBEAT_TTL_SECONDS)
+        ->assertJsonPath('data.active_devices', 1);
 
     expect(Cache::get("presence:user:{$user->id}"))->toMatchArray([
         'user_id' => $user->id,
-        'device_uuid' => $deviceUuid,
+        'devices' => [
+            $deviceUuid => [
+                'device_uuid' => $deviceUuid,
+            ],
+        ],
     ]);
 
     expect($user->fresh()->last_seen_at)->not->toBeNull();
+});
+
+it('disconnects one presence device without dropping the user offline when another device is active', function () {
+    $user = User::factory()->create();
+    $firstDeviceUuid = (string) str()->uuid();
+    $secondDeviceUuid = (string) str()->uuid();
+
+    $this->actingAs($user, 'web')->postJson('/api/presence/heartbeat', [
+        'device_uuid' => $firstDeviceUuid,
+    ])->assertOk();
+
+    $this->actingAs($user, 'web')->postJson('/api/presence/heartbeat', [
+        'device_uuid' => $secondDeviceUuid,
+    ])->assertOk();
+
+    $this->actingAs($user, 'web')
+        ->postJson('/api/presence/offline', [
+            'device_uuid' => $firstDeviceUuid,
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.disconnected', true)
+        ->assertJsonPath('data.is_online', true)
+        ->assertJsonPath('data.active_devices', 1);
+
+    expect(Cache::get("presence:user:{$user->id}"))->toMatchArray([
+        'user_id' => $user->id,
+        'devices' => [
+            $secondDeviceUuid => [
+                'device_uuid' => $secondDeviceUuid,
+            ],
+        ],
+    ]);
+});
+
+it('marks a user offline once the last active presence device disconnects', function () {
+    $user = User::factory()->create();
+    $deviceUuid = (string) str()->uuid();
+
+    $this->actingAs($user, 'web')->postJson('/api/presence/heartbeat', [
+        'device_uuid' => $deviceUuid,
+    ])->assertOk();
+
+    $this->actingAs($user, 'web')
+        ->postJson('/api/presence/offline', [
+            'device_uuid' => $deviceUuid,
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.disconnected', true)
+        ->assertJsonPath('data.is_online', false)
+        ->assertJsonPath('data.active_devices', 0)
+        ->assertJsonPath('data.expires_at', null);
+
+    expect(Cache::get("presence:user:{$user->id}"))->toBeNull();
 });
 
 it('starts and stops typing while managing redis style keys', function () {

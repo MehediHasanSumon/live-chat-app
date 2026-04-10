@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Archive, Bell, Crown, FileText, Image, Lock, LogOut, Plus, ShieldBan, UserPlus } from "lucide-react";
 
-import { type MessageThread } from "@/lib/messages-data";
+import { formatPresenceLabel, type MessageThread } from "@/lib/messages-data";
 import { useAddGroupMembersMutation, useChangeGroupRoleMutation, useLeaveGroupMutation, useRemoveGroupMemberMutation } from "@/lib/hooks/use-group-member-mutations";
 import { useUserSearchQuery } from "@/lib/hooks/use-user-search-query";
 import { MessagesAccordionSection } from "@/components/messages/messages-accordion-section";
@@ -32,6 +32,7 @@ export function MessagesUserSidebar({
 }: MessagesUserSidebarProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const presenceLabel = formatPresenceLabel(thread.presence);
   const currentMembership = thread.membership ?? null;
   const canManageMembers = thread.isGroup && ["owner", "admin"].includes(currentMembership?.role ?? "");
   const { data: users = [] } = useUserSearchQuery(searchQuery, Boolean(canManageMembers));
@@ -71,6 +72,11 @@ export function MessagesUserSidebar({
           <MessageAvatar name={thread.name} online={thread.online} sizeClass="h-20 w-20" textClass="text-2xl" />
 
           <h2 className="mt-4 text-lg font-semibold tracking-tight">{thread.name}</h2>
+          {presenceLabel ? (
+            <p className={`mt-2 text-sm ${thread.online ? "text-emerald-600" : "text-[var(--muted)]"}`}>
+              {presenceLabel}
+            </p>
+          ) : null}
           {thread.description ? <p className="mt-2 text-sm text-[var(--muted)]">{thread.description}</p> : null}
           <div className="mt-3">
             <MessagesEncryptionBadge />

@@ -1,6 +1,6 @@
 import { MoreVertical, Phone, Video } from "lucide-react";
 
-import { type MessageThread } from "@/lib/messages-data";
+import { formatPresenceLabel, type MessageThread } from "@/lib/messages-data";
 import { MessageAvatar } from "@/components/messages/message-avatar";
 
 type MessagesChatHeaderProps = {
@@ -22,12 +22,19 @@ export function MessagesChatHeader({
   isStartingVoiceCall = false,
   isStartingVideoCall = false,
 }: MessagesChatHeaderProps) {
+  const presenceLabel = formatPresenceLabel(thread.presence);
+
   return (
     <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-4 sm:px-6">
       <div className="flex items-center gap-3">
         <MessageAvatar name={thread.name} online={thread.online} />
         <div>
           <p className="text-sm font-semibold sm:text-base">{thread.name}</p>
+          {presenceLabel ? (
+            <p className={`mt-1 text-xs ${thread.online ? "text-emerald-600" : "text-[var(--muted)]"}`}>
+              {presenceLabel}
+            </p>
+          ) : null}
         </div>
       </div>
 

@@ -57,9 +57,22 @@ export type MessageThread = {
   time: string;
   unreadCount?: number;
   online?: boolean;
+  presence?: {
+    visible: boolean;
+    isOnline: boolean;
+    lastSeenAt: string | null;
+  } | null;
   isGroup?: boolean;
   membership?: ConversationMembership | null;
   members?: ConversationMembership[];
+};
+
+export type UserPresenceApiItem = {
+  user_id: number;
+  visible: boolean;
+  is_online: boolean;
+  last_seen_at: string | null;
+  presence_key: string | null;
 };
 
 export type StorageObjectApiItem = {
@@ -291,12 +304,69 @@ export function toConversationThread(conversation: ConversationApiItem): Message
 
 export function toThreadMediaItems(items: MessageAttachmentApiItem[]): ThreadMediaItem[] {
   return items.map((item) => ({
+    presence: null,
     id: String(item.id),
     type: item.storage_object?.media_kind === "file" ? "file" : "media",
     title: item.storage_object?.original_name ?? `Attachment #${item.storage_object_id}`,
     preview: item.storage_object?.media_kind === "image" || item.storage_object?.media_kind === "gif"
       ? item.storage_object.original_name.slice(0, 2).toUpperCase()
       : undefined,
+export function getDirectThreadPeer(thread: MessageThread) {
+  if (thread.isGroup) {
+    return null;
+  }
+
+  return (thread.members ?? []).find((member) => member.user && member.user_id !== thread.membership?.user_id) ?? null;
+}
+
+export function applyPresenceToThread(
+  thread: MessageThread,
+  presence: UserPresenceApiItem | null | undefined,
+): MessageThread {
+  if (!presence || thread.isGroup) {
+    return {
+      ...thread,
+      online: false,
+      presence: null,
+    };
+  }
+
+  return {
+    ...thread,
+    online: presence.visible && presence.is_online,
+    presence: {
+      visible: presence.visible,
+      isOnline: presence.is_online,
+      lastSeenAt: presence.last_seen_at,
+    },
+  };
+}
+
+export function formatPresenceLabel(presence: MessageThread["presence"]): string | null {
+  if (!presence?.visible) {
+    return null;
+  }
+
+  if (presence.isOnline) {
+    return "Online";
+  }
+
+  if (!presence.lastSeenAt) {
+    return "Offline";
+  }
+
+  const date = new Date(presence.lastSeenAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Offline";
+  }
+
+  return `Last seen ${new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date)}`;
+}
+
     previewUrl:
       item.storage_object?.media_kind === "image" || item.storage_object?.media_kind === "gif"
         ? item.storage_object.download_url

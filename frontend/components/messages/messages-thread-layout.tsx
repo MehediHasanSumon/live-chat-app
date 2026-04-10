@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { type MessageThread } from "@/lib/messages-data";
+import { applyPresenceToThread, getDirectThreadPeer, type MessageThread } from "@/lib/messages-data";
 import { MessagesAsidePanel } from "@/components/messages/messages-aside-panel";
 import { MessagesConfirmationModal } from "@/components/messages/messages-confirmation-modal";
 import { MessagesImageViewer, type MessagesImageViewerItem } from "@/components/messages/messages-image-viewer";
@@ -13,6 +13,7 @@ import { MessagesShell } from "@/components/messages/messages-shell";
 import { MessagesSidebar } from "@/components/messages/messages-sidebar";
 import { MessagesThreadView } from "@/components/messages/messages-thread-view";
 import { MessagesUserSidebar } from "@/components/messages/messages-user-sidebar";
+import { useUserPresenceQuery } from "@/lib/hooks/use-user-presence-query";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 
 type MessagesThreadLayoutProps = {
@@ -23,6 +24,8 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
   const [viewerImages, setViewerImages] = useState<MessagesImageViewerItem[]>([]);
   const [viewerThreadId, setViewerThreadId] = useState<string | null>(null);
   const [activeViewerImageId, setActiveViewerImageId] = useState<string | null>(null);
+  const directPeer = getDirectThreadPeer(thread);
+  const { data: presence } = useUserPresenceQuery(directPeer?.user_id, !thread.isGroup && Boolean(directPeer?.user_id));
   const activeThreadId = useChatUiStore((state) => state.activeThreadId);
   const asideView = useChatUiStore((state) => state.asideView);
   const confirmationAction = useChatUiStore((state) => state.confirmationAction);
@@ -39,11 +42,15 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
   const resetThreadPanels = useChatUiStore((state) => state.resetThreadPanels);
   const setActiveThreadId = useChatUiStore((state) => state.setActiveThreadId);
   const toggleInfoSidebar = useChatUiStore((state) => state.toggleInfoSidebar);
+  const threadWithPresence = useMemo(
+    () => applyPresenceToThread(thread, presence),
+    [presence, thread],
+  );
 
   useEffect(() => {
-    setActiveThreadId(thread.id);
+    setActiveThreadId(threadWithPresence.id);
     resetThreadPanels();
-  }, [resetThreadPanels, setActiveThreadId, thread.id]);
+  }, [resetThreadPanels, setActiveThreadId, threadWithPresence.id]);
 
   const openImageViewer = (images: MessagesImageViewerItem[], activeImageId: string) => {
     setViewerThreadId(thread.id);
@@ -55,7 +62,7 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
     asideView === "info" ? (
       <MessagesAsidePanel key="info">
         <MessagesUserSidebar
-          thread={thread}
+          thread={threadWithPresence}
           onOpenMuteModal={openMuteModal}
           onOpenMediaPanel={openAsideView}
         />
@@ -63,7 +70,7 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
     ) : (
       <MessagesAsidePanel key={asideView}>
         <MessagesMediaSidebar
-          thread={thread}
+          thread={threadWithPresence}
           initialTab={asideView}
           onBack={() => openAsideView("info")}
           onOpenImageViewer={openImageViewer}
@@ -84,7 +91,7 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
         }
         content={
           <MessagesThreadView
-            thread={thread}
+            thread={threadWithPresence}
             isInfoSidebarOpen={isInfoSidebarOpen}
             onToggleInfoSidebar={toggleInfoSidebar}
             onOpenImageViewer={openImageViewer}

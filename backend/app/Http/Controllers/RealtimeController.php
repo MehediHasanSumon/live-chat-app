@@ -27,6 +27,16 @@ class RealtimeController extends Controller
         ]);
     }
 
+    public function offline(PresenceHeartbeatRequest $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->presenceService->offline(
+                $request->user()->getKey(),
+                $request->string('device_uuid')->toString(),
+            ),
+        ]);
+    }
+
     public function startTyping(TypingRequest $request, Conversation $conversation): JsonResponse
     {
         return response()->json([

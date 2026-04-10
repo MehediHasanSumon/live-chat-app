@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { ApiClientError, apiClient, clearSessionHint, markSessionHintAuthenticated } from "@/lib/api-client";
 import { fetchAuthMe, type AuthMeResponse } from "@/lib/hooks/use-auth-me-query";
+import { notifyPresenceOffline } from "@/lib/presence";
 import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
@@ -87,7 +88,10 @@ export function useLogoutMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => apiClient.post<void>("/logout"),
+    mutationFn: async () => {
+      await notifyPresenceOffline();
+      return apiClient.post<void>("/logout");
+    },
     onSuccess: () => {
       clearSessionHint();
       queryClient.removeQueries({ queryKey: queryKeys.auth.me });

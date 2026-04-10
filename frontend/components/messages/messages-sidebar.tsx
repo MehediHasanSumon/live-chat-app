@@ -15,13 +15,14 @@ import {
   Video,
 } from "lucide-react";
 
-import { toConversationThread } from "@/lib/messages-data";
+import { applyPresenceToThread, toConversationThread } from "@/lib/messages-data";
 import { MessagesFilterTabs } from "@/components/messages/messages-filter-tabs";
 import { MessagesSearchBar } from "@/components/messages/messages-search-bar";
 import { MessagesSidebarHeader } from "@/components/messages/messages-sidebar-header";
 import { MessagesThreadMenu } from "@/components/messages/messages-thread-menu";
 import { MessageThreadItem } from "@/components/messages/message-thread-item";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
+import { useConversationPresenceMap } from "@/lib/hooks/use-user-presence-query";
 
 type MessagesSidebarProps = {
   activeThreadId?: string;
@@ -68,11 +69,16 @@ export function MessagesSidebar({
     () => conversations.map((conversation) => toConversationThread(conversation)),
     [conversations],
   );
+  const presenceMap = useConversationPresenceMap(threads);
+  const threadsWithPresence = useMemo(
+    () => threads.map((thread) => applyPresenceToThread(thread, presenceMap[thread.id])),
+    [presenceMap, threads],
+  );
 
   const filteredThreads = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
-    return threads.filter((thread) => {
+    return threadsWithPresence.filter((thread) => {
       const matchesFilter =
         activeFilter === "All"
           ? true
@@ -93,7 +99,7 @@ export function MessagesSidebar({
         thread.handle.toLowerCase().includes(normalizedQuery)
       );
     });
-  }, [activeFilter, searchQuery, threads]);
+  }, [activeFilter, searchQuery, threadsWithPresence]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -170,7 +176,7 @@ export function MessagesSidebar({
 
         {!isLoading && !isError && filteredThreads.length === 0 ? (
           <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
-            {threads.length === 0
+            {threadsWithPresence.length === 0
               ? "No conversations yet. Start one from the compose button when user search is ready."
               : "No conversations match this filter."}
           </div>

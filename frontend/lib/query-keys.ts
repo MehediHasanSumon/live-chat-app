@@ -4,7 +4,7 @@ export const queryKeys = {
   },
   users: {
     search: (query: string) => ["users", "search", query] as const,
-    presence: (userId: number) => ["users", "presence", userId] as const,
+    presence: (userId: number | string) => ["users", "presence", userId] as const,
   },
   conversations: {
     all: ["conversations"] as const,

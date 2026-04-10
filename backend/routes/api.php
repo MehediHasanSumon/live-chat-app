@@ -73,6 +73,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/uploads', [UploadController::class, 'store']);
     Route::post('/uploads/{storageObject}/attach', [UploadController::class, 'attach']);
     Route::post('/presence/heartbeat', [RealtimeController::class, 'heartbeat']);
+    Route::post('/presence/offline', [RealtimeController::class, 'offline']);
     Route::post('/calls/direct/{user}/voice', [CallController::class, 'startDirect'])->defaults('mediaType', 'voice');
     Route::post('/calls/direct/{user}/video', [CallController::class, 'startDirect'])->defaults('mediaType', 'video');
     Route::post('/calls/{callRoom}/accept', [CallController::class, 'accept']);

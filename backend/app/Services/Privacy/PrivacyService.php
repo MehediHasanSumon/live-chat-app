@@ -10,7 +10,6 @@ use App\Models\UserRestriction;
 use App\Models\UserSetting;
 use App\Services\Realtime\PresenceService;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -242,7 +241,7 @@ class PrivacyService
         $showActiveStatus = (bool) ($targetUser->settings?->show_active_status ?? true);
         $isVisible = ! $viewerBlocksTarget && ! $targetBlocksViewer && $showActiveStatus;
         $presenceKey = $this->presenceService->cacheKey($targetUser->getKey());
-        $presencePayload = $isVisible ? Cache::get($presenceKey) : null;
+        $presencePayload = $isVisible ? $this->presenceService->activePresence($targetUser->getKey()) : null;
 
         return [
             'user_id' => $targetUser->getKey(),

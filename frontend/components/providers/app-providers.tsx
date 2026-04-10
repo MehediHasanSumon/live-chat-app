@@ -10,6 +10,7 @@ import { CallRoomOverlay } from "@/components/providers/call-room-overlay";
 import { CallRealtimeProvider } from "@/components/providers/call-realtime-provider";
 import { ConversationRealtimeProvider } from "@/components/providers/conversation-realtime-provider";
 import { NavigationProgress } from "@/components/providers/navigation-progress";
+import { PresenceHeartbeatProvider } from "@/components/providers/presence-heartbeat-provider";
 import { ReverbProvider } from "@/components/providers/reverb-provider";
 
 type AppProvidersProps = {
@@ -37,6 +38,7 @@ export function AppProviders({ children }: AppProvidersProps) {
       </Suspense>
       <AuthQuerySync />
       <AuthStoreSync />
+      <PresenceHeartbeatProvider />
       <ReverbProvider />
       <CallRealtimeProvider />
       <ConversationRealtimeProvider />
