@@ -67,12 +67,6 @@ return [
                 'ERROR_FOR_DIVISION_BY_ZERO',
                 'NO_ENGINE_SUBSTITUTION',
             ],
-            // Connection pooling configuration
-            'connections' => env('DB_POOL_SIZE', 10),
-            'min_idle' => env('DB_POOL_MIN_IDLE', 2),
-            'connection_timeout' => env('DB_POOL_CONNECTION_TIMEOUT', 30),
-            'idle_timeout' => env('DB_POOL_IDLE_TIMEOUT', 900),
-            'max_lifetime' => env('DB_POOL_MAX_LIFETIME', 1800),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
                 // PDO::MYSQL_ATTR_INIT_COMMAND => "SET SESSION sql_mode='TRADITIONAL'",
