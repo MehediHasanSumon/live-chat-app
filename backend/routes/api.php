@@ -57,6 +57,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/groups/{conversation}/leave', [GroupController::class, 'leave']);
 
     Route::get('/message-requests', [PrivacyController::class, 'messageRequests']);
+    Route::get('/blocked-users', [PrivacyController::class, 'blockedUsers']);
     Route::post('/message-requests/{conversation}/accept', [PrivacyController::class, 'acceptMessageRequest']);
     Route::post('/message-requests/{conversation}/reject', [PrivacyController::class, 'rejectMessageRequest']);
     Route::post('/users/{user}/block', [PrivacyController::class, 'block']);

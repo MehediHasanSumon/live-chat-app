@@ -117,13 +117,14 @@ class ConversationService
 
     public function updateGroup(Conversation $conversation, int $actorId, array $payload): Conversation
     {
-        $this->conversationMemberService->ensureGroupManager($conversation, $actorId);
+        $this->conversationMemberService->requireActiveMembership($conversation, $actorId);
+        $hasAvatarUpdate = array_key_exists('avatar_object_id', $payload);
         $validatedAvatarObjectId = $this->resolveValidatedGroupAvatarObjectId($payload, $actorId);
 
         $conversation->fill([
             'title' => $payload['title'] ?? $conversation->title,
             'description' => array_key_exists('description', $payload) ? $payload['description'] : $conversation->description,
-            'avatar_object_id' => $validatedAvatarObjectId ?? $conversation->avatar_object_id,
+            'avatar_object_id' => $hasAvatarUpdate ? $validatedAvatarObjectId : $conversation->avatar_object_id,
             'settings_json' => array_key_exists('settings_json', $payload) ? $payload['settings_json'] : $conversation->settings_json,
         ])->save();
 

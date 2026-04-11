@@ -130,6 +130,46 @@ it('blocks and restricts users through the privacy endpoints', function () {
         ->assertJsonPath('data.deleted', true);
 });
 
+it('lists blocked accounts for the current user', function () {
+    $actor = User::factory()->create();
+    $firstTarget = User::factory()->create([
+        'name' => 'Blocked One',
+        'username' => 'blocked_one',
+    ]);
+    $secondTarget = User::factory()->create([
+        'name' => 'Blocked Two',
+        'username' => 'blocked_two',
+    ]);
+
+    UserBlock::query()->create([
+        'blocker_user_id' => $actor->id,
+        'blocked_user_id' => $firstTarget->id,
+        'block_chat' => true,
+        'block_call' => true,
+        'hide_presence' => true,
+        'created_at' => now()->subMinute(),
+    ]);
+
+    UserBlock::query()->create([
+        'blocker_user_id' => $actor->id,
+        'blocked_user_id' => $secondTarget->id,
+        'block_chat' => true,
+        'block_call' => true,
+        'hide_presence' => true,
+        'created_at' => now(),
+    ]);
+
+    $this->actingAs($actor, 'web')
+        ->getJson('/api/blocked-users')
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.blocked_user_id', $secondTarget->id)
+        ->assertJsonPath('data.0.blocked_user.id', $secondTarget->id)
+        ->assertJsonPath('data.0.blocked_user.username', 'blocked_two')
+        ->assertJsonPath('data.1.blocked_user_id', $firstTarget->id)
+        ->assertJsonPath('data.1.blocked_user.username', 'blocked_one');
+});
+
 it('prevents sending messages when chat is blocked', function () {
     $sender = User::factory()->create();
     $recipient = User::factory()->create();

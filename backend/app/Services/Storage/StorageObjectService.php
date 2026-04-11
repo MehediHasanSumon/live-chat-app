@@ -129,6 +129,41 @@ class StorageObjectService
         return Storage::disk(config('uploads.disk'))->exists($storageObject->disk_path);
     }
 
+    public function hardDeleteGroupAvatarIfOrphaned(StorageObject|int|null $storageObject): bool
+    {
+        if ($storageObject === null) {
+            return false;
+        }
+
+        $storageObject = $storageObject instanceof StorageObject
+            ? $storageObject->fresh()
+            : StorageObject::query()->find($storageObject);
+
+        if (! $storageObject instanceof StorageObject) {
+            return false;
+        }
+
+        if ($storageObject->purpose !== 'group_avatar') {
+            return false;
+        }
+
+        $isStillReferenced = Conversation::query()
+            ->where('avatar_object_id', $storageObject->getKey())
+            ->exists()
+            || $storageObject->avatarUsers()->exists()
+            || $storageObject->messageAttachments()->exists();
+
+        if ($isStillReferenced) {
+            return false;
+        }
+
+        Storage::disk(config('uploads.disk'))->delete($storageObject->disk_path);
+        $storageObject->delete();
+        $this->storageQuotaService->recalculateUsage();
+
+        return true;
+    }
+
     protected function shouldExtractMetadata(string $mediaKind): bool
     {
         return in_array($mediaKind, ['image', 'video', 'audio', 'voice', 'gif'], true);

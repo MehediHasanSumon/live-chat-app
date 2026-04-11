@@ -19,6 +19,7 @@ class UserBlockResource extends JsonResource
             'block_chat' => $this->block_chat,
             'block_call' => $this->block_call,
             'hide_presence' => $this->hide_presence,
+            'blocked_user' => $this->whenLoaded('blocked', fn () => (new UserResource($this->blocked))->resolve($request)),
             'created_at' => $this->created_at,
         ];
     }

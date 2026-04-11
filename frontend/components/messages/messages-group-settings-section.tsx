@@ -92,10 +92,26 @@ export function MessagesGroupSettingsSection({
     setIsAvatarMarkedForRemoval(true);
   };
 
+  const handleActionKeyDown = (
+    event: React.KeyboardEvent<HTMLSpanElement>,
+    action: () => void,
+    disabled = false,
+  ) => {
+    if (disabled) {
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      action();
+    }
+  };
+
   const isSaving = saveGroupMutation.isPending;
   const errorMessage = saveGroupMutation.error?.message ?? null;
   const displayedAvatarUrl = isAvatarMarkedForRemoval ? null : (pendingAvatarPreviewUrl ?? thread.avatarUrl);
   const hasAvatar = Boolean(displayedAvatarUrl || thread.avatarObjectId || pendingAvatarFile);
+  const isSaveDisabled = !hasChanges || normalizedTitle.length < 2 || isSaving;
 
   return (
     <div className="space-y-4 rounded-2xl border border-[var(--line)] bg-white px-3 py-3">
@@ -134,8 +150,8 @@ export function MessagesGroupSettingsSection({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold text-[var(--foreground)]">{thread.name}</p>
+          <p className="text-sm font-semibold text-[var(--foreground)]">{thread.name}</p>
+          <div className="mt-1">
             <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[11px] text-[var(--accent)]">
               <Users className="h-3 w-3" />
               {activeMembersCount} members
@@ -159,33 +175,51 @@ export function MessagesGroupSettingsSection({
         <p className="text-xs text-rose-500">{errorMessage}</p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2">
         {canManageGroup && hasAvatar ? (
-          <button
-            type="button"
+          <span
+            role="button"
+            tabIndex={isSaving ? -1 : 0}
             onClick={() => {
-              handleRemoveAvatar();
+              if (!isSaving) {
+                handleRemoveAvatar();
+              }
             }}
-            disabled={isSaving}
-            className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+            onKeyDown={(event) => {
+              handleActionKeyDown(event, handleRemoveAvatar, isSaving);
+            }}
+            className={`inline-flex h-8 items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 text-[11px] font-medium text-rose-600 transition ${
+              isSaving ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-rose-300 hover:bg-rose-100"
+            }`}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3 w-3" />
             Remove photo
-          </button>
+          </span>
         ) : null}
 
         {canManageGroup ? (
-          <button
-            type="button"
+          <span
+            role="button"
+            tabIndex={isSaveDisabled ? -1 : 0}
             onClick={() => {
+              if (isSaveDisabled) {
+                return;
+              }
+
               void handleSave();
             }}
-            disabled={!hasChanges || normalizedTitle.length < 2 || isSaving}
-            className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-3 py-1.5 text-xs font-medium text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+            onKeyDown={(event) => {
+              handleActionKeyDown(event, () => {
+                void handleSave();
+              }, isSaveDisabled);
+            }}
+            className={`inline-flex h-8 items-center gap-1 rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-2.5 text-[11px] font-medium text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition ${
+              isSaveDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:brightness-105"
+            }`}
           >
-            {isSaving ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            {isSaving ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
             Save changes
-          </button>
+          </span>
         ) : null}
       </div>
     </div>

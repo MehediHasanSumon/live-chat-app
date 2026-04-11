@@ -24,7 +24,6 @@ class ConversationPolicy
         return $conversation->members()
             ->where('user_id', $user->getKey())
             ->where('membership_state', 'active')
-            ->whereIn('role', ['owner', 'admin'])
             ->exists();
     }
 }

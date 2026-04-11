@@ -51,6 +51,7 @@ class GroupController extends Controller
         abort_unless($request->user()->can('manageGroup', $conversation), 403);
 
         try {
+            $previousAvatarObjectId = $conversation->avatar_object_id;
             $payload = $request->validated();
 
             if ($request->boolean('clear_avatar')) {
@@ -70,6 +71,10 @@ class GroupController extends Controller
                 $request->user()->getKey(),
                 $payload
             );
+
+            if ($previousAvatarObjectId && (int) $previousAvatarObjectId !== (int) ($conversation->avatar_object_id ?? 0)) {
+                $this->storageObjectService->hardDeleteGroupAvatarIfOrphaned((int) $previousAvatarObjectId);
+            }
         } catch (InvalidArgumentException $exception) {
             return response()->json([
                 'message' => 'The given data was invalid.',

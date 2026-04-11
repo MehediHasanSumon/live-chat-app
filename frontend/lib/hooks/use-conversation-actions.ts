@@ -13,6 +13,7 @@ type ConversationResponse = {
 type UserBlockResponse = {
   data: {
     blocked_user_id: number;
+    deleted?: boolean;
   };
 };
 
@@ -201,6 +202,32 @@ export function useArchiveConversationMutation() {
   });
 }
 
+export function useUnarchiveConversationMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (conversationId: string | number) =>
+      apiClient.patch<ConversationResponse>(`/api/conversations/${conversationId}/unarchive`),
+    onMutate: async (conversationId) => {
+      patchConversationInCache(queryClient, conversationId, (conversation) => ({
+        ...conversation,
+        membership: conversation.membership
+          ? {
+              ...conversation.membership,
+              archived_at: null,
+            }
+          : conversation.membership,
+      }));
+    },
+    onSuccess: (response) => {
+      setConversationInCache(queryClient, response.data);
+    },
+    onError: (_, conversationId) => {
+      invalidateConversation(queryClient, conversationId);
+    },
+  });
+}
+
 export function useBlockConversationMutation() {
   const queryClient = useQueryClient();
 
@@ -219,10 +246,23 @@ export function useBlockConversationMutation() {
         updateConversationList(current, variables.conversationId, () => null),
       );
       void queryClient.invalidateQueries({ queryKey: queryKeys.users.presence(variables.userId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.users.blocked });
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(variables.conversationId) });
     },
     onError: (_, variables) => {
       invalidateConversation(queryClient, variables.conversationId);
+    },
+  });
+}
+
+export function useUnblockUserMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userId: number) => apiClient.delete<UserBlockResponse>(`/api/users/${userId}/block`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.users.blocked });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
     },
   });
 }

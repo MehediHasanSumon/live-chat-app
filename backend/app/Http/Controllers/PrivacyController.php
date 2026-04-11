@@ -28,6 +28,15 @@ class PrivacyController extends Controller
         ]);
     }
 
+    public function blockedUsers(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => UserBlockResource::collection(
+                $this->privacyService->listBlockedUsers($request->user()->getKey())
+            )->resolve(),
+        ]);
+    }
+
     public function acceptMessageRequest(Request $request, Conversation $conversation): JsonResponse
     {
         try {

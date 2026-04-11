@@ -70,8 +70,8 @@ export function MessagesSidebar({
   const sidebarMenuItems = useMemo(
     () => [
       { label: "Message requests", icon: Inbox, onClick: () => router.push("/messages/requests") },
-      { label: "Settings", icon: Bell, onClick: () => router.push("/settings") },
-      { label: "Admin ops", icon: ShieldBan, onClick: () => router.push("/admin/ops") },
+      { label: "Archived chats", icon: Archive, onClick: () => router.push("/messages/archived") },
+      { label: "Blocked accounts", icon: ShieldBan, onClick: () => router.push("/messages/blocked") },
     ],
     [router],
   );
@@ -270,6 +270,7 @@ export function MessagesSidebar({
                   onClose={() => setOpenMenuThreadId(null)}
                   onItemClick={(label) => {
                     if (label === readToggleLabel) {
+                      setOpenMenuThreadId(null);
                       if (hasUnreadMessages) {
                         void markConversationReadMutation.mutateAsync({
                           conversationId: thread.id,
@@ -280,6 +281,7 @@ export function MessagesSidebar({
                       }
                     }
                     if (label === muteLabel) {
+                      setOpenMenuThreadId(null);
                       if (muted) {
                         void setConversationMuteMutation.mutateAsync({
                           conversationId: thread.id,
@@ -290,9 +292,11 @@ export function MessagesSidebar({
                       }
                     }
                     if (label === "Block") {
+                      setOpenMenuThreadId(null);
                       onOpenConfirmation?.("block", thread.id);
                     }
                     if (label === "Archive chat") {
+                      setOpenMenuThreadId(null);
                       void archiveConversationMutation.mutateAsync(thread.id)
                         .then(() => {
                           if (thread.id === activeThreadId) {
@@ -302,6 +306,7 @@ export function MessagesSidebar({
                         .catch(() => undefined);
                     }
                     if (label === "Delete chat") {
+                      setOpenMenuThreadId(null);
                       onOpenConfirmation?.("delete", thread.id);
                     }
                   }}

@@ -112,6 +112,15 @@ class PrivacyService
             ->get();
     }
 
+    public function listBlockedUsers(int $userId): Collection
+    {
+        return UserBlock::query()
+            ->where('blocker_user_id', $userId)
+            ->with(['blocked.avatarObject'])
+            ->orderByDesc('created_at')
+            ->get();
+    }
+
     public function acceptMessageRequest(Conversation $conversation, int $userId): Conversation
     {
         if ($conversation->type !== 'direct') {

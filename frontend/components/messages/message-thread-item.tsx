@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import Link from "next/link";
-import { Ellipsis } from "lucide-react";
+import { BellOff, Ellipsis } from "lucide-react";
 
 import { type MessageThread } from "@/lib/messages-data";
 import { MessageAvatar } from "@/components/messages/message-avatar";
@@ -39,7 +39,12 @@ function MessageThreadItemComponent({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-3">
               <p className="truncate text-sm font-semibold text-[var(--foreground)]">{thread.name}</p>
-              <span className="shrink-0 text-xs text-[var(--muted)]">{thread.time}</span>
+              <div className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--muted)]">
+                {thread.membership?.muted_until ? (
+                  <BellOff className="h-3.5 w-3.5 text-[#99a1c2]" aria-label="Muted conversation" />
+                ) : null}
+                <span>{thread.time}</span>
+              </div>
             </div>
             <p className="mt-1.5 truncate text-sm text-[var(--muted)]">{thread.lastMessage}</p>
           </div>

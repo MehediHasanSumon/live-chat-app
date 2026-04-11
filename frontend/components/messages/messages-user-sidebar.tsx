@@ -35,6 +35,9 @@ function MessagesUserSidebarComponent({
   const [searchQuery, setSearchQuery] = useState("");
   const presenceLabel = formatPresenceLabel(thread.presence);
   const currentMembership = thread.membership ?? null;
+  const canManageGroupSettings = Boolean(
+    thread.isGroup && currentMembership?.membership_state === "active",
+  );
   const canManageMembers = Boolean(
     thread.isGroup && ["owner", "admin"].includes(currentMembership?.role ?? ""),
   );
@@ -74,7 +77,11 @@ function MessagesUserSidebarComponent({
             router.push("/messages");
           },
         }]
-      : [{ label: "Blocked accounts", icon: ShieldBan }]),
+      : [{
+          label: "Blocked accounts",
+          icon: ShieldBan,
+          action: () => router.push("/messages/blocked"),
+        }]),
     { label: "Verify end-to-end encryption", icon: Lock },
   ];
 
@@ -120,7 +127,7 @@ function MessagesUserSidebarComponent({
               <MessagesGroupSettingsSection
                 key={`${thread.id}:${thread.name}:${thread.avatarObjectId ?? "none"}`}
                 thread={thread}
-                canManageGroup={canManageMembers}
+                canManageGroup={canManageGroupSettings}
               />
             </MessagesAccordionSection>
           ) : null}

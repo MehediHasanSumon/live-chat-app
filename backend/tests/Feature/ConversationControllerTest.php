@@ -131,7 +131,7 @@ it('allows a user to archive pin mute and manage conversation read state', funct
         ->assertJsonPath('data.membership.archived_at', null);
 });
 
-it('prevents non group admins from updating group details', function () {
+it('allows any active group member to update group details', function () {
     $owner = User::factory()->create();
     $member = User::factory()->create();
 
@@ -161,7 +161,8 @@ it('prevents non group admins from updating group details', function () {
         ->patchJson("/api/groups/{$conversation->id}", [
             'title' => 'Updated title',
         ])
-        ->assertForbidden();
+        ->assertOk()
+        ->assertJsonPath('data.title', 'Updated title');
 });
 
 it('allows group admins to rename a group and update its avatar', function () {
@@ -271,6 +272,51 @@ it('allows group admins to save a new avatar file and title in one request', fun
         ->assertJsonPath('data.title', 'Design team v2')
         ->assertJsonPath('data.avatar_object.purpose', 'group_avatar')
         ->assertJsonPath('data.avatar_object.owner_user_id', $owner->id);
+});
+
+it('removes a group avatar from the conversation and hard deletes the file', function () {
+    Storage::fake(config('uploads.disk'));
+
+    $owner = User::factory()->create();
+    $avatar = StorageObject::query()->create([
+        'object_uuid' => (string) str()->uuid(),
+        'owner_user_id' => $owner->id,
+        'purpose' => 'group_avatar',
+        'media_kind' => 'image',
+        'storage_driver' => 'local',
+        'disk_path' => 'uploads/test/group-remove.png',
+        'original_name' => 'group-remove.png',
+        'mime_type' => 'image/png',
+        'size_bytes' => 2048,
+    ]);
+
+    Storage::disk(config('uploads.disk'))->put($avatar->disk_path, 'avatar-binary');
+
+    $conversation = Conversation::query()->create([
+        'type' => 'group',
+        'title' => 'Avatar club',
+        'created_by' => $owner->id,
+        'avatar_object_id' => $avatar->id,
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $owner->id,
+        'role' => 'owner',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    $this->actingAs($owner, 'web')
+        ->patchJson("/api/groups/{$conversation->id}", [
+            'title' => 'Avatar club',
+            'clear_avatar' => true,
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.avatar_object_id', null);
+
+    expect(StorageObject::query()->find($avatar->id))->toBeNull();
+    Storage::disk(config('uploads.disk'))->assertMissing($avatar->disk_path);
 });
 
 it('forbids showing a conversation to a pending member', function () {

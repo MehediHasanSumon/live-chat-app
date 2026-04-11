@@ -72,18 +72,18 @@ export function MessagesConversationActionModals() {
       return;
     }
 
+    const targetMuteThreadId = muteThreadId;
     const duration = muteDurations[option];
     const mutedUntil = duration === null ? "2099-12-31T23:59:59Z" : new Date(Date.now() + duration).toISOString();
+    closeMuteModal();
 
     try {
       await setConversationMuteMutation.mutateAsync({
-        conversationId: muteThreadId,
+        conversationId: targetMuteThreadId,
         mutedUntil,
       });
-
-      closeMuteModal();
     } catch {
-      // Keep the modal open so the user can retry.
+      // Cache invalidation restores the latest server state if the request fails.
     }
   };
 
