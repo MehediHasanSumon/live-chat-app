@@ -8,6 +8,7 @@ import { type MessagesImageViewerItem } from "@/components/messages/messages-ima
 import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
 import { ApiClientError } from "@/lib/api-client";
+import { useJoinCallMutation, useStartCallMutation } from "@/lib/hooks/use-call-mutations";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { useConversationMessagesQuery } from "@/lib/hooks/use-conversation-messages-query";
@@ -57,6 +58,8 @@ export function MessagesThreadView({
   const deleteMessageMutation = useDeleteMessageMutation(thread.id);
   const forwardMessageMutation = useForwardMessageMutation(thread.id);
   const markReadMutation = useMarkConversationReadMutation();
+  const startCallMutation = useStartCallMutation();
+  const joinCallMutation = useJoinCallMutation();
   const { data: forwardConversations = [] } = useConversationsQuery(true);
   const activeCall = useCallStore((state) => state.activeCall);
   const realtimeTypingUsers = useConversationRealtimeStore(
@@ -70,6 +73,7 @@ export function MessagesThreadView({
   const previousScrollTopRef = useRef<number>(0);
   const previousLatestSeqRef = useRef<number | null>(null);
   const hasInitialScrollRef = useRef(false);
+  const shouldStickToBottomRef = useRef(true);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [replyingMessageId, setReplyingMessageId] = useState<number | null>(null);
@@ -135,10 +139,8 @@ export function MessagesThreadView({
     [mappedMessages],
   );
   const forwardTargets = useMemo(
-    () => forwardConversations
-      .filter((conversation) => String(conversation.id) !== thread.id)
-      .map((conversation) => toConversationThread(conversation)),
-    [forwardConversations, thread.id],
+    () => forwardConversations.map((conversation) => toConversationThread(conversation)),
+    [forwardConversations],
   );
   const filteredForwardTargets = useMemo(() => {
     const query = forwardingSearch.trim().toLowerCase();
@@ -154,11 +156,27 @@ export function MessagesThreadView({
     );
   }, [forwardTargets, forwardingSearch]);
 
+  const scrollToBottom = useCallback(() => {
+    const container = scrollContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    container.scrollTop = container.scrollHeight;
+    shouldStickToBottomRef.current = true;
+  }, []);
+
   useEffect(() => {
     hasInitialScrollRef.current = false;
     previousLatestSeqRef.current = null;
     previousScrollHeightRef.current = null;
-  }, [thread.id]);
+    shouldStickToBottomRef.current = true;
+
+    requestAnimationFrame(() => {
+      scrollToBottom();
+    });
+  }, [scrollToBottom, thread.id]);
 
   useEffect(() => {
     if (!latestMessage || !activeMembership || markReadMutation.isPending) {
@@ -203,10 +221,10 @@ export function MessagesThreadView({
     previousLatestSeqRef.current = latestSeq;
 
     if (shouldScrollToBottom) {
-      container.scrollTop = container.scrollHeight;
+      scrollToBottom();
       hasInitialScrollRef.current = true;
     }
-  }, [isFetchingNextPage, latestMessage?.seq, mappedMessages.length]);
+  }, [isFetchingNextPage, latestMessage?.seq, mappedMessages.length, scrollToBottom]);
 
   const handleLoadOlder = useCallback(async () => {
     if (!hasNextPage || isFetchingNextPage) {
@@ -222,6 +240,26 @@ export function MessagesThreadView({
 
     await fetchNextPage();
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const handleScroll = () => {
+      const distanceFromBottom = container.scrollHeight - (container.scrollTop + container.clientHeight);
+      shouldStickToBottomRef.current = distanceFromBottom < 160;
+    };
+
+    handleScroll();
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [thread.id]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -252,6 +290,23 @@ export function MessagesThreadView({
       observer.disconnect();
     };
   }, [handleLoadOlder, hasNextPage, thread.id]);
+
+  const handleStartCall = async (mediaType: "voice" | "video") => {
+    if (!currentUserId) {
+      return;
+    }
+
+    const callRoom = await startCallMutation.mutateAsync({
+      thread,
+      mediaType,
+      authUserId: currentUserId,
+    });
+
+    await joinCallMutation.mutateAsync({
+      roomUuid: callRoom.room_uuid,
+      wantsVideo: mediaType === "video",
+    });
+  };
 
   const startEditing = (messageId: number, currentBody: string) => {
     setReplyingMessageId(null);
@@ -319,6 +374,16 @@ export function MessagesThreadView({
     setForwardingSearch("");
   };
 
+  const handleMediaLoad = useCallback(() => {
+    if (!shouldStickToBottomRef.current) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      scrollToBottom();
+    });
+  }, [scrollToBottom]);
+
   const buildPendingMessage = ({
     text,
     attachments,
@@ -374,6 +439,14 @@ export function MessagesThreadView({
         thread={thread}
         isInfoSidebarOpen={isInfoSidebarOpen}
         onToggleInfoSidebar={onToggleInfoSidebar}
+        onStartVoiceCall={() => {
+          void handleStartCall("voice");
+        }}
+        onStartVideoCall={() => {
+          void handleStartCall("video");
+        }}
+        isStartingVoiceCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "voice"}
+        isStartingVideoCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "video"}
       />
 
       <div
@@ -446,6 +519,7 @@ export function MessagesThreadView({
               onForward={() => setForwardingMessageId(message.numericId)}
               onRemove={() => openRemoveModal(message.numericId, "self")}
               onOpenImage={(attachmentId) => onOpenImageViewer?.(galleryImages, attachmentId)}
+              onMediaLoad={handleMediaLoad}
               readLabel={
                 message.isPending
                   ? "Sending..."
@@ -578,31 +652,42 @@ export function MessagesThreadView({
                 <div className="space-y-1.5">
                   {filteredForwardTargets.length > 0 ? (
                     filteredForwardTargets.map((target) => (
-                      <div
-                        key={target.id}
-                        className="flex items-center justify-between gap-2.5 rounded-[18px] border border-transparent bg-white/72 px-2.5 py-2.5 transition hover:border-[rgba(96,91,255,0.14)] hover:bg-white hover:shadow-[0_10px_24px_rgba(96,109,160,0.08)]"
-                      >
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,rgba(96,91,255,0.16)_0%,rgba(131,165,255,0.24)_100%)] text-[12px] font-semibold text-[var(--accent)]">
-                            {target.name.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-[13px] font-semibold text-[#2f3655]">{target.name}</p>
-                            <p className="truncate text-[11px] text-[#8f97bb]">{target.handle}</p>
-                          </div>
-                        </div>
+                      (() => {
+                        const isSendingToTarget =
+                          forwardMessageMutation.isPending &&
+                          forwardMessageMutation.variables?.targetConversationId === target.id;
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void handleForward(target.id);
-                          }}
-                          disabled={forwardMessageMutation.isPending}
-                          className="h-8 min-w-[68px] rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-3 text-[12px] font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {forwardMessageMutation.isPending ? "Send..." : "Send"}
-                        </button>
-                      </div>
+                        return (
+                          <div
+                            key={target.id}
+                            className="flex items-center justify-between gap-2.5 rounded-[18px] border border-transparent bg-white/72 px-2.5 py-2.5 transition hover:border-[rgba(96,91,255,0.14)] hover:bg-white hover:shadow-[0_10px_24px_rgba(96,109,160,0.08)]"
+                          >
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,rgba(96,91,255,0.16)_0%,rgba(131,165,255,0.24)_100%)] text-[12px] font-semibold text-[var(--accent)]">
+                                {target.name.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-[13px] font-semibold text-[#2f3655]">{target.name}</p>
+                                <p className="truncate text-[11px] text-[#8f97bb]">
+                                  {target.handle}
+                                  {target.id === thread.id ? " · Current chat" : ""}
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void handleForward(target.id);
+                              }}
+                              disabled={forwardMessageMutation.isPending}
+                              className="h-8 min-w-[68px] rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-3 text-[12px] font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isSendingToTarget ? "Send..." : "Send"}
+                            </button>
+                          </div>
+                        );
+                      })()
                     ))
                   ) : (
                     <div className="rounded-[18px] border border-[var(--line)] bg-white/84 px-3 py-3 text-[13px] text-[var(--muted)]">

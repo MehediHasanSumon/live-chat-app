@@ -9,8 +9,10 @@ import {
   CheckCheck,
   Inbox,
   MessageCircleOff,
+  Phone,
   ShieldBan,
   Trash2,
+  Video,
 } from "lucide-react";
 
 import { applyPresenceToThread, toConversationThread } from "@/lib/messages-data";
@@ -58,6 +60,7 @@ export function MessagesSidebar({
   const [openMenuThreadId, setOpenMenuThreadId] = useState<string | null>(null);
   const [isSidebarMenuOpen, setIsSidebarMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement | null>(null);
+  const openMenuThreadIdRef = useRef<string | null>(null);
   const { data: conversations = [], isLoading, isError } = useConversationsQuery();
   const archiveConversationMutation = useArchiveConversationMutation();
   const markConversationUnreadMutation = useMarkConversationUnreadMutation();
@@ -112,7 +115,20 @@ export function MessagesSidebar({
   }, [activeFilter, searchQuery, visibleThreads]);
 
   useEffect(() => {
+    openMenuThreadIdRef.current = openMenuThreadId;
+  }, [openMenuThreadId]);
+
+  useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      const activeMenuBoundary = target?.closest("[data-thread-menu-boundary='true']");
+      const activeMenuThreadId = activeMenuBoundary?.getAttribute("data-thread-id");
+      const currentOpenMenuThreadId = openMenuThreadIdRef.current;
+
+      if (currentOpenMenuThreadId && activeMenuThreadId !== currentOpenMenuThreadId) {
+        setOpenMenuThreadId(null);
+      }
+
       if (!sidebarRef.current?.contains(event.target as Node)) {
         setOpenMenuThreadId(null);
         setIsSidebarMenuOpen(false);
@@ -200,13 +216,20 @@ export function MessagesSidebar({
           const menuItems = [
             { label: "Mark as unread", icon: CheckCheck },
             { label: muteLabel, icon: Bell },
+            { label: "Audio call", icon: Phone, disabled: true },
+            { label: "Video chat", icon: Video, disabled: true },
             ...(!thread.isGroup ? [{ label: "Block", icon: MessageCircleOff }] : []),
             { label: "Archive chat", icon: Archive },
             { label: "Delete chat", icon: Trash2 },
           ];
 
           return (
-            <div key={thread.id} className="group relative">
+            <div
+              key={thread.id}
+              className="group relative"
+              data-thread-menu-boundary="true"
+              data-thread-id={thread.id}
+            >
               <MessageThreadItem
                 thread={thread}
                 isActive={isActive}

@@ -76,7 +76,7 @@ export function MessageComposer({
 
   const resizeTextarea = (ta: HTMLTextAreaElement) => {
     ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
+    ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
   };
 
   const stopTyping = useCallback(() => {
@@ -385,7 +385,7 @@ export function MessageComposer({
           />
         ) : null}
 
-        <div className="relative rounded-[18px] bg-white/88 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_22px_rgba(96,109,160,0.05)] transition-all duration-200 ease-out">
+        <div className="relative rounded-[18px] bg-white/88 px-3 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_22px_rgba(96,109,160,0.05)] transition-all duration-200 ease-out">
           <textarea
             ref={textareaRef}
             value={composerValue}
@@ -394,9 +394,9 @@ export function MessageComposer({
               void handleKeyDown(event);
             }}
             placeholder="Write a message..."
-            rows={2}
+            rows={1}
             disabled={isComposerLocked}
-            className="min-h-[44px] w-full resize-none border-none bg-transparent py-2 pr-14 text-[14px] leading-relaxed text-[#3b4260] outline-none ring-0 transition-[height] duration-200 ease-out focus:border-none focus:outline-none focus:ring-0 placeholder:text-[#a2aacd] disabled:cursor-not-allowed disabled:opacity-70"
+            className="min-h-[36px] w-full resize-none border-none bg-transparent py-1.5 pr-12 text-[14px] leading-6 text-[#3b4260] outline-none ring-0 transition-[height] duration-200 ease-out focus:border-none focus:outline-none focus:ring-0 placeholder:text-[#a2aacd] disabled:cursor-not-allowed disabled:opacity-70"
             style={{ boxShadow: "none" }}
           />
 
@@ -416,7 +416,7 @@ export function MessageComposer({
             }}
             aria-label={isEditing ? "Save message" : "Send message"}
             disabled={isComposerLocked}
-            className="absolute bottom-2 right-2 flex h-10 w-10 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white shadow-[0_12px_24px_rgba(96,91,255,0.24)] transition-all duration-200 ease-out hover:brightness-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+            className="absolute bottom-1.5 right-1.5 flex h-9 w-9 items-center justify-center rounded-[13px] bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white shadow-[0_12px_24px_rgba(96,91,255,0.24)] transition-all duration-200 ease-out hover:brightness-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <SendHorizonal className="h-3.5 w-3.5" />
           </button>

@@ -2,7 +2,7 @@ import { MessageSquareText } from "lucide-react";
 
 export function MessagesEmptyState() {
   return (
-    <section className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
+    <section className="flex h-full w-full flex-1 flex-col items-center justify-center px-6 text-center">
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
         <MessageSquareText className="h-7 w-7" />
       </div>

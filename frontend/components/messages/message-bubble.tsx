@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CornerUpLeft, Download, FileText, PencilLine, Send, SmilePlus, Trash2, X } from "lucide-react";
+import { CornerUpLeft, Download, FileText, Forward, PencilLine, Send, SmilePlus, Trash2, X } from "lucide-react";
 
 import { MessageAvatar } from "@/components/messages/message-avatar";
 import { MessageUserHoverCard } from "@/components/messages/message-user-hover-card";
@@ -13,6 +13,7 @@ type MessageBubbleProps = {
   readLabel?: string | null;
   onToggleReaction?: (emoji: string, hasReacted: boolean) => void;
   onOpenImage?: (attachmentId: string) => void;
+  onMediaLoad?: () => void;
   onReply?: () => void;
   onEdit?: () => void;
   onForward?: () => void;
@@ -28,6 +29,7 @@ export function MessageBubble({
   readLabel = null,
   onToggleReaction,
   onOpenImage,
+  onMediaLoad,
   onReply,
   onEdit,
   onForward,
@@ -261,9 +263,16 @@ export function MessageBubble({
 
         <div className="space-y-1.5">
           {message.isForwarded ? (
-            <p className={`text-[11px] ${message.sender === "me" ? "text-white/80" : "text-[var(--muted)]"}`}>
-              Forwarded
-            </p>
+            <div
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-[0_8px_18px_rgba(96,109,160,0.12)] ${
+                message.sender === "me"
+                  ? "border-white/18 bg-[rgba(23,28,54,0.28)] text-white"
+                  : "border-[rgba(96,91,255,0.12)] bg-[rgba(96,91,255,0.1)] text-[var(--accent)]"
+              }`}
+            >
+              <Forward className="h-3 w-3" />
+              <span>Forwarded</span>
+            </div>
           ) : null}
 
           {message.quote ? (
@@ -352,6 +361,8 @@ export function MessageBubble({
                         <img
                           src={attachment.downloadUrl}
                           alt={attachment.name}
+                          onLoad={onMediaLoad}
+                          onError={onMediaLoad}
                           className="max-h-[320px] w-full rounded-[22px] object-cover shadow-[0_14px_36px_rgba(96,109,160,0.12)]"
                           loading="lazy"
                         />
