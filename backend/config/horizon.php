@@ -3,10 +3,10 @@
 return [
     'domain' => env('HORIZON_DOMAIN'),
     'path' => env('HORIZON_PATH', 'horizon'),
-    'use' => env('HORIZON_USE', config('queue.default')),
+    'use' => env('HORIZON_USE', env('REDIS_QUEUE_CONNECTION', 'default')),
     'prefix' => env('HORIZON_PREFIX', str((string) env('APP_NAME', 'laravel'))->slug('_').'_horizon:'),
     'waits' => [
-        env('HORIZON_USE', config('queue.default')) => env('HORIZON_WAIT_SECONDS', 60),
+        env('HORIZON_USE', env('REDIS_QUEUE_CONNECTION', 'default')) => env('HORIZON_WAIT_SECONDS', 60),
     ],
     'trim' => [
         'recent' => 60,
@@ -27,7 +27,7 @@ return [
     'memory_limit' => 64,
     'defaults' => [
         'chat-supervisor' => [
-            'connection' => env('HORIZON_USE', config('queue.default')),
+            'connection' => env('HORIZON_USE', env('REDIS_QUEUE_CONNECTION', 'default')),
             'queue' => array_values(array_filter([
                 config('queue.queues.high'),
                 config('queue.queues.default'),

@@ -13,6 +13,7 @@
         "agence104/livekit-server-sdk": "^1.3",
         "intervention/image": "^4.0",
         "laravel/framework": "^13.0",
+        "laravel/horizon": "^5.45",
         "laravel/reverb": "^1.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0"
@@ -51,6 +52,15 @@
         "dev": [
             "Composer\\Config::disableProcessTimeout",
             "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"npm run dev\" --names='server,queue,vite'"
+        ],
+        "horizon": [
+            "@php artisan horizon"
+        ],
+        "horizon:listen": [
+            "@php artisan horizon:listen"
+        ],
+        "horizon:terminate": [
+            "@php artisan horizon:terminate"
         ],
         "test": [
             "@php artisan config:clear --ansi",
