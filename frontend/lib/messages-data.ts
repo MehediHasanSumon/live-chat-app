@@ -50,6 +50,7 @@ export type ConversationApiItem = {
 export type MessageThread = {
   id: string;
   numericId: number;
+  lastMessageSeq: number;
   name: string;
   handle: string;
   description?: string | null;
@@ -295,6 +296,7 @@ export function toConversationThread(conversation: ConversationApiItem): Message
   return {
     id: String(conversation.id),
     numericId: conversation.id,
+    lastMessageSeq: conversation.last_message_seq,
     name:
       conversation.type === "group"
         ? conversation.title ?? `Group #${conversation.id}`

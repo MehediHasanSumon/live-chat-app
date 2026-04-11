@@ -27,6 +27,7 @@ import {
   useSetConversationMuteMutation,
 } from "@/lib/hooks/use-conversation-actions";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
+import { useMarkConversationReadMutation } from "@/lib/hooks/use-mark-read-mutation";
 import { useConversationPresenceMap } from "@/lib/hooks/use-user-presence-query";
 
 type MessagesSidebarProps = {
@@ -63,6 +64,7 @@ export function MessagesSidebar({
   const openMenuThreadIdRef = useRef<string | null>(null);
   const { data: conversations = [], isLoading, isError } = useConversationsQuery();
   const archiveConversationMutation = useArchiveConversationMutation();
+  const markConversationReadMutation = useMarkConversationReadMutation();
   const markConversationUnreadMutation = useMarkConversationUnreadMutation();
   const setConversationMuteMutation = useSetConversationMuteMutation();
   const sidebarMenuItems = useMemo(
@@ -211,10 +213,12 @@ export function MessagesSidebar({
         {filteredThreads.map((thread) => {
           const isActive = thread.id === activeThreadId;
           const isMenuOpen = openMenuThreadId === thread.id;
+          const hasUnreadMessages = Boolean(thread.unreadCount);
+          const readToggleLabel = hasUnreadMessages ? "Mark as read" : "Mark as unread";
           const muted = isThreadMuted(thread.membership?.muted_until);
           const muteLabel = muted ? "Unmute notifications" : "Mute notifications";
           const menuItems = [
-            { label: "Mark as unread", icon: CheckCheck },
+            { label: readToggleLabel, icon: CheckCheck },
             { label: muteLabel, icon: Bell },
             { label: "Audio call", icon: Phone, disabled: true },
             { label: "Video chat", icon: Video, disabled: true },
@@ -251,8 +255,15 @@ export function MessagesSidebar({
                   items={menuItems}
                   onClose={() => setOpenMenuThreadId(null)}
                   onItemClick={(label) => {
-                    if (label === "Mark as unread") {
-                      void markConversationUnreadMutation.mutateAsync(thread.id);
+                    if (label === readToggleLabel) {
+                      if (hasUnreadMessages) {
+                        void markConversationReadMutation.mutateAsync({
+                          conversationId: thread.id,
+                          lastSeq: thread.lastMessageSeq,
+                        });
+                      } else {
+                        void markConversationUnreadMutation.mutateAsync(thread.id);
+                      }
                     }
                     if (label === muteLabel) {
                       if (muted) {

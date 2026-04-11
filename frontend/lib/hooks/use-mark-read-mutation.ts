@@ -11,6 +11,9 @@ type MarkReadPayload = {
   lastSeq: number;
 };
 
+type ConversationsCache = ConversationApiItem[] | { data?: ConversationApiItem[] } | undefined;
+type ConversationDetailCache = ConversationApiItem | { data: ConversationApiItem } | undefined;
+
 export function useMarkConversationReadMutation() {
   const queryClient = useQueryClient();
 
@@ -57,7 +60,7 @@ export function useMarkConversationReadMutation() {
         },
       ),
     onMutate: async ({ conversationId, lastSeq }) => {
-      queryClient.setQueryData<ConversationApiItem[] | { data?: ConversationApiItem[] } | undefined>(
+      queryClient.setQueryData<ConversationsCache>(
         queryKeys.conversations.all,
         (current) =>
           mapConversationList(current, (conversation) =>
@@ -65,12 +68,23 @@ export function useMarkConversationReadMutation() {
           ),
       );
 
-      queryClient.setQueryData<ConversationApiItem | undefined>(queryKeys.conversations.detail(conversationId), (current) =>
-        current ? applyReadState(current, lastSeq) : current,
-      );
+      queryClient.setQueryData<ConversationDetailCache>(queryKeys.conversations.detail(conversationId), (current) => {
+        if (!current) {
+          return current;
+        }
+
+        if ("data" in current) {
+          return {
+            ...current,
+            data: applyReadState(current.data, lastSeq),
+          };
+        }
+
+        return applyReadState(current, lastSeq);
+      });
     },
     onSuccess: (_, variables) => {
-      queryClient.setQueryData<ConversationApiItem[] | { data?: ConversationApiItem[] } | undefined>(
+      queryClient.setQueryData<ConversationsCache>(
         queryKeys.conversations.all,
         (current) =>
           mapConversationList(current, (conversation) =>
@@ -80,9 +94,22 @@ export function useMarkConversationReadMutation() {
           ),
       );
 
-      queryClient.setQueryData<ConversationApiItem | undefined>(
+      queryClient.setQueryData<ConversationDetailCache>(
         queryKeys.conversations.detail(variables.conversationId),
-        (current) => (current ? applyReadState(current, variables.lastSeq) : current),
+        (current) => {
+          if (!current) {
+            return current;
+          }
+
+          if ("data" in current) {
+            return {
+              ...current,
+              data: applyReadState(current.data, variables.lastSeq),
+            };
+          }
+
+          return applyReadState(current, variables.lastSeq);
+        },
       );
 
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(variables.conversationId) });
