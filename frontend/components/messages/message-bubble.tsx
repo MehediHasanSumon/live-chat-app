@@ -372,7 +372,7 @@ function MessageBubbleComponent({
                           alt={attachment.name}
                           onLoad={onMediaLoad}
                           onError={onMediaLoad}
-                          className="max-h-[320px] w-full rounded-[22px] object-cover shadow-[0_14px_36px_rgba(96,109,160,0.12)]"
+                          className="max-h-[240px] w-full max-w-[420px] rounded-[22px] object-cover shadow-[0_14px_36px_rgba(96,109,160,0.12)]"
                           loading="lazy"
                         />
                       </button>
