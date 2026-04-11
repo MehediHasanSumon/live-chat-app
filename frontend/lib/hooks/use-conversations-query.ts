@@ -10,11 +10,16 @@ type ConversationsResponse = {
   data: ConversationApiItem[];
 };
 
-export function useConversationsQuery(enabled = true) {
+export type ConversationListFilter = "all" | "unread" | "groups" | "online";
+
+export function useConversationsQuery(
+  enabled = true,
+  filter: ConversationListFilter = "all",
+) {
   return useQuery({
-    queryKey: queryKeys.conversations.all,
+    queryKey: queryKeys.conversations.list(filter),
     queryFn: () =>
-      apiClient.get<ConversationsResponse>("/api/conversations", {
+      apiClient.get<ConversationsResponse>(`/api/conversations?filter=${filter}`, {
         skipAuthRedirect: true,
       }),
     enabled,

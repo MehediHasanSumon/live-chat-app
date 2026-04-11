@@ -2,6 +2,7 @@
 
 use App\Models\Conversation;
 use App\Models\ConversationMember;
+use App\Models\Message;
 use App\Models\User;
 use App\Models\UserBlock;
 use App\Models\UserRestriction;
@@ -82,17 +83,35 @@ it('lets the recipient reject a message request', function () {
         ->getOrCreateDirect($sender->id, $recipient->id)
         ->id;
 
+    Message::query()->create([
+        'conversation_id' => $conversationId,
+        'seq' => 1,
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'text_body' => 'Pending request message',
+    ]);
+
+    Conversation::query()->whereKey($conversationId)->update([
+        'last_message_seq' => 1,
+        'last_message_preview' => 'Pending request message',
+        'last_message_at' => now(),
+    ]);
+
     $this->actingAs($recipient, 'web')
         ->postJson("/api/message-requests/{$conversationId}/reject")
         ->assertOk()
-        ->assertJsonPath('data.membership.membership_state', 'removed');
+        ->assertJsonPath('data.membership.membership_state', 'removed')
+        ->assertJsonPath('data.last_message_seq', 0)
+        ->assertJsonPath('data.last_message_id', null);
 
     expect(
         ConversationMember::query()
             ->where('conversation_id', $conversationId)
             ->where('user_id', $recipient->id)
             ->value('membership_state')
-    )->toBe('removed');
+    )->toBe('removed')
+        ->and(Message::query()->where('conversation_id', $conversationId)->count())->toBe(0)
+        ->and(Conversation::query()->whereKey($conversationId)->value('last_message_seq'))->toBe(0);
 });
 
 it('blocks and restricts users through the privacy endpoints', function () {

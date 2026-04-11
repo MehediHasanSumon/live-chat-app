@@ -208,6 +208,14 @@ class PrivacyService
                 'removed_at' => now(),
             ])->save();
 
+            $conversation->messages()->delete();
+            $conversation->forceFill([
+                'last_message_seq' => 0,
+                'last_message_id' => null,
+                'last_message_preview' => null,
+                'last_message_at' => null,
+            ])->save();
+
             return $conversation->fresh([
                 'creator',
                 'avatarObject',

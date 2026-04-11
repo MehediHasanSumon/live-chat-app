@@ -24,9 +24,16 @@ class ConversationController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'filter' => ['nullable', 'string', 'in:all,unread,groups,online'],
+        ]);
+
         return response()->json([
             'data' => ConversationResource::collection(
-                $this->conversationService->listForUser($request->user()->getKey())
+                $this->conversationService->listForUser(
+                    $request->user()->getKey(),
+                    $validated['filter'] ?? 'all',
+                )
             )->resolve(),
         ]);
     }

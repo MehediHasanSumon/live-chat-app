@@ -3,9 +3,14 @@
 import { memo, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { Bell, Crown, FileText, Image, Lock, LogOut, Plus, ShieldBan } from "lucide-react";
+import { Archive, Bell, Crown, FileText, Image, Lock, LogOut, Plus, ShieldBan } from "lucide-react";
 
 import { formatPresenceLabel, type MessageThread } from "@/lib/messages-data";
+import {
+  useArchiveConversationMutation,
+  useSetConversationMuteMutation,
+  useUnarchiveConversationMutation,
+} from "@/lib/hooks/use-conversation-actions";
 import { useAddGroupMembersMutation, useChangeGroupRoleMutation, useLeaveGroupMutation, useRemoveGroupMemberMutation } from "@/lib/hooks/use-group-member-mutations";
 import { useUserSearchQuery } from "@/lib/hooks/use-user-search-query";
 import { MessagesAccordionSection } from "@/components/messages/messages-accordion-section";
@@ -14,6 +19,7 @@ import { MessagesEncryptionBadge } from "@/components/messages/messages-encrypti
 import { MessagesGroupSettingsSection } from "@/components/messages/messages-group-settings-section";
 import { MessagesListRow } from "@/components/messages/messages-list-row";
 import { MessagesQuickActions } from "@/components/messages/messages-quick-actions";
+import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 
 type MessagesUserSidebarProps = {
   thread: MessageThread;
@@ -32,6 +38,7 @@ function MessagesUserSidebarComponent({
   onOpenMuteModal,
 }: MessagesUserSidebarProps) {
   const router = useRouter();
+  const openConfirmation = useChatUiStore((state) => state.openConfirmation);
   const [searchQuery, setSearchQuery] = useState("");
   const presenceLabel = formatPresenceLabel(thread.presence);
   const currentMembership = thread.membership ?? null;
@@ -42,6 +49,9 @@ function MessagesUserSidebarComponent({
     thread.isGroup && ["owner", "admin"].includes(currentMembership?.role ?? ""),
   );
   const { data: users = [] } = useUserSearchQuery(searchQuery, Boolean(canManageMembers));
+  const archiveConversationMutation = useArchiveConversationMutation();
+  const setConversationMuteMutation = useSetConversationMuteMutation();
+  const unarchiveConversationMutation = useUnarchiveConversationMutation();
   const addMembersMutation = useAddGroupMembersMutation(thread.id);
   const changeRoleMutation = useChangeGroupRoleMutation(thread.id);
   const leaveGroupMutation = useLeaveGroupMutation(thread.id);
@@ -66,8 +76,24 @@ function MessagesUserSidebarComponent({
     [existingMemberIds, users],
   );
 
+  const isArchived = Boolean(thread.membership?.archived_at);
+  const isMuted = Boolean(thread.membership?.muted_until);
+  const muteLabel = isMuted ? "Unmute notifications" : "Mute notifications";
+
+  const handleMuteAction = async () => {
+    if (isMuted) {
+      await setConversationMuteMutation.mutateAsync({
+        conversationId: thread.id,
+        mutedUntil: null,
+      });
+      return;
+    }
+
+    onOpenMuteModal?.();
+  };
+
   const privacyItems = [
-    { label: "Mute notifications", icon: Bell, action: () => onOpenMuteModal?.() },
+    { label: muteLabel, icon: Bell, action: () => void handleMuteAction() },
     ...(thread.isGroup
       ? [{
           label: "Leave Group",
@@ -78,9 +104,21 @@ function MessagesUserSidebarComponent({
           },
         }]
       : [{
-          label: "Blocked accounts",
+          label: isArchived ? "Unarchive chat" : "Archive chat",
+          icon: Archive,
+          action: async () => {
+            if (isArchived) {
+              await unarchiveConversationMutation.mutateAsync(thread.id);
+              return;
+            }
+
+            await archiveConversationMutation.mutateAsync(thread.id);
+            router.push("/messages");
+          },
+        }, {
+          label: "Block",
           icon: ShieldBan,
-          action: () => router.push("/messages/blocked"),
+          action: () => openConfirmation("block", thread.id),
         }]),
     { label: "Verify end-to-end encryption", icon: Lock },
   ];
@@ -118,7 +156,13 @@ function MessagesUserSidebarComponent({
             <MessagesEncryptionBadge />
           </div>
 
-          <MessagesQuickActions onMuteClick={onOpenMuteModal} />
+          <MessagesQuickActions
+            onMuteClick={() => {
+              void handleMuteAction();
+            }}
+            isMuteActive={isMuted}
+            muteLabel={muteLabel}
+          />
         </div>
 
         <div className="mt-6 space-y-5">

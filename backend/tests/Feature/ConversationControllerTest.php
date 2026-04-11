@@ -4,6 +4,7 @@ use App\Models\Conversation;
 use App\Models\ConversationMember;
 use App\Models\StorageObject;
 use App\Models\User;
+use App\Services\Realtime\PresenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -399,4 +400,75 @@ it('hides blocked direct conversations from the standard conversation list', fun
         ->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $visibleConversation->id);
+});
+
+it('filters conversations server side for unread groups and online tabs', function () {
+    $owner = User::factory()->create();
+    $onlineUser = User::factory()->create();
+    $unreadUser = User::factory()->create();
+
+    $onlineConversation = Conversation::query()->create([
+        'type' => 'direct',
+        'direct_key' => hash('sha256', implode(':', collect([$owner->id, $onlineUser->id])->sort()->values()->all())),
+        'created_by' => $owner->id,
+    ]);
+
+    $unreadConversation = Conversation::query()->create([
+        'type' => 'direct',
+        'direct_key' => hash('sha256', implode(':', collect([$owner->id, $unreadUser->id])->sort()->values()->all())),
+        'created_by' => $owner->id,
+    ]);
+
+    $groupConversation = Conversation::query()->create([
+        'type' => 'group',
+        'title' => 'Night shift',
+        'created_by' => $owner->id,
+    ]);
+
+    foreach ([$onlineConversation, $unreadConversation, $groupConversation] as $conversation) {
+        ConversationMember::query()->create([
+            'conversation_id' => $conversation->id,
+            'user_id' => $owner->id,
+            'role' => 'owner',
+            'membership_state' => 'active',
+            'joined_at' => now(),
+            'unread_count_cache' => $conversation->is($unreadConversation) ? 2 : 0,
+        ]);
+    }
+
+    ConversationMember::query()->create([
+        'conversation_id' => $onlineConversation->id,
+        'user_id' => $onlineUser->id,
+        'role' => 'member',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $unreadConversation->id,
+        'user_id' => $unreadUser->id,
+        'role' => 'member',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    app(PresenceService::class)->heartbeat($onlineUser->id, (string) str()->uuid());
+
+    $this->actingAs($owner, 'web')
+        ->getJson('/api/conversations?filter=online')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $onlineConversation->id);
+
+    $this->actingAs($owner, 'web')
+        ->getJson('/api/conversations?filter=unread')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $unreadConversation->id);
+
+    $this->actingAs($owner, 'web')
+        ->getJson('/api/conversations?filter=groups')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $groupConversation->id);
 });

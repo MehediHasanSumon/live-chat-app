@@ -30,7 +30,7 @@ import {
   useUnarchiveConversationMutation,
   useUnblockUserMutation,
 } from "@/lib/hooks/use-conversation-actions";
-import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
+import { type ConversationListFilter, useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { useMarkConversationReadMutation } from "@/lib/hooks/use-mark-read-mutation";
 import { useConversationPresenceMap } from "@/lib/hooks/use-user-presence-query";
 import { useAcceptMessageRequestMutation, useRejectMessageRequestMutation } from "@/lib/hooks/use-message-request-mutations";
@@ -38,7 +38,7 @@ import { useMessageRequestsQuery } from "@/lib/hooks/use-message-requests-query"
 import { applyPresenceToThread, toConversationThread } from "@/lib/messages-data";
 import { useBlockedUsersQuery } from "@/lib/hooks/use-blocked-users-query";
 
-const filters = ["All", "Unread", "Groups"] as const;
+const filters = ["All", "Unread", "Groups", "Online"] as const;
 
 export type SidebarListView = "messages" | "requests" | "archived" | "blocked";
 
@@ -74,8 +74,26 @@ export function MessagesSidebar({
   const [isSidebarMenuOpen, setIsSidebarMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement | null>(null);
   const openMenuThreadIdRef = useRef<string | null>(null);
+  const conversationFilter = useMemo<ConversationListFilter>(() => {
+    if (activeFilter === "Unread") {
+      return "unread";
+    }
+
+    if (activeFilter === "Groups") {
+      return "groups";
+    }
+
+    if (activeFilter === "Online") {
+      return "online";
+    }
+
+    return "all";
+  }, [activeFilter]);
   const shouldLoadConversations = Boolean(activeThreadId) || sidebarView === "messages" || sidebarView === "archived";
-  const { data: conversations = [], isLoading, isError } = useConversationsQuery(shouldLoadConversations);
+  const { data: conversations = [], isLoading, isError } = useConversationsQuery(
+    shouldLoadConversations,
+    sidebarView === "messages" ? conversationFilter : "all",
+  );
   const { data: requests = [], isLoading: isRequestsLoading, isError: isRequestsError } = useMessageRequestsQuery(sidebarView === "requests");
   const { data: blockedUsers = [], isLoading: isBlockedLoading, isError: isBlockedError } = useBlockedUsersQuery(sidebarView === "blocked");
   const archiveConversationMutation = useArchiveConversationMutation();
@@ -177,17 +195,6 @@ export function MessagesSidebar({
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
     return visibleThreads.filter((thread) => {
-      const matchesFilter =
-        activeFilter === "All"
-          ? true
-          : activeFilter === "Unread"
-            ? Boolean(thread.unreadCount)
-            : Boolean(thread.isGroup);
-
-      if (!matchesFilter) {
-        return false;
-      }
-
       if (!normalizedQuery) {
         return true;
       }
@@ -197,7 +204,7 @@ export function MessagesSidebar({
         thread.handle.toLowerCase().includes(normalizedQuery)
       );
     });
-  }, [activeFilter, searchQuery, visibleThreads]);
+  }, [searchQuery, visibleThreads]);
 
   const filteredArchivedThreads = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();

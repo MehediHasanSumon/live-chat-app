@@ -14,6 +14,7 @@ import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { useConversationMessagesQuery } from "@/lib/hooks/use-conversation-messages-query";
 import { useMarkConversationReadMutation } from "@/lib/hooks/use-mark-read-mutation";
+import { useAcceptMessageRequestMutation, useRejectMessageRequestMutation } from "@/lib/hooks/use-message-request-mutations";
 import {
   useDeleteMessageMutation,
   useEditMessageMutation,
@@ -63,6 +64,8 @@ export function MessagesThreadView({
   const deleteMessageMutation = useDeleteMessageMutation(thread.id);
   const forwardMessageMutation = useForwardMessageMutation(thread.id);
   const unblockUserMutation = useUnblockUserMutation();
+  const acceptRequestMutation = useAcceptMessageRequestMutation();
+  const rejectRequestMutation = useRejectMessageRequestMutation();
   const markReadMutation = useMarkConversationReadMutation();
   const startCallMutation = useStartCallMutation();
   const joinCallMutation = useJoinCallMutation();
@@ -498,6 +501,16 @@ export function MessagesThreadView({
     router.push("/messages");
   }, [blockedPeerUserId, router, unblockUserMutation]);
 
+  const handleAcceptRequest = useCallback(async () => {
+    await acceptRequestMutation.mutateAsync(thread.numericId);
+    router.push(`/messages/t/${thread.id}`);
+  }, [acceptRequestMutation, router, thread.id, thread.numericId]);
+
+  const handleDeclineRequest = useCallback(async () => {
+    await rejectRequestMutation.mutateAsync(thread.numericId);
+    router.push("/messages/message-requests");
+  }, [rejectRequestMutation, router, thread.numericId]);
+
   const handleSendMessage = useCallback(async ({
     text,
     attachments,
@@ -709,6 +722,31 @@ export function MessagesThreadView({
                 >
                   {unblockUserMutation.isPending ? "Unblocking..." : "Unblock"}
                 </button>
+              ) : null}
+
+              {isRequestConversation ? (
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleAcceptRequest();
+                    }}
+                    disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
+                    className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {acceptRequestMutation.isPending ? "Accepting..." : "Accept"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleDeclineRequest();
+                    }}
+                    disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
+                    className="rounded-full border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {rejectRequestMutation.isPending ? "Declining..." : "Decline"}
+                  </button>
+                </div>
               ) : null}
             </div>
           </div>

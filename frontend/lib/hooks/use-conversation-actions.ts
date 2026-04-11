@@ -57,7 +57,7 @@ function setConversationInCache(
   queryClient: ReturnType<typeof useQueryClient>,
   conversation: ConversationApiItem,
 ) {
-  queryClient.setQueryData<ConversationsCache>(queryKeys.conversations.all, (current) =>
+  queryClient.setQueriesData<ConversationsCache>({ queryKey: queryKeys.conversations.lists }, (current) =>
     updateConversationList(current, conversation.id, () => conversation),
   );
   queryClient.setQueryData<ConversationDetailCache>(queryKeys.conversations.detail(conversation.id), (current) => {
@@ -83,7 +83,7 @@ function patchConversationInCache(
   conversationId: string | number,
   updater: (conversation: ConversationApiItem) => ConversationApiItem | null,
 ) {
-  queryClient.setQueryData<ConversationsCache>(queryKeys.conversations.all, (current) =>
+  queryClient.setQueriesData<ConversationsCache>({ queryKey: queryKeys.conversations.lists }, (current) =>
     updateConversationList(current, conversationId, updater),
   );
   queryClient.setQueryData<ConversationDetailCache>(queryKeys.conversations.detail(conversationId), (current) => {
@@ -189,7 +189,7 @@ export function useArchiveConversationMutation() {
       patchConversationInCache(queryClient, conversationId, () => null);
     },
     onSuccess: (response) => {
-      queryClient.setQueryData<ConversationsCache>(queryKeys.conversations.all, (current) =>
+      queryClient.setQueriesData<ConversationsCache>({ queryKey: queryKeys.conversations.lists }, (current) =>
         updateConversationList(current, response.data.id, () => null),
       );
       queryClient.setQueryData<ConversationDetailCache>(queryKeys.conversations.detail(response.data.id), {
@@ -242,7 +242,7 @@ export function useBlockConversationMutation() {
       patchConversationInCache(queryClient, conversationId, () => null);
     },
     onSuccess: (_, variables) => {
-      queryClient.setQueryData<ConversationsCache>(queryKeys.conversations.all, (current) =>
+      queryClient.setQueriesData<ConversationsCache>({ queryKey: queryKeys.conversations.lists }, (current) =>
         updateConversationList(current, variables.conversationId, () => null),
       );
       void queryClient.invalidateQueries({ queryKey: queryKeys.users.presence(variables.userId) });

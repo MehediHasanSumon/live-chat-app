@@ -60,8 +60,8 @@ export function useMarkConversationReadMutation() {
         },
       ),
     onMutate: async ({ conversationId, lastSeq }) => {
-      queryClient.setQueryData<ConversationsCache>(
-        queryKeys.conversations.all,
+      queryClient.setQueriesData<ConversationsCache>(
+        { queryKey: queryKeys.conversations.lists },
         (current) =>
           mapConversationList(current, (conversation) =>
           String(conversation.id) === String(conversationId) ? applyReadState(conversation, lastSeq) : conversation,
@@ -84,8 +84,8 @@ export function useMarkConversationReadMutation() {
       });
     },
     onSuccess: (_, variables) => {
-      queryClient.setQueryData<ConversationsCache>(
-        queryKeys.conversations.all,
+      queryClient.setQueriesData<ConversationsCache>(
+        { queryKey: queryKeys.conversations.lists },
         (current) =>
           mapConversationList(current, (conversation) =>
           String(conversation.id) === String(variables.conversationId)

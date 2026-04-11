@@ -9,6 +9,8 @@ export const queryKeys = {
   },
   conversations: {
     all: ["conversations"] as const,
+    lists: ["conversations", "list"] as const,
+    list: (filter: string) => ["conversations", "list", filter] as const,
     detail: (conversationId: string | number) => ["conversations", String(conversationId)] as const,
     requests: ["conversations", "requests"] as const,
     archived: ["conversations", "archived"] as const,

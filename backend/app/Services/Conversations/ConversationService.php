@@ -19,9 +19,13 @@ class ConversationService
     ) {
     }
 
-    public function listForUser(int $userId): Collection
+    public function listForUser(int $userId, string $filter = 'all'): Collection
     {
-        return Conversation::query()
+        $normalizedFilter = in_array($filter, ['all', 'unread', 'groups', 'online'], true)
+            ? $filter
+            : 'all';
+
+        $query = Conversation::query()
             ->whereHas('members', function ($query) use ($userId): void {
                 $query
                     ->where('user_id', $userId)
@@ -34,9 +38,36 @@ class ConversationService
                 'members.user',
             ])
             ->orderByDesc('last_message_at')
-            ->orderByDesc('updated_at')
+            ->orderByDesc('updated_at');
+
+        if ($normalizedFilter === 'unread') {
+            $query->whereHas('members', function ($membershipQuery) use ($userId): void {
+                $membershipQuery
+                    ->where('user_id', $userId)
+                    ->where('membership_state', 'active')
+                    ->where('unread_count_cache', '>', 0);
+            });
+        }
+
+        if ($normalizedFilter === 'groups') {
+            $query->where('type', 'group');
+        }
+
+        if ($normalizedFilter === 'online') {
+            $query->where('type', 'direct');
+        }
+
+        $conversations = $query
             ->get()
             ->reject(fn (Conversation $conversation) => $this->privacyService->isConversationChatBlocked($userId, $conversation))
+            ->values();
+
+        if ($normalizedFilter !== 'online') {
+            return $conversations;
+        }
+
+        return $conversations
+            ->filter(fn (Conversation $conversation) => $this->isConversationOnlineForViewer($userId, $conversation))
             ->values();
     }
 
@@ -306,6 +337,23 @@ class ConversationService
             'lastMessage.sender',
             'members.user',
         ]);
+    }
+
+    protected function isConversationOnlineForViewer(int $viewerId, Conversation $conversation): bool
+    {
+        if ($conversation->type !== 'direct') {
+            return false;
+        }
+
+        $targetUser = $conversation->members
+            ->first(fn (ConversationMember $member) => (int) $member->user_id !== $viewerId)
+            ?->user;
+
+        if (! $targetUser) {
+            return false;
+        }
+
+        return (bool) ($this->privacyService->resolvePresenceVisibility($viewerId, $targetUser)['is_online'] ?? false);
     }
 
     protected function resolveValidatedGroupAvatarObjectId(array $payload, int $actorId): ?int
