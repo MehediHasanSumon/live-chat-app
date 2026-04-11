@@ -139,12 +139,21 @@ class MessageController extends Controller
 
     public function storeGif(StoreGifMessageRequest $request, Conversation $conversation): JsonResponse
     {
-        $result = $this->messageService->sendGif(
-            $conversation,
-            $request->user()->getKey(),
-            $request->array('gif_meta'),
-            $request->input('client_uuid'),
-        );
+        try {
+            $result = $this->messageService->sendGif(
+                $conversation,
+                $request->user()->getKey(),
+                $request->array('gif_meta'),
+                $request->input('client_uuid'),
+            );
+        } catch (InvalidArgumentException $exception) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => [
+                    'gif_meta' => [$exception->getMessage()],
+                ],
+            ], 422);
+        }
 
         if ($result['created']) {
             event(new ConversationMessageCreated($result['message']));

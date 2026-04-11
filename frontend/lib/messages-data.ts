@@ -41,6 +41,7 @@ export type ConversationApiItem = {
   last_message_preview: string | null;
   last_message_at: string | null;
   active_room_uuid: string | null;
+  is_chat_blocked?: boolean;
   created_at: string;
   updated_at: string;
   creator?: ConversationUser;
@@ -61,6 +62,7 @@ export type MessageThread = {
   time: string;
   unreadCount?: number;
   online?: boolean;
+  isChatBlocked?: boolean;
   presence?: {
     visible: boolean;
     isOnline: boolean;
@@ -312,6 +314,7 @@ export function toConversationThread(conversation: ConversationApiItem): Message
     time: formatRelativeTime(conversation.last_message_at ?? conversation.updated_at),
     unreadCount: conversation.membership?.unread_count_cache || undefined,
     online: false,
+    isChatBlocked: conversation.is_chat_blocked ?? false,
     presence: null,
     isGroup: conversation.type === "group",
     membership: conversation.membership,

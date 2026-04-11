@@ -5,12 +5,14 @@ namespace App\Services\Messages;
 use App\Models\Message;
 use App\Models\MessageReaction;
 use App\Services\Conversations\ConversationMemberService;
+use App\Services\Privacy\PrivacyService;
 use Illuminate\Support\Facades\DB;
 
 class ReactionService
 {
     public function __construct(
         protected ConversationMemberService $conversationMemberService,
+        protected PrivacyService $privacyService,
     ) {
     }
 
@@ -20,6 +22,7 @@ class ReactionService
     public function addReaction(Message $message, int $userId, string $emoji): array
     {
         $this->conversationMemberService->requireActiveMembership($message->conversation, $userId);
+        $this->privacyService->ensureChatAllowed($userId, $message->conversation);
 
         $result = DB::transaction(function () use ($emoji, $message, $userId): array {
             $existingReactions = MessageReaction::query()
@@ -83,6 +86,7 @@ class ReactionService
     public function removeReaction(Message $message, int $userId, string $emoji): bool
     {
         $this->conversationMemberService->requireActiveMembership($message->conversation, $userId);
+        $this->privacyService->ensureChatAllowed($userId, $message->conversation);
 
         return MessageReaction::query()
             ->where('message_id', $message->getKey())

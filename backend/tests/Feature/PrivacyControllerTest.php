@@ -159,6 +159,8 @@ it('lists blocked accounts for the current user', function () {
         'created_at' => now(),
     ]);
 
+    $conversation = createPrivacyDirectConversation($actor, $secondTarget);
+
     $this->actingAs($actor, 'web')
         ->getJson('/api/blocked-users')
         ->assertOk()
@@ -166,6 +168,7 @@ it('lists blocked accounts for the current user', function () {
         ->assertJsonPath('data.0.blocked_user_id', $secondTarget->id)
         ->assertJsonPath('data.0.blocked_user.id', $secondTarget->id)
         ->assertJsonPath('data.0.blocked_user.username', 'blocked_two')
+        ->assertJsonPath('data.0.conversation_id', $conversation->id)
         ->assertJsonPath('data.1.blocked_user_id', $firstTarget->id)
         ->assertJsonPath('data.1.blocked_user.username', 'blocked_one');
 });

@@ -345,5 +345,58 @@ it('forbids showing a conversation to a pending member', function () {
 
     $this->actingAs($pendingUser, 'web')
         ->getJson("/api/conversations/{$conversation->id}")
-        ->assertForbidden();
+        ->assertOk()
+        ->assertJsonPath('data.id', $conversation->id)
+        ->assertJsonPath('data.membership.membership_state', 'request_pending');
+});
+
+it('hides blocked direct conversations from the standard conversation list', function () {
+    $owner = User::factory()->create();
+    $visibleUser = User::factory()->create();
+    $blockedUser = User::factory()->create();
+
+    $visibleConversation = Conversation::query()->create([
+        'type' => 'direct',
+        'direct_key' => hash('sha256', implode(':', collect([$owner->id, $visibleUser->id])->sort()->values()->all())),
+        'created_by' => $owner->id,
+    ]);
+
+    $blockedConversation = Conversation::query()->create([
+        'type' => 'direct',
+        'direct_key' => hash('sha256', implode(':', collect([$owner->id, $blockedUser->id])->sort()->values()->all())),
+        'created_by' => $owner->id,
+    ]);
+
+    foreach ([[$visibleConversation, $visibleUser], [$blockedConversation, $blockedUser]] as [$conversation, $peer]) {
+        ConversationMember::query()->create([
+            'conversation_id' => $conversation->id,
+            'user_id' => $owner->id,
+            'role' => 'owner',
+            'membership_state' => 'active',
+            'joined_at' => now(),
+        ]);
+
+        ConversationMember::query()->create([
+            'conversation_id' => $conversation->id,
+            'user_id' => $peer->id,
+            'role' => 'member',
+            'membership_state' => 'active',
+            'joined_at' => now(),
+        ]);
+    }
+
+    \App\Models\UserBlock::query()->create([
+        'blocker_user_id' => $owner->id,
+        'blocked_user_id' => $blockedUser->id,
+        'block_chat' => true,
+        'block_call' => true,
+        'hide_presence' => true,
+        'created_at' => now(),
+    ]);
+
+    $this->actingAs($owner, 'web')
+        ->getJson('/api/conversations')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $visibleConversation->id);
 });

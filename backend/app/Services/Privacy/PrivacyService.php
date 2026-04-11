@@ -114,11 +114,44 @@ class PrivacyService
 
     public function listBlockedUsers(int $userId): Collection
     {
-        return UserBlock::query()
+        $blocks = UserBlock::query()
             ->where('blocker_user_id', $userId)
             ->with(['blocked.avatarObject'])
             ->orderByDesc('created_at')
             ->get();
+
+        $directKeys = $blocks
+            ->pluck('blocked_user_id')
+            ->mapWithKeys(fn ($blockedUserId) => [
+                (int) $blockedUserId => $this->directConversationKey($userId, (int) $blockedUserId),
+            ]);
+
+        $conversationsByKey = Conversation::query()
+            ->where('type', 'direct')
+            ->whereIn('direct_key', $directKeys->values())
+            ->pluck('id', 'direct_key');
+
+        return $blocks->each(function (UserBlock $block) use ($conversationsByKey, $directKeys): void {
+            $block->setAttribute(
+                'conversation_id',
+                $conversationsByKey[$directKeys[(int) $block->blocked_user_id]] ?? null,
+            );
+        });
+    }
+
+    public function isConversationChatBlocked(int $viewerId, Conversation $conversation): bool
+    {
+        if ($conversation->type !== 'direct') {
+            return false;
+        }
+
+        $targetUserId = $this->otherDirectUserId($conversation, $viewerId);
+
+        if ($targetUserId === null) {
+            return false;
+        }
+
+        return $this->isChatBlockedBetween($viewerId, $targetUserId);
     }
 
     public function acceptMessageRequest(Conversation $conversation, int $userId): Conversation
@@ -307,9 +340,23 @@ class PrivacyService
 
     protected function otherDirectUserId(Conversation $conversation, int $actorId): ?int
     {
+        if ($conversation->relationLoaded('members')) {
+            return $conversation->members
+                ->first(fn (ConversationMember $member) => (int) $member->user_id !== $actorId)
+                ?->user_id;
+        }
+
         return $conversation->members()
             ->where('user_id', '!=', $actorId)
             ->value('user_id');
+    }
+
+    protected function directConversationKey(int $leftUserId, int $rightUserId): string
+    {
+        $sorted = [$leftUserId, $rightUserId];
+        sort($sorted);
+
+        return hash('sha256', implode(':', $sorted));
     }
 
     protected function ensureDifferentUsers(int $actorId, int $targetUserId): void

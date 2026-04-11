@@ -26,7 +26,7 @@ class MessageService
 
     public function listForUser(Conversation $conversation, int $userId, ?int $cursor = null, int $limit = 50): Collection
     {
-        $this->conversationMemberService->requireActiveMembership($conversation, $userId);
+        $this->conversationMemberService->requireReadableMembership($conversation, $userId);
 
         $query = Message::query()
             ->where('conversation_id', $conversation->getKey())
@@ -325,6 +325,7 @@ class MessageService
     public function edit(Message $message, int $actorId, string $text): Message
     {
         $this->conversationMemberService->requireActiveMembership($message->conversation, $actorId);
+        $this->privacyService->ensureChatAllowed($actorId, $message->conversation);
 
         if ($message->sender_id !== $actorId) {
             throw new InvalidArgumentException('Only the original sender may edit this message.');

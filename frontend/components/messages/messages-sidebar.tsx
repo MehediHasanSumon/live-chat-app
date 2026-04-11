@@ -8,6 +8,7 @@ import {
   Bell,
   CircleSlash,
   CheckCheck,
+  Ellipsis,
   Inbox,
   MessageCircleOff,
   Phone,
@@ -26,6 +27,7 @@ import {
   useArchiveConversationMutation,
   useMarkConversationUnreadMutation,
   useSetConversationMuteMutation,
+  useUnarchiveConversationMutation,
   useUnblockUserMutation,
 } from "@/lib/hooks/use-conversation-actions";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
@@ -80,6 +82,7 @@ export function MessagesSidebar({
   const markConversationReadMutation = useMarkConversationReadMutation();
   const markConversationUnreadMutation = useMarkConversationUnreadMutation();
   const setConversationMuteMutation = useSetConversationMuteMutation();
+  const unarchiveConversationMutation = useUnarchiveConversationMutation();
   const acceptRequestMutation = useAcceptMessageRequestMutation();
   const rejectRequestMutation = useRejectMessageRequestMutation();
   const unblockUserMutation = useUnblockUserMutation();
@@ -119,6 +122,21 @@ export function MessagesSidebar({
 
     router.push("/messages/blocked-account");
   }, [router]);
+  const buildThreadHref = useCallback((threadId: string) => {
+    if (sidebarView === "requests") {
+      return `/messages/message-requests/t/${threadId}`;
+    }
+
+    if (sidebarView === "archived") {
+      return `/messages/archived-chats/t/${threadId}`;
+    }
+
+    if (sidebarView === "blocked") {
+      return `/messages/blocked-account/t/${threadId}`;
+    }
+
+    return `/messages/t/${threadId}`;
+  }, [sidebarView]);
 
   const sidebarMenuItems = useMemo(
     () =>
@@ -419,11 +437,12 @@ export function MessagesSidebar({
                 >
                   <MessageThreadItem
                     thread={thread}
-                    isActive={isActive}
-                    isMenuOpen={isMenuOpen}
-                    onSelect={handleSelectThread}
-                    onOpenMenu={handleOpenThreadMenu}
-                    showMenuButton
+                  isActive={isActive}
+                  isMenuOpen={isMenuOpen}
+                  href={buildThreadHref(thread.id)}
+                  onSelect={handleSelectThread}
+                  onOpenMenu={handleOpenThreadMenu}
+                  showMenuButton
                   />
 
                   {isMenuOpen ? (
@@ -484,60 +503,120 @@ export function MessagesSidebar({
           : null}
 
         {sidebarView === "archived"
-          ? filteredArchivedThreads.map((thread) => (
-              <div key={thread.id} className="group relative">
+          ? filteredArchivedThreads.map((thread) => {
+              const isMenuOpen = openMenuThreadId === thread.id;
+              const archivedMenuItems = [{ label: "Unarchive", icon: Archive }];
+
+              return (
+              <div
+                key={thread.id}
+                className="group relative"
+                data-thread-menu-boundary="true"
+                data-thread-id={thread.id}
+              >
                 <MessageThreadItem
                   thread={thread}
-                  isActive={false}
-                  isMenuOpen={false}
+                  isActive={thread.id === activeThreadId}
+                  isMenuOpen={isMenuOpen}
+                  href={buildThreadHref(thread.id)}
                   onSelect={handleSelectThread}
                   onOpenMenu={handleOpenThreadMenu}
-                  showMenuButton={false}
+                  showMenuButton
                 />
+
+                {isMenuOpen ? (
+                  <MessagesThreadMenu
+                    items={archivedMenuItems}
+                    onClose={() => setOpenMenuThreadId(null)}
+                    onItemClick={(label) => {
+                      if (label === "Unarchive") {
+                        setOpenMenuThreadId(null);
+                        void unarchiveConversationMutation.mutateAsync(thread.id)
+                          .then(() => {
+                            if (activeThreadId === thread.id) {
+                              router.push("/messages");
+                            }
+                          })
+                          .catch(() => undefined);
+                      }
+                    }}
+                  />
+                ) : null}
               </div>
-            ))
+            );
+            })
           : null}
 
         {sidebarView === "requests"
-          ? filteredRequestThreads.map((thread) => (
-              <div
-                key={thread.id}
-                className="rounded-xl border border-[var(--line)] bg-white px-3 py-3"
-              >
-                <div className="flex items-start gap-3">
-                  <MessageAvatar name={thread.name} online={false} imageUrl={thread.avatarUrl} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate text-sm font-semibold text-[var(--foreground)]">{thread.name}</p>
-                      <span className="shrink-0 text-xs text-[var(--muted)]">{thread.time}</span>
+          ? filteredRequestThreads.map((thread) => {
+              const isMenuOpen = openMenuThreadId === thread.id;
+              const requestMenuItems = [
+                { label: "Accept", icon: CheckCheck },
+                { label: "Decline", icon: Trash2 },
+              ];
+
+              return (
+                <div
+                  key={thread.id}
+                  className={`group relative rounded-xl border px-3 py-3 transition ${
+                    thread.id === activeThreadId
+                      ? "border-[rgba(96,91,255,0.24)] bg-[var(--accent-soft)]"
+                      : "border-[var(--line)] bg-white hover:border-[rgba(96,91,255,0.22)] hover:bg-[var(--accent-soft)]/35"
+                  }`}
+                  data-thread-menu-boundary="true"
+                  data-thread-id={thread.id}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectThread();
+                      router.push(buildThreadHref(thread.id));
+                    }}
+                    className="flex w-full items-start gap-3 pr-10 text-left"
+                  >
+                    <MessageAvatar name={thread.name} online={false} imageUrl={thread.avatarUrl} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-sm font-semibold text-[var(--foreground)]">{thread.name}</p>
+                        <span className="shrink-0 text-xs text-[var(--muted)]">{thread.time}</span>
+                      </div>
+                      <p className="mt-1.5 truncate text-sm text-[var(--muted)]">{thread.lastMessage}</p>
                     </div>
-                    <p className="mt-1.5 truncate text-sm text-[var(--muted)]">{thread.lastMessage}</p>
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        type="button"
-                        disabled={rejectRequestMutation.isPending}
-                        onClick={() => {
-                          void rejectRequestMutation.mutateAsync(thread.numericId);
-                        }}
-                        className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[rgba(96,91,255,0.22)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Decline
-                      </button>
-                      <button
-                        type="button"
-                        disabled={acceptRequestMutation.isPending}
-                        onClick={() => {
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(event) => handleOpenThreadMenu(thread.id, event)}
+                    aria-expanded={isMenuOpen}
+                    aria-haspopup="menu"
+                    aria-label={`Open request actions for ${thread.name}`}
+                    className={`absolute right-3 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-[var(--muted)] transition hover:text-[var(--accent)] ${
+                      isMenuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                    }`}
+                  >
+                    <Ellipsis className="h-4 w-4" />
+                  </button>
+
+                  {isMenuOpen ? (
+                    <MessagesThreadMenu
+                      items={requestMenuItems}
+                      onClose={() => setOpenMenuThreadId(null)}
+                      onItemClick={(label) => {
+                        setOpenMenuThreadId(null);
+
+                        if (label === "Accept") {
                           void acceptRequestMutation.mutateAsync(thread.numericId);
-                        }}
-                        className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Accept
-                      </button>
-                    </div>
-                  </div>
+                        }
+
+                        if (label === "Decline") {
+                          void rejectRequestMutation.mutateAsync(thread.numericId);
+                        }
+                      }}
+                    />
+                  ) : null}
                 </div>
-              </div>
-            ))
+              );
+            })
           : null}
 
         {sidebarView === "blocked"
@@ -545,13 +624,39 @@ export function MessagesSidebar({
               const blockedUser = entry.blocked_user;
               const name = blockedUser?.name ?? `User #${entry.blocked_user_id}`;
               const handle = blockedUser?.username ? `@${blockedUser.username}` : `User ID ${entry.blocked_user_id}`;
+              const rowId = `blocked-${entry.id}`;
+              const isMenuOpen = openMenuThreadId === rowId;
+              const blockedMenuItems = [{ label: "Unblock", icon: CircleSlash }];
 
               return (
                 <div
                   key={entry.id}
-                  className="rounded-xl border border-[var(--line)] bg-white px-3 py-3"
+                  role={entry.conversation_id ? "button" : undefined}
+                  tabIndex={entry.conversation_id ? 0 : undefined}
+                  onClick={() => {
+                    if (entry.conversation_id) {
+                      handleSelectThread();
+                      router.push(buildThreadHref(String(entry.conversation_id)));
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (entry.conversation_id && (event.key === "Enter" || event.key === " ")) {
+                      event.preventDefault();
+                      handleSelectThread();
+                      router.push(buildThreadHref(String(entry.conversation_id)));
+                    }
+                  }}
+                  className={`group relative rounded-xl border px-3 py-3 ${
+                    entry.conversation_id && String(entry.conversation_id) === activeThreadId
+                      ? "border-[rgba(96,91,255,0.24)] bg-[var(--accent-soft)]"
+                      : "border-[var(--line)] bg-white"
+                  } ${
+                    entry.conversation_id ? "cursor-pointer transition hover:border-[rgba(96,91,255,0.22)] hover:bg-[var(--accent-soft)]/35" : ""
+                  }`}
+                  data-thread-menu-boundary="true"
+                  data-thread-id={rowId}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 pr-10">
                     <MessageAvatar name={name} online={false} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
@@ -565,25 +670,31 @@ export function MessagesSidebar({
                     </div>
                   </div>
 
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      type="button"
-                      disabled={unblockUserMutation.isPending}
-                      onClick={() => {
-                        void unblockUserMutation.mutateAsync(entry.blocked_user_id);
+                  <button
+                    type="button"
+                    onClick={(event) => handleOpenThreadMenu(rowId, event)}
+                    aria-expanded={isMenuOpen}
+                    aria-haspopup="menu"
+                    aria-label={`Open blocked account actions for ${name}`}
+                    className={`absolute right-3 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-[var(--muted)] transition hover:text-[var(--accent)] ${
+                      isMenuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                    }`}
+                  >
+                    <Ellipsis className="h-4 w-4" />
+                  </button>
+
+                  {isMenuOpen ? (
+                    <MessagesThreadMenu
+                      items={blockedMenuItems}
+                      onClose={() => setOpenMenuThreadId(null)}
+                      onItemClick={(label) => {
+                        if (label === "Unblock") {
+                          setOpenMenuThreadId(null);
+                          void unblockUserMutation.mutateAsync(entry.blocked_user_id);
+                        }
                       }}
-                      className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Unblock
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => router.push("/messages")}
-                      className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[rgba(96,91,255,0.22)] hover:text-[var(--accent)]"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                    />
+                  ) : null}
                 </div>
               );
             })

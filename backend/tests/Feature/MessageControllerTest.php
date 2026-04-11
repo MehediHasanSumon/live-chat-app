@@ -6,6 +6,7 @@ use App\Models\Message;
 use App\Models\MessageEdit;
 use App\Models\MessageHiddenForUser;
 use App\Models\MessageReaction;
+use App\Models\UserBlock;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -374,6 +375,67 @@ it('adds and removes reactions for active members', function () {
         ->assertJsonPath('data.deleted', true);
 
     expect(MessageReaction::query()->count())->toBe(0);
+});
+
+it('shows blocked direct chats but blocks sending gifs, editing, and reactions', function () {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+    $conversation = createDirectConversationWithMembers($sender, $recipient);
+
+    $message = Message::query()->create([
+        'conversation_id' => $conversation->id,
+        'seq' => 1,
+        'sender_id' => $sender->id,
+        'type' => 'text',
+        'text_body' => 'Already here',
+        'editable_until_at' => now()->addMinutes(15),
+    ]);
+
+    $conversation->forceFill([
+        'last_message_seq' => 1,
+        'last_message_id' => $message->id,
+        'last_message_preview' => 'Already here',
+        'last_message_at' => $message->created_at,
+    ])->save();
+
+    UserBlock::query()->create([
+        'blocker_user_id' => $recipient->id,
+        'blocked_user_id' => $sender->id,
+        'block_chat' => true,
+        'block_call' => true,
+        'hide_presence' => true,
+        'created_at' => now(),
+    ]);
+
+    $this->actingAs($sender, 'web')
+        ->getJson("/api/conversations/{$conversation->id}/messages")
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $message->id);
+
+    $this->actingAs($sender, 'web')
+        ->postJson("/api/conversations/{$conversation->id}/messages/gif", [
+            'gif_meta' => [
+                'url' => 'https://example.com/test.gif',
+                'title' => 'Blocked gif',
+            ],
+            'client_uuid' => (string) str()->uuid(),
+        ])
+        ->assertStatus(422)
+        ->assertJsonPath('errors.gif_meta.0', 'Messaging is blocked for this conversation.');
+
+    $this->actingAs($sender, 'web')
+        ->patchJson("/api/messages/{$message->id}", [
+            'text' => 'Blocked edit',
+        ])
+        ->assertStatus(422)
+        ->assertJsonPath('errors.text.0', 'Messaging is blocked for this conversation.');
+
+    $this->actingAs($sender, 'web')
+        ->postJson("/api/messages/{$message->id}/reactions", [
+            'emoji' => '🔥',
+        ])
+        ->assertStatus(422)
+        ->assertJsonPath('errors.emoji.0', 'Messaging is blocked for this conversation.');
 });
 
 it('allows only one reaction per user per message and replaces the previous emoji', function () {

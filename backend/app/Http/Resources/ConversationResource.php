@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Services\Privacy\PrivacyService;
 
 class ConversationResource extends JsonResource
 {
@@ -36,6 +37,9 @@ class ConversationResource extends JsonResource
             'creator' => $this->whenLoaded('creator', fn () => (new UserResource($this->creator))->resolve($request)),
             'membership' => $membership ? (new ConversationMemberResource($membership))->resolve($request) : null,
             'members' => $this->whenLoaded('members', fn () => ConversationMemberResource::collection($this->members)->resolve($request)),
+            'is_chat_blocked' => $request->user()
+                ? app(PrivacyService::class)->isConversationChatBlocked($request->user()->getAuthIdentifier(), $this->resource)
+                : false,
         ];
     }
 }

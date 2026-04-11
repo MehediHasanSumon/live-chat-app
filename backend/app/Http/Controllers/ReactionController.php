@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Services\Messages\ReactionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 
 class ReactionController extends Controller
 {
@@ -19,11 +20,20 @@ class ReactionController extends Controller
 
     public function store(StoreReactionRequest $request, Message $message): JsonResponse
     {
-        $result = $this->reactionService->addReaction(
-            $message->loadMissing('conversation'),
-            $request->user()->getKey(),
-            $request->string('emoji')->toString(),
-        );
+        try {
+            $result = $this->reactionService->addReaction(
+                $message->loadMissing('conversation'),
+                $request->user()->getKey(),
+                $request->string('emoji')->toString(),
+            );
+        } catch (InvalidArgumentException $exception) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => [
+                    'emoji' => [$exception->getMessage()],
+                ],
+            ], 422);
+        }
 
         event(new ConversationReactionChanged(
             $message->loadMissing('conversation'),
@@ -38,11 +48,20 @@ class ReactionController extends Controller
 
     public function destroy(Request $request, Message $message, string $emoji): JsonResponse
     {
-        $deleted = $this->reactionService->removeReaction(
-            $message->loadMissing('conversation'),
-            $request->user()->getKey(),
-            $emoji,
-        );
+        try {
+            $deleted = $this->reactionService->removeReaction(
+                $message->loadMissing('conversation'),
+                $request->user()->getKey(),
+                $emoji,
+            );
+        } catch (InvalidArgumentException $exception) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => [
+                    'emoji' => [$exception->getMessage()],
+                ],
+            ], 422);
+        }
 
         if ($deleted) {
             event(new ConversationReactionChanged(

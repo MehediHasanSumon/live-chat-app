@@ -11,7 +11,7 @@ class ConversationPolicy
     {
         return $conversation->members()
             ->where('user_id', $user->getKey())
-            ->where('membership_state', 'active')
+            ->whereIn('membership_state', ['active', 'request_pending'])
             ->exists();
     }
 

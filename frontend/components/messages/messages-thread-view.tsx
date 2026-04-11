@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
 
 import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
@@ -20,6 +21,7 @@ import {
   useSendMessageMutation,
   useToggleReactionMutation,
 } from "@/lib/hooks/use-message-mutations";
+import { useUnblockUserMutation } from "@/lib/hooks/use-conversation-actions";
 import { useTypingUsersQuery } from "@/lib/hooks/use-typing-users-query";
 import { toChatMessage, toConversationThread, type MessageThread } from "@/lib/messages-data";
 import { type ChatMessage, type ComposerAttachmentInput } from "@/lib/messages-data";
@@ -30,6 +32,7 @@ const EMPTY_TYPING_USERS: { id: number; name: string }[] = [];
 
 type MessagesThreadViewProps = {
   thread: MessageThread;
+  sidebarView?: "messages" | "requests" | "archived" | "blocked";
   isInfoSidebarOpen: boolean;
   onToggleInfoSidebar: () => void;
   onOpenImageViewer?: (images: MessagesImageViewerItem[], activeImageId: string) => void;
@@ -37,10 +40,12 @@ type MessagesThreadViewProps = {
 
 export function MessagesThreadView({
   thread,
+  sidebarView = "messages",
   isInfoSidebarOpen,
   onToggleInfoSidebar,
   onOpenImageViewer,
 }: MessagesThreadViewProps) {
+  const router = useRouter();
   const { data: authMe } = useAuthMeQuery(true);
   const currentUserId = authMe?.data.user?.id ?? null;
   const currentUserName = authMe?.data.user?.name ?? "You";
@@ -57,6 +62,7 @@ export function MessagesThreadView({
   const editMessageMutation = useEditMessageMutation(thread.id);
   const deleteMessageMutation = useDeleteMessageMutation(thread.id);
   const forwardMessageMutation = useForwardMessageMutation(thread.id);
+  const unblockUserMutation = useUnblockUserMutation();
   const markReadMutation = useMarkConversationReadMutation();
   const startCallMutation = useStartCallMutation();
   const joinCallMutation = useJoinCallMutation();
@@ -93,9 +99,14 @@ export function MessagesThreadView({
   );
   const latestMessage = messages.at(-1) ?? null;
   const activeMembership = thread.membership ?? null;
+  const isBlockedConversation = Boolean(thread.isChatBlocked);
+  const isRequestConversation = sidebarView === "requests" || activeMembership?.membership_state === "request_pending";
+  const canCompose = !isBlockedConversation && !isRequestConversation;
+  const canMessageInteract = !isBlockedConversation && !isRequestConversation;
   const peerMembership = thread.isGroup
     ? null
     : (thread.members ?? []).find((member) => member.user_id !== currentUserId) ?? null;
+  const blockedPeerUserId = isBlockedConversation ? peerMembership?.user_id ?? null : null;
 
   const activeComposerError = editingMessageId ? editMessageMutation.error : sendMessageMutation.error;
   const composerErrorMessage =
@@ -179,7 +190,7 @@ export function MessagesThreadView({
   }, [scrollToBottom, thread.id]);
 
   useEffect(() => {
-    if (!latestMessage || !activeMembership || markReadMutation.isPending) {
+    if (!latestMessage || !activeMembership || markReadMutation.isPending || activeMembership.membership_state !== "active") {
       return;
     }
 
@@ -463,12 +474,29 @@ export function MessagesThreadView({
   );
 
   const handleStartVoiceCall = useCallback(() => {
+    if (isBlockedConversation || isRequestConversation) {
+      return;
+    }
+
     void handleStartCall("voice");
-  }, [handleStartCall]);
+  }, [handleStartCall, isBlockedConversation, isRequestConversation]);
 
   const handleStartVideoCall = useCallback(() => {
+    if (isBlockedConversation || isRequestConversation) {
+      return;
+    }
+
     void handleStartCall("video");
-  }, [handleStartCall]);
+  }, [handleStartCall, isBlockedConversation, isRequestConversation]);
+
+  const handleUnblock = useCallback(async () => {
+    if (!blockedPeerUserId) {
+      return;
+    }
+
+    await unblockUserMutation.mutateAsync(blockedPeerUserId);
+    router.push("/messages");
+  }, [blockedPeerUserId, router, unblockUserMutation]);
 
   const handleSendMessage = useCallback(async ({
     text,
@@ -526,8 +554,8 @@ export function MessagesThreadView({
         thread={thread}
         isInfoSidebarOpen={isInfoSidebarOpen}
         onToggleInfoSidebar={onToggleInfoSidebar}
-        onStartVoiceCall={handleStartVoiceCall}
-        onStartVideoCall={handleStartVideoCall}
+        onStartVoiceCall={canCompose ? handleStartVoiceCall : undefined}
+        onStartVideoCall={canCompose ? handleStartVideoCall : undefined}
         isStartingVoiceCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "voice"}
         isStartingVideoCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "video"}
       />
@@ -585,6 +613,18 @@ export function MessagesThreadView({
           </div>
         ) : null}
 
+        {!isLoading && !isError && isBlockedConversation ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600">
+            You can view this chat, but messaging is blocked for this conversation.
+          </div>
+        ) : null}
+
+        {!isLoading && !isError && isRequestConversation ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+            This conversation is still a message request. Accept it to start messaging.
+          </div>
+        ) : null}
+
         {!isLoading && !isError && mappedMessages.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[var(--line)] bg-white/70 px-4 py-6 text-sm text-[var(--muted)]">
             No messages yet. Start the conversation below.
@@ -603,6 +643,7 @@ export function MessagesThreadView({
               onRemove={handleRemoveMessage}
               onOpenImage={handleOpenImage}
               onMediaLoad={handleMediaLoad}
+              canInteract={canMessageInteract}
               readLabel={
                 message.isPending
                   ? "Sending..."
@@ -627,20 +668,51 @@ export function MessagesThreadView({
           </div>
         ) : null}
 
-        <MessageComposer
-          threadName={thread.name}
-          conversationId={thread.id}
-          isEditing={Boolean(editingMessage)}
-          editingValue={editingValue}
-          editingMessagePreview={editingMessage?.body ?? null}
-          replyPreview={replyPreview}
-          onEditingValueChange={setEditingValue}
-          onCancelEditing={cancelEditing}
-          onCancelReply={cancelReplying}
-          isSending={editMessageMutation.isPending}
-          errorMessage={composerErrorMessage}
-          onSend={handleSendMessage}
-        />
+        {canCompose ? (
+          <MessageComposer
+            threadName={thread.name}
+            conversationId={thread.id}
+            isEditing={Boolean(editingMessage)}
+            editingValue={editingValue}
+            editingMessagePreview={editingMessage?.body ?? null}
+            replyPreview={replyPreview}
+            onEditingValueChange={setEditingValue}
+            onCancelEditing={cancelEditing}
+            onCancelReply={cancelReplying}
+            isSending={editMessageMutation.isPending}
+            errorMessage={composerErrorMessage}
+            onSend={handleSendMessage}
+          />
+        ) : (
+          <div className="flex items-center justify-center">
+            <div
+              className={`flex w-full max-w-xl flex-col items-center justify-center rounded-2xl px-4 py-4 text-center text-sm font-medium ${
+                isBlockedConversation
+                  ? "border border-rose-200 bg-rose-50 text-rose-600"
+                  : "border border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
+              <p>
+                {isBlockedConversation
+                  ? "You can't message this account until it is unblocked."
+                  : "Accept this message request to start chatting."}
+              </p>
+
+              {isBlockedConversation && blockedPeerUserId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleUnblock();
+                  }}
+                  disabled={unblockUserMutation.isPending}
+                  className="mt-3 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {unblockUserMutation.isPending ? "Unblocking..." : "Unblock"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        )}
       </footer>
 
       {forwardingMessageId ? (

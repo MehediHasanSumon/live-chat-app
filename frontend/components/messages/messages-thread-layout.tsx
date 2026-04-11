@@ -15,12 +15,14 @@ import { MessagesThreadView } from "@/components/messages/messages-thread-view";
 import { MessagesUserSidebar } from "@/components/messages/messages-user-sidebar";
 import { useUserPresenceQuery } from "@/lib/hooks/use-user-presence-query";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
+import { type SidebarListView } from "@/components/messages/messages-sidebar";
 
 type MessagesThreadLayoutProps = {
   thread: MessageThread;
+  sidebarView?: SidebarListView;
 };
 
-export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
+export function MessagesThreadLayout({ thread, sidebarView = "messages" }: MessagesThreadLayoutProps) {
   const [viewerImages, setViewerImages] = useState<MessagesImageViewerItem[]>([]);
   const [viewerThreadId, setViewerThreadId] = useState<string | null>(null);
   const [activeViewerImageId, setActiveViewerImageId] = useState<string | null>(null);
@@ -95,6 +97,7 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
         sidebar={
           <MessagesSidebar
             activeThreadId={activeThreadId ?? thread.id}
+            sidebarView={sidebarView}
             onOpenMuteModal={openMuteModal}
             onOpenConfirmation={openConfirmation}
             onOpenNewMessageModal={openNewMessageModal}
@@ -103,6 +106,7 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
         content={
           <MessagesThreadView
             thread={threadWithPresence}
+            sidebarView={sidebarView}
             isInfoSidebarOpen={isInfoSidebarOpen}
             onToggleInfoSidebar={toggleInfoSidebar}
             onOpenImageViewer={openImageViewer}

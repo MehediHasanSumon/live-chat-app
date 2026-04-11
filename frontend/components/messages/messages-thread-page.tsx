@@ -3,7 +3,7 @@
 import { useShallow } from "zustand/react/shallow";
 
 import { MessagesShell } from "@/components/messages/messages-shell";
-import { MessagesSidebar } from "@/components/messages/messages-sidebar";
+import { MessagesSidebar, type SidebarListView } from "@/components/messages/messages-sidebar";
 import { MessagesThreadLayout } from "@/components/messages/messages-thread-layout";
 import { useConversationQuery } from "@/lib/hooks/use-conversation-query";
 import { toConversationThread } from "@/lib/messages-data";
@@ -11,9 +11,10 @@ import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 
 type MessagesThreadPageProps = {
   threadId: string;
+  sidebarView?: SidebarListView;
 };
 
-export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
+export function MessagesThreadPage({ threadId, sidebarView = "messages" }: MessagesThreadPageProps) {
   const {
     openConfirmation,
     openMuteModal,
@@ -31,6 +32,7 @@ export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
         sidebar={
           <MessagesSidebar
             activeThreadId={threadId}
+            sidebarView={sidebarView}
             onOpenMuteModal={openMuteModal}
             onOpenConfirmation={openConfirmation}
             onOpenNewMessageModal={openNewMessageModal}
@@ -56,6 +58,7 @@ export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
         sidebar={
           <MessagesSidebar
             activeThreadId={threadId}
+            sidebarView={sidebarView}
             onOpenMuteModal={openMuteModal}
             onOpenConfirmation={openConfirmation}
             onOpenNewMessageModal={openNewMessageModal}
@@ -81,6 +84,7 @@ export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
         sidebar={
           <MessagesSidebar
             activeThreadId={threadId}
+            sidebarView={sidebarView}
             onOpenMuteModal={openMuteModal}
             onOpenConfirmation={openConfirmation}
             onOpenNewMessageModal={openNewMessageModal}
@@ -106,5 +110,5 @@ export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
     return null;
   }
 
-  return <MessagesThreadLayout thread={toConversationThread(conversation)} />;
+  return <MessagesThreadLayout thread={toConversationThread(conversation)} sidebarView={sidebarView} />;
 }

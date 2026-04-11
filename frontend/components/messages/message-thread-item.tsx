@@ -11,6 +11,7 @@ type MessageThreadItemProps = {
   thread: MessageThread;
   isActive: boolean;
   isMenuOpen: boolean;
+  href?: string;
   onOpenMenu: (threadId: string, event: React.MouseEvent<HTMLButtonElement>) => void;
   onSelect: (threadId: string) => void;
   showMenuButton?: boolean;
@@ -20,6 +21,7 @@ function MessageThreadItemComponent({
   thread,
   isActive,
   isMenuOpen,
+  href,
   onOpenMenu,
   onSelect,
   showMenuButton = true,
@@ -27,7 +29,7 @@ function MessageThreadItemComponent({
   return (
     <div className="relative">
       <Link
-        href={`/messages/t/${thread.id}`}
+        href={href ?? `/messages/t/${thread.id}`}
         onClick={() => onSelect(thread.id)}
         className={`block rounded-xl border px-3 py-3 pr-12 transition ${
           isActive
@@ -87,6 +89,7 @@ export const MessageThreadItem = memo(MessageThreadItemComponent, (prev, next) =
   prev.thread === next.thread &&
   prev.isActive === next.isActive &&
   prev.isMenuOpen === next.isMenuOpen &&
+  prev.href === next.href &&
   prev.onOpenMenu === next.onOpenMenu &&
   prev.onSelect === next.onSelect &&
   prev.showMenuButton === next.showMenuButton,

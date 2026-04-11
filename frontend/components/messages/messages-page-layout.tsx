@@ -8,13 +8,17 @@ import { MessagesEmptyState } from "@/components/messages/messages-empty-state";
 import { MessagesNewMessageModal } from "@/components/messages/messages-new-message-modal";
 import { MessagesShell } from "@/components/messages/messages-shell";
 import { MessagesSidebar, type SidebarListView } from "@/components/messages/messages-sidebar";
+import { MessagesThreadLayout } from "@/components/messages/messages-thread-layout";
+import { useConversationQuery } from "@/lib/hooks/use-conversation-query";
+import { toConversationThread } from "@/lib/messages-data";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 
 type MessagesPageLayoutProps = {
   sidebarView?: SidebarListView;
+  selectedThreadId?: string | null;
 };
 
-export function MessagesPageLayout({ sidebarView = "messages" }: MessagesPageLayoutProps) {
+export function MessagesPageLayout({ sidebarView = "messages", selectedThreadId = null }: MessagesPageLayoutProps) {
   const {
     isNewMessageModalOpen,
     closeNewMessageModal,
@@ -32,11 +36,18 @@ export function MessagesPageLayout({ sidebarView = "messages" }: MessagesPageLay
     resetThreadPanels: state.resetThreadPanels,
     setActiveThreadId: state.setActiveThreadId,
   })));
+  const {
+    data: selectedConversation,
+    isLoading: isSelectedConversationLoading,
+    isError: isSelectedConversationError,
+  } = useConversationQuery(selectedThreadId ?? "");
 
   useEffect(() => {
-    setActiveThreadId(null);
-    resetThreadPanels();
-  }, [resetThreadPanels, setActiveThreadId]);
+    if (!selectedThreadId) {
+      setActiveThreadId(null);
+      resetThreadPanels();
+    }
+  }, [resetThreadPanels, selectedThreadId, setActiveThreadId]);
 
   const emptyStateTitle =
     sidebarView === "requests"
@@ -54,6 +65,78 @@ export function MessagesPageLayout({ sidebarView = "messages" }: MessagesPageLay
         : sidebarView === "blocked"
           ? "Manage blocked people from the sidebar and unblock them whenever needed."
           : "Choose a conversation from the sidebar to open its details. The real message timeline lands in the next backend phase.";
+
+  if (selectedThreadId) {
+    if (isSelectedConversationLoading) {
+      return (
+        <>
+          <MessagesShell
+            sidebar={
+              <MessagesSidebar
+                sidebarView={sidebarView}
+                activeThreadId={selectedThreadId}
+                onOpenMuteModal={openMuteModal}
+                onOpenConfirmation={openConfirmation}
+                onOpenNewMessageModal={openNewMessageModal}
+              />
+            }
+            content={
+              <section className="h-full w-full px-6">
+                <div className="flex h-full w-full items-center justify-center">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]" />
+                    <p className="mt-4 text-sm text-[var(--muted)]">Loading conversation...</p>
+                  </div>
+                </div>
+              </section>
+            }
+          />
+          <MessagesNewMessageModal
+            isOpen={isNewMessageModalOpen}
+            onClose={closeNewMessageModal}
+          />
+          <MessagesConversationActionModals />
+        </>
+      );
+    }
+
+    if (isSelectedConversationError || !selectedConversation) {
+      return (
+        <>
+          <MessagesShell
+            sidebar={
+              <MessagesSidebar
+                sidebarView={sidebarView}
+                activeThreadId={selectedThreadId}
+                onOpenMuteModal={openMuteModal}
+                onOpenConfirmation={openConfirmation}
+                onOpenNewMessageModal={openNewMessageModal}
+              />
+            }
+            content={
+              <section className="h-full w-full px-6">
+                <div className="flex h-full w-full items-center justify-center">
+                  <div className="text-center">
+                    <h1 className="text-2xl font-semibold tracking-tight">Conversation unavailable</h1>
+                    <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted)]">
+                      We could not load this conversation. Try another one from the sidebar.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            }
+          />
+          <MessagesNewMessageModal
+            isOpen={isNewMessageModalOpen}
+            onClose={closeNewMessageModal}
+          />
+          <MessagesConversationActionModals />
+        </>
+      );
+    }
+
+    return <MessagesThreadLayout thread={toConversationThread(selectedConversation)} sidebarView={sidebarView} />;
+  }
 
   return (
     <>

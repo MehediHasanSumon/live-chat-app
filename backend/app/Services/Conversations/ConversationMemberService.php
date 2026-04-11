@@ -11,6 +11,14 @@ use InvalidArgumentException;
 
 class ConversationMemberService
 {
+    public function requireReadableMembership(Conversation $conversation, int $userId): ConversationMember
+    {
+        return $conversation->members()
+            ->where('user_id', $userId)
+            ->whereIn('membership_state', ['active', 'request_pending'])
+            ->firstOrFail();
+    }
+
     public function requireActiveMembership(Conversation $conversation, int $userId): ConversationMember
     {
         return $conversation->members()

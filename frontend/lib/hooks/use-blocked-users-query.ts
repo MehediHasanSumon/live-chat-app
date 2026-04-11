@@ -10,6 +10,7 @@ export type BlockedUserApiItem = {
   id: number;
   blocker_user_id: number;
   blocked_user_id: number;
+  conversation_id: number | null;
   block_chat: boolean;
   block_call: boolean;
   hide_presence: boolean;

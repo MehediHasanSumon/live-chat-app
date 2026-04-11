@@ -35,7 +35,9 @@ class ConversationService
             ])
             ->orderByDesc('last_message_at')
             ->orderByDesc('updated_at')
-            ->get();
+            ->get()
+            ->reject(fn (Conversation $conversation) => $this->privacyService->isConversationChatBlocked($userId, $conversation))
+            ->values();
     }
 
     public function getOrCreateDirect(int $authUserId, int $targetUserId): Conversation
@@ -133,7 +135,7 @@ class ConversationService
 
     public function showForUser(Conversation $conversation, int $userId): Conversation
     {
-        $this->conversationMemberService->requireActiveMembership($conversation, $userId);
+        $this->conversationMemberService->requireReadableMembership($conversation, $userId);
 
         return $this->loadConversationForUser($conversation, $userId);
     }

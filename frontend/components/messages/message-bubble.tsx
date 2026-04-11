@@ -10,6 +10,7 @@ import { type ChatMessage } from "@/lib/messages-data";
 type MessageBubbleProps = {
   message: ChatMessage;
   authUserId: number | null;
+  canInteract?: boolean;
   readLabel?: string | null;
   onToggleReaction?: (messageId: number, emoji: string, hasReacted: boolean) => void;
   onOpenImage?: (attachmentId: string) => void;
@@ -26,6 +27,7 @@ const quickReactions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F525}", "\u{1F602}
 function MessageBubbleComponent({
   message,
   authUserId,
+  canInteract = true,
   readLabel = null,
   onToggleReaction,
   onOpenImage,
@@ -196,16 +198,18 @@ function MessageBubbleComponent({
         >
           <div className="pointer-events-auto flex items-center gap-2">
             <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowReactionPicker((current) => !current)}
-                className={surfaceActionClass}
-                aria-label="React to message"
-              >
-                {showReactionPicker ? <X className="h-3.5 w-3.5" /> : <SmilePlus className="h-3.5 w-3.5" />}
-              </button>
+              {canInteract ? (
+                <button
+                  type="button"
+                  onClick={() => setShowReactionPicker((current) => !current)}
+                  className={surfaceActionClass}
+                  aria-label="React to message"
+                >
+                  {showReactionPicker ? <X className="h-3.5 w-3.5" /> : <SmilePlus className="h-3.5 w-3.5" />}
+                </button>
+              ) : null}
 
-              {showReactionPicker ? (
+              {showReactionPicker && canInteract ? (
                 <div className="absolute top-1/2 z-30 flex -translate-y-1/2 items-center gap-1 rounded-full border border-[rgba(111,123,176,0.14)] bg-white/98 px-2 py-1 shadow-[0_18px_40px_rgba(96,109,160,0.12)]">
                   {quickReactions.map((emoji) => {
                     const hasReacted = Boolean(
@@ -235,19 +239,19 @@ function MessageBubbleComponent({
               ) : null}
             </div>
 
-            {onReply ? (
+            {canInteract && onReply ? (
               <button type="button" onClick={() => onReply(message.numericId)} className={surfaceActionClass} aria-label="Reply to message">
                 <CornerUpLeft className="h-3.5 w-3.5" />
               </button>
             ) : null}
 
-            {onForward ? (
+            {canInteract && onForward ? (
               <button type="button" onClick={() => onForward(message.numericId)} className={surfaceActionClass} aria-label="Forward message">
                 <Send className="h-3.5 w-3.5" />
               </button>
             ) : null}
 
-            {message.canEdit && onEdit ? (
+            {canInteract && message.canEdit && onEdit ? (
               <button
                 type="button"
                 onClick={() => onEdit(message.numericId, message.body)}
@@ -258,7 +262,7 @@ function MessageBubbleComponent({
               </button>
             ) : null}
 
-            {onRemove ? (
+            {canInteract && onRemove ? (
               <button type="button" onClick={() => onRemove(message.numericId)} className={surfaceActionClass} aria-label="Remove message">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -462,6 +466,7 @@ function MessageBubbleComponent({
 export const MessageBubble = memo(MessageBubbleComponent, (prev, next) =>
   prev.message === next.message &&
   prev.authUserId === next.authUserId &&
+  prev.canInteract === next.canInteract &&
   prev.readLabel === next.readLabel &&
   prev.isReacting === next.isReacting &&
   prev.onToggleReaction === next.onToggleReaction &&
