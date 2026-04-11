@@ -1,4 +1,4 @@
-import { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { memo, KeyboardEvent as ReactKeyboardEvent } from "react";
 
 type MessagesFilterTabsProps = {
   filters: readonly string[];
@@ -6,7 +6,7 @@ type MessagesFilterTabsProps = {
   onChange: (filter: string) => void;
 };
 
-export function MessagesFilterTabs({
+function MessagesFilterTabsComponent({
   filters,
   activeFilter,
   onChange,
@@ -37,3 +37,5 @@ export function MessagesFilterTabs({
     </div>
   );
 }
+
+export const MessagesFilterTabs = memo(MessagesFilterTabsComponent);

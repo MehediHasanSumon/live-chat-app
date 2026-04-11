@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import { applyPresenceToThread, getDirectThreadPeer, type MessageThread } from "@/lib/messages-data";
 import { MessagesAsidePanel } from "@/components/messages/messages-aside-panel";
@@ -25,18 +26,33 @@ export function MessagesThreadLayout({ thread }: MessagesThreadLayoutProps) {
   const [activeViewerImageId, setActiveViewerImageId] = useState<string | null>(null);
   const directPeer = getDirectThreadPeer(thread);
   const { data: presence } = useUserPresenceQuery(directPeer?.user_id, !thread.isGroup && Boolean(directPeer?.user_id));
-  const activeThreadId = useChatUiStore((state) => state.activeThreadId);
-  const asideView = useChatUiStore((state) => state.asideView);
-  const isInfoSidebarOpen = useChatUiStore((state) => state.isInfoSidebarOpen);
-  const isNewMessageModalOpen = useChatUiStore((state) => state.isNewMessageModalOpen);
-  const closeNewMessageModal = useChatUiStore((state) => state.closeNewMessageModal);
-  const openAsideView = useChatUiStore((state) => state.openAsideView);
-  const openConfirmation = useChatUiStore((state) => state.openConfirmation);
-  const openMuteModal = useChatUiStore((state) => state.openMuteModal);
-  const openNewMessageModal = useChatUiStore((state) => state.openNewMessageModal);
-  const resetThreadPanels = useChatUiStore((state) => state.resetThreadPanels);
-  const setActiveThreadId = useChatUiStore((state) => state.setActiveThreadId);
-  const toggleInfoSidebar = useChatUiStore((state) => state.toggleInfoSidebar);
+  const {
+    activeThreadId,
+    asideView,
+    isInfoSidebarOpen,
+    isNewMessageModalOpen,
+    closeNewMessageModal,
+    openAsideView,
+    openConfirmation,
+    openMuteModal,
+    openNewMessageModal,
+    resetThreadPanels,
+    setActiveThreadId,
+    toggleInfoSidebar,
+  } = useChatUiStore(useShallow((state) => ({
+    activeThreadId: state.activeThreadId,
+    asideView: state.asideView,
+    isInfoSidebarOpen: state.isInfoSidebarOpen,
+    isNewMessageModalOpen: state.isNewMessageModalOpen,
+    closeNewMessageModal: state.closeNewMessageModal,
+    openAsideView: state.openAsideView,
+    openConfirmation: state.openConfirmation,
+    openMuteModal: state.openMuteModal,
+    openNewMessageModal: state.openNewMessageModal,
+    resetThreadPanels: state.resetThreadPanels,
+    setActiveThreadId: state.setActiveThreadId,
+    toggleInfoSidebar: state.toggleInfoSidebar,
+  })));
   const threadWithPresence = useMemo(
     () => applyPresenceToThread(thread, presence),
     [presence, thread],

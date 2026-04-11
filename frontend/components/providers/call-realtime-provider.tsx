@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useShallow } from "zustand/react/shallow";
 
 import { getEchoInstance } from "@/lib/reverb";
 import { queryKeys } from "@/lib/query-keys";
@@ -20,11 +21,21 @@ function invalidateConversationQueries(
 
 export function CallRealtimeProvider() {
   const queryClient = useQueryClient();
-  const activeThreadId = useChatUiStore((state) => state.activeThreadId);
-  const receiveIncomingCall = useCallStore((state) => state.receiveIncomingCall);
-  const syncCallState = useCallStore((state) => state.syncCallState);
-  const clearActiveCall = useCallStore((state) => state.clearActiveCall);
-  const userId = useAuthStore((state) => state.user?.id ?? null);
+  const { activeThreadId } = useChatUiStore(useShallow((state) => ({
+    activeThreadId: state.activeThreadId,
+  })));
+  const {
+    receiveIncomingCall,
+    syncCallState,
+    clearActiveCall,
+  } = useCallStore(useShallow((state) => ({
+    receiveIncomingCall: state.receiveIncomingCall,
+    syncCallState: state.syncCallState,
+    clearActiveCall: state.clearActiveCall,
+  })));
+  const { userId } = useAuthStore(useShallow((state) => ({
+    userId: state.user?.id ?? null,
+  })));
 
   useEffect(() => {
     if (!userId) {

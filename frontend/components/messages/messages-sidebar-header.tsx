@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Ellipsis, SquarePen } from "lucide-react";
 
 import {
@@ -14,7 +15,7 @@ type MessagesSidebarHeaderProps = {
   onComposeClick?: () => void;
 };
 
-export function MessagesSidebarHeader({
+function MessagesSidebarHeaderComponent({
   title = "Messages",
   isMenuOpen,
   onToggleMenu,
@@ -50,3 +51,5 @@ export function MessagesSidebarHeader({
     </div>
   );
 }
+
+export const MessagesSidebarHeader = memo(MessagesSidebarHeaderComponent);

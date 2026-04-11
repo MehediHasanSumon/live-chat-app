@@ -9,6 +9,7 @@ import {
 } from "@livekit/components-react";
 import { Minimize2, PhoneOff, Video } from "lucide-react";
 import { Track } from "livekit-client";
+import { useShallow } from "zustand/react/shallow";
 
 import {
   formatCallStatus,
@@ -152,9 +153,15 @@ function LiveKitCallPanel({
 }
 
 export function CallRoomOverlay() {
-  const activeCall = useCallStore((state) => state.activeCall);
-  const isRoomOpen = useCallStore((state) => state.isRoomOpen);
-  const minimizeRoom = useCallStore((state) => state.minimizeRoom);
+  const {
+    activeCall,
+    isRoomOpen,
+    minimizeRoom,
+  } = useCallStore(useShallow((state) => ({
+    activeCall: state.activeCall,
+    isRoomOpen: state.isRoomOpen,
+    minimizeRoom: state.minimizeRoom,
+  })));
   const endCallMutation = useEndCallMutation();
 
   if (!activeCall?.token || !isRoomOpen) {

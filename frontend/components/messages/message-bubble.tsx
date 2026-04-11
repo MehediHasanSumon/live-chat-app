@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { CornerUpLeft, Download, FileText, Forward, PencilLine, Send, SmilePlus, Trash2, X } from "lucide-react";
 
 import { MessageAvatar } from "@/components/messages/message-avatar";
@@ -11,19 +11,19 @@ type MessageBubbleProps = {
   message: ChatMessage;
   authUserId: number | null;
   readLabel?: string | null;
-  onToggleReaction?: (emoji: string, hasReacted: boolean) => void;
+  onToggleReaction?: (messageId: number, emoji: string, hasReacted: boolean) => void;
   onOpenImage?: (attachmentId: string) => void;
   onMediaLoad?: () => void;
-  onReply?: () => void;
-  onEdit?: () => void;
-  onForward?: () => void;
-  onRemove?: () => void;
+  onReply?: (messageId: number) => void;
+  onEdit?: (messageId: number, currentBody: string) => void;
+  onForward?: (messageId: number) => void;
+  onRemove?: (messageId: number) => void;
   isReacting?: boolean;
 };
 
 const quickReactions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F525}", "\u{1F602}", "\u{1F62E}"];
 
-export function MessageBubble({
+function MessageBubbleComponent({
   message,
   authUserId,
   readLabel = null,
@@ -219,7 +219,7 @@ export function MessageBubble({
                         key={emoji}
                         type="button"
                         onClick={() => {
-                          onToggleReaction?.(emoji, hasReacted);
+                          onToggleReaction?.(message.numericId, emoji, hasReacted);
                           setShowReactionPicker(false);
                         }}
                         disabled={isReacting}
@@ -236,25 +236,30 @@ export function MessageBubble({
             </div>
 
             {onReply ? (
-              <button type="button" onClick={onReply} className={surfaceActionClass} aria-label="Reply to message">
+              <button type="button" onClick={() => onReply(message.numericId)} className={surfaceActionClass} aria-label="Reply to message">
                 <CornerUpLeft className="h-3.5 w-3.5" />
               </button>
             ) : null}
 
             {onForward ? (
-              <button type="button" onClick={onForward} className={surfaceActionClass} aria-label="Forward message">
+              <button type="button" onClick={() => onForward(message.numericId)} className={surfaceActionClass} aria-label="Forward message">
                 <Send className="h-3.5 w-3.5" />
               </button>
             ) : null}
 
             {message.canEdit && onEdit ? (
-              <button type="button" onClick={onEdit} className={surfaceActionClass} aria-label="Edit message">
+              <button
+                type="button"
+                onClick={() => onEdit(message.numericId, message.body)}
+                className={surfaceActionClass}
+                aria-label="Edit message"
+              >
                 <PencilLine className="h-3.5 w-3.5" />
               </button>
             ) : null}
 
             {onRemove ? (
-              <button type="button" onClick={onRemove} className={surfaceActionClass} aria-label="Remove message">
+              <button type="button" onClick={() => onRemove(message.numericId)} className={surfaceActionClass} aria-label="Remove message">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             ) : null}
@@ -453,3 +458,17 @@ export function MessageBubble({
     </div>
   );
 }
+
+export const MessageBubble = memo(MessageBubbleComponent, (prev, next) =>
+  prev.message === next.message &&
+  prev.authUserId === next.authUserId &&
+  prev.readLabel === next.readLabel &&
+  prev.isReacting === next.isReacting &&
+  prev.onToggleReaction === next.onToggleReaction &&
+  prev.onOpenImage === next.onOpenImage &&
+  prev.onMediaLoad === next.onMediaLoad &&
+  prev.onReply === next.onReply &&
+  prev.onEdit === next.onEdit &&
+  prev.onForward === next.onForward &&
+  prev.onRemove === next.onRemove,
+);

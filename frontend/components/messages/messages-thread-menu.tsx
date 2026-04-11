@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { type LucideIcon } from "lucide-react";
 
 type MenuItem = {
@@ -12,7 +13,7 @@ type MessagesThreadMenuProps = {
   onItemClick?: (label: string) => void;
 };
 
-export function MessagesThreadMenu({ items, onClose, onItemClick }: MessagesThreadMenuProps) {
+function MessagesThreadMenuComponent({ items, onClose, onItemClick }: MessagesThreadMenuProps) {
   return (
     <div
       role="menu"
@@ -40,3 +41,5 @@ export function MessagesThreadMenu({ items, onClose, onItemClick }: MessagesThre
     </div>
   );
 }
+
+export const MessagesThreadMenu = memo(MessagesThreadMenuComponent);

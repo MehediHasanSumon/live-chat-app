@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import { MessagesConversationActionModals } from "@/components/messages/messages-conversation-action-modals";
 import { MessagesEmptyState } from "@/components/messages/messages-empty-state";
@@ -10,13 +11,23 @@ import { MessagesSidebar } from "@/components/messages/messages-sidebar";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 
 export function MessagesPageLayout() {
-  const isNewMessageModalOpen = useChatUiStore((state) => state.isNewMessageModalOpen);
-  const closeNewMessageModal = useChatUiStore((state) => state.closeNewMessageModal);
-  const openConfirmation = useChatUiStore((state) => state.openConfirmation);
-  const openMuteModal = useChatUiStore((state) => state.openMuteModal);
-  const openNewMessageModal = useChatUiStore((state) => state.openNewMessageModal);
-  const resetThreadPanels = useChatUiStore((state) => state.resetThreadPanels);
-  const setActiveThreadId = useChatUiStore((state) => state.setActiveThreadId);
+  const {
+    isNewMessageModalOpen,
+    closeNewMessageModal,
+    openConfirmation,
+    openMuteModal,
+    openNewMessageModal,
+    resetThreadPanels,
+    setActiveThreadId,
+  } = useChatUiStore(useShallow((state) => ({
+    isNewMessageModalOpen: state.isNewMessageModalOpen,
+    closeNewMessageModal: state.closeNewMessageModal,
+    openConfirmation: state.openConfirmation,
+    openMuteModal: state.openMuteModal,
+    openNewMessageModal: state.openNewMessageModal,
+    resetThreadPanels: state.resetThreadPanels,
+    setActiveThreadId: state.setActiveThreadId,
+  })));
 
   useEffect(() => {
     setActiveThreadId(null);

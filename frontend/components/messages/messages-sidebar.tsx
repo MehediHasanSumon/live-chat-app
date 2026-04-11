@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -153,16 +153,38 @@ export function MessagesSidebar({
     };
   }, []);
 
+  const handleSelectThread = useCallback(() => {
+    setOpenMenuThreadId(null);
+    setIsSidebarMenuOpen(false);
+  }, []);
+
+  const handleToggleSidebarMenu = useCallback(() => {
+    setIsSidebarMenuOpen((value) => !value);
+    setOpenMenuThreadId(null);
+  }, []);
+
+  const handleCloseSidebarMenu = useCallback(() => {
+    setIsSidebarMenuOpen(false);
+  }, []);
+
+  const handleOpenThreadMenu = useCallback((threadId: string, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsSidebarMenuOpen(false);
+    setOpenMenuThreadId((value) => (value === threadId ? null : threadId));
+  }, []);
+
+  const handleFilterChange = useCallback((filter: string) => {
+    setActiveFilter(filter as (typeof filters)[number]);
+  }, []);
+
   return (
     <aside ref={sidebarRef} className="surface h-full w-full border-r border-[var(--line)] px-4 py-4 sm:px-5">
       <MessagesSidebarHeader
         isMenuOpen={isSidebarMenuOpen}
-        onToggleMenu={() => {
-          setIsSidebarMenuOpen((value) => !value);
-          setOpenMenuThreadId(null);
-        }}
+        onToggleMenu={handleToggleSidebarMenu}
         menuItems={sidebarMenuItems}
-        onCloseMenu={() => setIsSidebarMenuOpen(false)}
+        onCloseMenu={handleCloseSidebarMenu}
         onComposeClick={onOpenNewMessageModal}
       />
 
@@ -175,7 +197,7 @@ export function MessagesSidebar({
       <MessagesFilterTabs
         filters={filters}
         activeFilter={activeFilter}
-        onChange={(filter) => setActiveFilter(filter as (typeof filters)[number])}
+        onChange={handleFilterChange}
       />
 
       <div className="mt-4 space-y-2">
@@ -238,16 +260,8 @@ export function MessagesSidebar({
                 thread={thread}
                 isActive={isActive}
                 isMenuOpen={isMenuOpen}
-                onSelect={() => {
-                  setOpenMenuThreadId(null);
-                  setIsSidebarMenuOpen(false);
-                }}
-                onOpenMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setIsSidebarMenuOpen(false);
-                  setOpenMenuThreadId((value) => (value === thread.id ? null : thread.id));
-                }}
+                onSelect={handleSelectThread}
+                onOpenMenu={handleOpenThreadMenu}
               />
 
               {isMenuOpen ? (

@@ -3,6 +3,7 @@
 import { PhoneCall, PhoneOff, Video } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useShallow } from "zustand/react/shallow";
 
 import {
   formatCallStatus,
@@ -22,14 +23,25 @@ import { useCallStore } from "@/lib/stores/call-store";
 
 export function CallDock() {
   const router = useRouter();
-  const userId = useAuthStore((state) => state.user?.id ?? null);
+  const { userId } = useAuthStore(useShallow((state) => ({
+    userId: state.user?.id ?? null,
+  })));
   const { data: conversations = [] } = useConversationsQuery(Boolean(userId));
-  const incomingCall = useCallStore((state) => state.incomingCall);
-  const activeCall = useCallStore((state) => state.activeCall);
-  const isRoomOpen = useCallStore((state) => state.isRoomOpen);
-  const openRoom = useCallStore((state) => state.openRoom);
-  const clearIncomingCall = useCallStore((state) => state.clearIncomingCall);
-  const clearActiveCall = useCallStore((state) => state.clearActiveCall);
+  const {
+    incomingCall,
+    activeCall,
+    isRoomOpen,
+    openRoom,
+    clearIncomingCall,
+    clearActiveCall,
+  } = useCallStore(useShallow((state) => ({
+    incomingCall: state.incomingCall,
+    activeCall: state.activeCall,
+    isRoomOpen: state.isRoomOpen,
+    openRoom: state.openRoom,
+    clearIncomingCall: state.clearIncomingCall,
+    clearActiveCall: state.clearActiveCall,
+  })));
   const acceptCallMutation = useAcceptCallMutation();
   const declineCallMutation = useDeclineCallMutation();
   const endCallMutation = useEndCallMutation();

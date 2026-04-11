@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useShallow } from "zustand/react/shallow";
 
 import { getDirectThreadPeer, toConversationThread } from "@/lib/messages-data";
 import { useConversationQuery } from "@/lib/hooks/use-conversation-query";
@@ -24,13 +25,23 @@ const muteDurations = {
 
 export function MessagesConversationActionModals() {
   const router = useRouter();
-  const activeThreadId = useChatUiStore((state) => state.activeThreadId);
-  const confirmationAction = useChatUiStore((state) => state.confirmationAction);
-  const confirmationThreadId = useChatUiStore((state) => state.confirmationThreadId);
-  const isMuteModalOpen = useChatUiStore((state) => state.isMuteModalOpen);
-  const muteThreadId = useChatUiStore((state) => state.muteThreadId);
-  const closeConfirmation = useChatUiStore((state) => state.closeConfirmation);
-  const closeMuteModal = useChatUiStore((state) => state.closeMuteModal);
+  const {
+    activeThreadId,
+    confirmationAction,
+    confirmationThreadId,
+    isMuteModalOpen,
+    muteThreadId,
+    closeConfirmation,
+    closeMuteModal,
+  } = useChatUiStore(useShallow((state) => ({
+    activeThreadId: state.activeThreadId,
+    confirmationAction: state.confirmationAction,
+    confirmationThreadId: state.confirmationThreadId,
+    isMuteModalOpen: state.isMuteModalOpen,
+    muteThreadId: state.muteThreadId,
+    closeConfirmation: state.closeConfirmation,
+    closeMuteModal: state.closeMuteModal,
+  })));
   const targetThreadId = confirmationThreadId ?? muteThreadId;
   const { data: conversation } = useConversationQuery(targetThreadId ?? "");
   const archiveConversationMutation = useArchiveConversationMutation();

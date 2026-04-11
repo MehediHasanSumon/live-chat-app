@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Search } from "lucide-react";
 
 type MessagesSearchBarProps = {
@@ -6,7 +7,7 @@ type MessagesSearchBarProps = {
   onChange?: (value: string) => void;
 };
 
-export function MessagesSearchBar({
+function MessagesSearchBarComponent({
   placeholder = "Search Messenger",
   value = "",
   onChange,
@@ -23,3 +24,5 @@ export function MessagesSearchBar({
     </div>
   );
 }
+
+export const MessagesSearchBar = memo(MessagesSearchBarComponent);

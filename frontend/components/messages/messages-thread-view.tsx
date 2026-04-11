@@ -291,7 +291,7 @@ export function MessagesThreadView({
     };
   }, [handleLoadOlder, hasNextPage, thread.id]);
 
-  const handleStartCall = async (mediaType: "voice" | "video") => {
+  const handleStartCall = useCallback(async (mediaType: "voice" | "video") => {
     if (!currentUserId) {
       return;
     }
@@ -306,30 +306,18 @@ export function MessagesThreadView({
       roomUuid: callRoom.room_uuid,
       wantsVideo: mediaType === "video",
     });
-  };
+  }, [currentUserId, joinCallMutation, startCallMutation, thread]);
 
-  const startEditing = (messageId: number, currentBody: string) => {
-    setReplyingMessageId(null);
-    setEditingMessageId(messageId);
-    setEditingValue(currentBody);
-  };
-
-  const startReplying = (messageId: number) => {
+  const cancelEditing = useCallback(() => {
     setEditingMessageId(null);
     setEditingValue("");
-    setReplyingMessageId(messageId);
-  };
+  }, [setEditingMessageId, setEditingValue]);
 
-  const cancelEditing = () => {
-    setEditingMessageId(null);
-    setEditingValue("");
-  };
-
-  const cancelReplying = () => {
+  const cancelReplying = useCallback(() => {
     setReplyingMessageId(null);
-  };
+  }, [setReplyingMessageId]);
 
-  const handleSaveEdit = async (messageId: number) => {
+  const handleSaveEdit = useCallback(async (messageId: number) => {
     if (!editingValue.trim()) {
       return;
     }
@@ -341,7 +329,7 @@ export function MessagesThreadView({
     });
 
     cancelEditing();
-  };
+  }, [cancelEditing, editMessageMutation, editingValue, thread.id]);
 
   const handleRemove = async (messageId: number, scope: "self" | "everyone") => {
     await deleteMessageMutation.mutateAsync({
@@ -354,12 +342,7 @@ export function MessagesThreadView({
     setRemoveScope("self");
   };
 
-  const openRemoveModal = (messageId: number, preferredScope: "self" | "everyone" = "self") => {
-    setRemoveTargetMessageId(messageId);
-    setRemoveScope(preferredScope);
-  };
-
-  const handleForward = async (targetConversationId: string) => {
+  const handleForward = useCallback(async (targetConversationId: string) => {
     if (!forwardingMessageId) {
       return;
     }
@@ -372,7 +355,7 @@ export function MessagesThreadView({
 
     setForwardingMessageId(null);
     setForwardingSearch("");
-  };
+  }, [forwardMessageMutation, forwardingMessageId, setForwardingMessageId, setForwardingSearch, thread.id]);
 
   const handleMediaLoad = useCallback(() => {
     if (!shouldStickToBottomRef.current) {
@@ -384,7 +367,42 @@ export function MessagesThreadView({
     });
   }, [scrollToBottom]);
 
-  const buildPendingMessage = ({
+  const handleReplyMessage = useCallback((messageId: number) => {
+    setEditingMessageId(null);
+    setEditingValue("");
+    setReplyingMessageId(messageId);
+  }, [setEditingMessageId, setEditingValue, setReplyingMessageId]);
+
+  const handleEditMessage = useCallback((messageId: number, currentBody: string) => {
+    setReplyingMessageId(null);
+    setEditingMessageId(messageId);
+    setEditingValue(currentBody);
+  }, [setEditingMessageId, setEditingValue, setReplyingMessageId]);
+
+  const handleForwardMessage = useCallback((messageId: number) => {
+    setForwardingMessageId(messageId);
+  }, [setForwardingMessageId]);
+
+  const handleRemoveMessage = useCallback((messageId: number) => {
+    setRemoveTargetMessageId(messageId);
+    setRemoveScope("self");
+  }, [setRemoveScope, setRemoveTargetMessageId]);
+
+  const handleOpenImage = useCallback((attachmentId: string) => {
+    onOpenImageViewer?.(galleryImages, attachmentId);
+  }, [galleryImages, onOpenImageViewer]);
+
+  const handleToggleReaction = useCallback((messageId: number, emoji: string, hasReacted: boolean) => {
+    void toggleReactionMutation.mutateAsync({
+      messageId,
+      emoji,
+      hasReacted,
+    });
+  }, [toggleReactionMutation]);
+
+  const reactingMessageId = toggleReactionMutation.isPending ? toggleReactionMutation.variables?.messageId ?? null : null;
+
+  const buildPendingMessage = useCallback(({
     text,
     attachments,
     replyToMessageId,
@@ -431,7 +449,76 @@ export function MessagesThreadView({
         placeholderText: null,
       })),
     };
-  };
+  }, [currentUserId, currentUserName, latestMessage?.seq, mappedMessages]);
+
+  const replyPreview = useMemo(
+    () =>
+      replyingMessage
+        ? {
+            senderName: replyingMessage.sender === "me" ? "You" : (replyingMessage.senderName ?? undefined),
+            text: replyingMessage.body,
+          }
+        : null,
+    [replyingMessage],
+  );
+
+  const handleStartVoiceCall = useCallback(() => {
+    void handleStartCall("voice");
+  }, [handleStartCall]);
+
+  const handleStartVideoCall = useCallback(() => {
+    void handleStartCall("video");
+  }, [handleStartCall]);
+
+  const handleSendMessage = useCallback(async ({
+    text,
+    attachments,
+    voice,
+    gif,
+  }: {
+    text: string;
+    attachments: ComposerAttachmentInput[];
+    voice: null;
+    gif: null;
+  }) => {
+    if (editingMessageId) {
+      await handleSaveEdit(editingMessageId);
+      return;
+    }
+
+    const optimisticMessage = buildPendingMessage({
+      text,
+      attachments,
+      replyToMessageId: replyingMessageId,
+    });
+
+    setPendingMessages((current) => [...current, optimisticMessage]);
+
+    try {
+      await sendMessageMutation.mutateAsync({
+        conversationId: thread.id,
+        text,
+        attachments,
+        voice,
+        gif,
+        replyToMessageId: replyingMessageId,
+      });
+    } catch (error) {
+      setPendingMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
+      throw error;
+    }
+
+    setPendingMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
+    cancelReplying();
+  }, [
+    buildPendingMessage,
+    cancelReplying,
+    editingMessageId,
+    handleSaveEdit,
+    replyingMessageId,
+    sendMessageMutation,
+    thread.id,
+  ]);
 
   return (
     <section className="flex h-full min-h-0 w-full flex-col bg-white/60">
@@ -439,12 +526,8 @@ export function MessagesThreadView({
         thread={thread}
         isInfoSidebarOpen={isInfoSidebarOpen}
         onToggleInfoSidebar={onToggleInfoSidebar}
-        onStartVoiceCall={() => {
-          void handleStartCall("voice");
-        }}
-        onStartVideoCall={() => {
-          void handleStartCall("video");
-        }}
+        onStartVoiceCall={handleStartVoiceCall}
+        onStartVideoCall={handleStartVideoCall}
         isStartingVoiceCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "voice"}
         isStartingVideoCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "video"}
       />
@@ -514,11 +597,11 @@ export function MessagesThreadView({
               key={message.id}
               message={message}
               authUserId={currentUserId}
-              onReply={() => startReplying(message.numericId)}
-              onEdit={() => startEditing(message.numericId, message.body)}
-              onForward={() => setForwardingMessageId(message.numericId)}
-              onRemove={() => openRemoveModal(message.numericId, "self")}
-              onOpenImage={(attachmentId) => onOpenImageViewer?.(galleryImages, attachmentId)}
+              onReply={handleReplyMessage}
+              onEdit={handleEditMessage}
+              onForward={handleForwardMessage}
+              onRemove={handleRemoveMessage}
+              onOpenImage={handleOpenImage}
               onMediaLoad={handleMediaLoad}
               readLabel={
                 message.isPending
@@ -529,14 +612,8 @@ export function MessagesThreadView({
                     : "Sent"
                   : null
               }
-              onToggleReaction={(emoji, hasReacted) => {
-                void toggleReactionMutation.mutateAsync({
-                  messageId: message.numericId,
-                  emoji,
-                  hasReacted,
-                });
-              }}
-              isReacting={toggleReactionMutation.isPending}
+              onToggleReaction={handleToggleReaction}
+              isReacting={reactingMessageId === message.numericId}
             />
           ))}
         </div>
@@ -556,51 +633,13 @@ export function MessagesThreadView({
           isEditing={Boolean(editingMessage)}
           editingValue={editingValue}
           editingMessagePreview={editingMessage?.body ?? null}
-          replyPreview={
-            replyingMessage
-              ? {
-                  senderName: replyingMessage.sender === "me" ? "You" : (replyingMessage.senderName ?? undefined),
-                  text: replyingMessage.body,
-                }
-              : null
-          }
+          replyPreview={replyPreview}
           onEditingValueChange={setEditingValue}
           onCancelEditing={cancelEditing}
           onCancelReply={cancelReplying}
           isSending={editMessageMutation.isPending}
           errorMessage={composerErrorMessage}
-          onSend={async ({ text, attachments, voice, gif }) => {
-            if (editingMessageId) {
-              await handleSaveEdit(editingMessageId);
-              return;
-            }
-
-            const optimisticMessage = buildPendingMessage({
-              text,
-              attachments,
-              replyToMessageId: replyingMessageId,
-            });
-
-            setPendingMessages((current) => [...current, optimisticMessage]);
-
-            try {
-              await sendMessageMutation.mutateAsync({
-                conversationId: thread.id,
-                text,
-                attachments,
-                voice,
-                gif,
-                replyToMessageId: replyingMessageId,
-              });
-            } catch (error) {
-              setPendingMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
-              throw error;
-            }
-
-            setPendingMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
-
-            cancelReplying();
-          }}
+          onSend={handleSendMessage}
         />
       </footer>
 

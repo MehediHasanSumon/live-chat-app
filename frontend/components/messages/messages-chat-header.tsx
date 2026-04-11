@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { MoreVertical, Phone, Video } from "lucide-react";
 
 import { formatPresenceLabel, type MessageThread } from "@/lib/messages-data";
@@ -13,7 +14,7 @@ type MessagesChatHeaderProps = {
   isStartingVideoCall?: boolean;
 };
 
-export function MessagesChatHeader({
+function MessagesChatHeaderComponent({
   thread,
   isInfoSidebarOpen,
   onToggleInfoSidebar,
@@ -74,3 +75,13 @@ export function MessagesChatHeader({
     </header>
   );
 }
+
+export const MessagesChatHeader = memo(MessagesChatHeaderComponent, (prev, next) =>
+  prev.thread === next.thread &&
+  prev.isInfoSidebarOpen === next.isInfoSidebarOpen &&
+  prev.isStartingVoiceCall === next.isStartingVoiceCall &&
+  prev.isStartingVideoCall === next.isStartingVideoCall &&
+  prev.onToggleInfoSidebar === next.onToggleInfoSidebar &&
+  prev.onStartVoiceCall === next.onStartVoiceCall &&
+  prev.onStartVideoCall === next.onStartVideoCall,
+);

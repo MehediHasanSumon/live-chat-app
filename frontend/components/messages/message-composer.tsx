@@ -3,6 +3,7 @@
 import {
   type ChangeEvent,
   type KeyboardEvent,
+  memo,
   useCallback,
   useEffect,
   useRef,
@@ -38,7 +39,7 @@ type MessageComposerProps = {
   errorMessage?: string | null;
 };
 
-export function MessageComposer({
+function MessageComposerComponent({
   threadName,
   conversationId,
   isEditing = false,
@@ -463,3 +464,18 @@ export function MessageComposer({
     </div>
   );
 }
+
+export const MessageComposer = memo(MessageComposerComponent, (prev, next) =>
+  prev.threadName === next.threadName &&
+  prev.conversationId === next.conversationId &&
+  prev.isEditing === next.isEditing &&
+  prev.editingValue === next.editingValue &&
+  prev.editingMessagePreview === next.editingMessagePreview &&
+  prev.replyPreview === next.replyPreview &&
+  prev.onEditingValueChange === next.onEditingValueChange &&
+  prev.onCancelEditing === next.onCancelEditing &&
+  prev.onCancelReply === next.onCancelReply &&
+  prev.onSend === next.onSend &&
+  prev.isSending === next.isSending &&
+  prev.errorMessage === next.errorMessage,
+);

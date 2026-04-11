@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { Ellipsis } from "lucide-react";
 
@@ -10,11 +11,11 @@ type MessageThreadItemProps = {
   thread: MessageThread;
   isActive: boolean;
   isMenuOpen: boolean;
-  onOpenMenu: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  onSelect: () => void;
+  onOpenMenu: (threadId: string, event: React.MouseEvent<HTMLButtonElement>) => void;
+  onSelect: (threadId: string) => void;
 };
 
-export function MessageThreadItem({
+function MessageThreadItemComponent({
   thread,
   isActive,
   isMenuOpen,
@@ -25,7 +26,7 @@ export function MessageThreadItem({
     <div className="relative">
       <Link
         href={`/messages/t/${thread.id}`}
-        onClick={onSelect}
+        onClick={() => onSelect(thread.id)}
         className={`block rounded-xl border px-3 py-3 pr-12 transition ${
           isActive
             ? "border-[rgba(96,91,255,0.24)] bg-[var(--accent-soft)]"
@@ -47,7 +48,7 @@ export function MessageThreadItem({
 
       <button
         type="button"
-        onClick={onOpenMenu}
+        onClick={(event) => onOpenMenu(thread.id, event)}
         aria-expanded={isMenuOpen}
         aria-haspopup="menu"
         aria-label={`Open actions for ${thread.name}`}
@@ -70,3 +71,11 @@ export function MessageThreadItem({
     </div>
   );
 }
+
+export const MessageThreadItem = memo(MessageThreadItemComponent, (prev, next) =>
+  prev.thread === next.thread &&
+  prev.isActive === next.isActive &&
+  prev.isMenuOpen === next.isMenuOpen &&
+  prev.onOpenMenu === next.onOpenMenu &&
+  prev.onSelect === next.onSelect,
+);

@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 type MessageAvatarProps = {
   name: string;
   online?: boolean;
@@ -5,7 +7,7 @@ type MessageAvatarProps = {
   textClass?: string;
 };
 
-export function MessageAvatar({
+function MessageAvatarComponent({
   name,
   online = false,
   sizeClass = "h-11 w-11",
@@ -22,3 +24,5 @@ export function MessageAvatar({
     </div>
   );
 }
+
+export const MessageAvatar = memo(MessageAvatarComponent);

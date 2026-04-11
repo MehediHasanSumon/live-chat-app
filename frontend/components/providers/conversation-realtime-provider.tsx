@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useShallow } from "zustand/react/shallow";
 
 import { queryKeys } from "@/lib/query-keys";
 import { getEchoInstance } from "@/lib/reverb";
@@ -19,11 +20,21 @@ type TypingEventPayload = {
 
 export function ConversationRealtimeProvider() {
   const queryClient = useQueryClient();
-  const activeThreadId = useChatUiStore((state) => state.activeThreadId);
-  const authUserId = useAuthStore((state) => state.user?.id ?? null);
-  const addTypingUser = useConversationRealtimeStore((state) => state.addTypingUser);
-  const removeTypingUser = useConversationRealtimeStore((state) => state.removeTypingUser);
-  const clearConversation = useConversationRealtimeStore((state) => state.clearConversation);
+  const { activeThreadId } = useChatUiStore(useShallow((state) => ({
+    activeThreadId: state.activeThreadId,
+  })));
+  const { authUserId } = useAuthStore(useShallow((state) => ({
+    authUserId: state.user?.id ?? null,
+  })));
+  const {
+    addTypingUser,
+    removeTypingUser,
+    clearConversation,
+  } = useConversationRealtimeStore(useShallow((state) => ({
+    addTypingUser: state.addTypingUser,
+    removeTypingUser: state.removeTypingUser,
+    clearConversation: state.clearConversation,
+  })));
 
   useEffect(() => {
     if (!activeThreadId) {

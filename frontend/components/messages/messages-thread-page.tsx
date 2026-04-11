@@ -1,5 +1,7 @@
 "use client";
 
+import { useShallow } from "zustand/react/shallow";
+
 import { MessagesShell } from "@/components/messages/messages-shell";
 import { MessagesSidebar } from "@/components/messages/messages-sidebar";
 import { MessagesThreadLayout } from "@/components/messages/messages-thread-layout";
@@ -12,9 +14,15 @@ type MessagesThreadPageProps = {
 };
 
 export function MessagesThreadPage({ threadId }: MessagesThreadPageProps) {
-  const openConfirmation = useChatUiStore((state) => state.openConfirmation);
-  const openMuteModal = useChatUiStore((state) => state.openMuteModal);
-  const openNewMessageModal = useChatUiStore((state) => state.openNewMessageModal);
+  const {
+    openConfirmation,
+    openMuteModal,
+    openNewMessageModal,
+  } = useChatUiStore(useShallow((state) => ({
+    openConfirmation: state.openConfirmation,
+    openMuteModal: state.openMuteModal,
+    openNewMessageModal: state.openNewMessageModal,
+  })));
   const { data: conversation, isLoading, isError, isFetching } = useConversationQuery(threadId);
 
   if (isLoading) {

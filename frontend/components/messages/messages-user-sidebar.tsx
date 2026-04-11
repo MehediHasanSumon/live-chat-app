@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Bell, Crown, FileText, Image, Lock, LogOut, Plus, ShieldBan } from "lucide-react";
@@ -25,7 +25,7 @@ const mediaItems = [
   { label: "Files", icon: FileText },
 ];
 
-export function MessagesUserSidebar({
+function MessagesUserSidebarComponent({
   thread,
   onOpenMediaPanel,
   onOpenMuteModal,
@@ -243,3 +243,9 @@ export function MessagesUserSidebar({
     </div>
   );
 }
+
+export const MessagesUserSidebar = memo(MessagesUserSidebarComponent, (prev, next) =>
+  prev.thread === next.thread &&
+  prev.onOpenMediaPanel === next.onOpenMediaPanel &&
+  prev.onOpenMuteModal === next.onOpenMuteModal,
+);
