@@ -11,6 +11,7 @@ import { useUserSearchQuery } from "@/lib/hooks/use-user-search-query";
 import { MessagesAccordionSection } from "@/components/messages/messages-accordion-section";
 import { MessageAvatar } from "@/components/messages/message-avatar";
 import { MessagesEncryptionBadge } from "@/components/messages/messages-encryption-badge";
+import { MessagesGroupSettingsSection } from "@/components/messages/messages-group-settings-section";
 import { MessagesListRow } from "@/components/messages/messages-list-row";
 import { MessagesQuickActions } from "@/components/messages/messages-quick-actions";
 
@@ -34,7 +35,9 @@ function MessagesUserSidebarComponent({
   const [searchQuery, setSearchQuery] = useState("");
   const presenceLabel = formatPresenceLabel(thread.presence);
   const currentMembership = thread.membership ?? null;
-  const canManageMembers = thread.isGroup && ["owner", "admin"].includes(currentMembership?.role ?? "");
+  const canManageMembers = Boolean(
+    thread.isGroup && ["owner", "admin"].includes(currentMembership?.role ?? ""),
+  );
   const { data: users = [] } = useUserSearchQuery(searchQuery, Boolean(canManageMembers));
   const addMembersMutation = useAddGroupMembersMutation(thread.id);
   const changeRoleMutation = useChangeGroupRoleMutation(thread.id);
@@ -89,7 +92,13 @@ function MessagesUserSidebarComponent({
     <div className="surface h-full bg-[#fbfcff]">
       <div className="h-full overflow-y-auto px-5 py-6">
         <div className="flex flex-col items-center text-center">
-          <MessageAvatar name={thread.name} online={thread.online} sizeClass="h-20 w-20" textClass="text-2xl" />
+          <MessageAvatar
+            name={thread.name}
+            online={thread.online}
+            imageUrl={thread.avatarUrl}
+            sizeClass="h-20 w-20"
+            textClass="text-2xl"
+          />
 
           <h2 className="mt-4 text-lg font-semibold tracking-tight">{thread.name}</h2>
           {presenceLabel ? (
@@ -106,6 +115,16 @@ function MessagesUserSidebarComponent({
         </div>
 
         <div className="mt-6 space-y-5">
+          {thread.isGroup ? (
+            <MessagesAccordionSection title="Group settings">
+              <MessagesGroupSettingsSection
+                key={`${thread.id}:${thread.name}:${thread.avatarObjectId ?? "none"}`}
+                thread={thread}
+                canManageGroup={canManageMembers}
+              />
+            </MessagesAccordionSection>
+          ) : null}
+
           <MessagesAccordionSection title="Media & files">
             {mediaItems.map((item) => (
               <MessagesListRow

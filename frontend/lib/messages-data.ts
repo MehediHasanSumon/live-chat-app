@@ -33,6 +33,7 @@ export type ConversationApiItem = {
   title: string | null;
   description: string | null;
   avatar_object_id: number | null;
+  avatar_object?: StorageObjectApiItem | null;
   created_by: number;
   settings_json: Record<string, unknown> | null;
   last_message_seq: number;
@@ -52,6 +53,8 @@ export type MessageThread = {
   numericId: number;
   lastMessageSeq: number;
   name: string;
+  avatarUrl?: string | null;
+  avatarObjectId?: number | null;
   handle: string;
   description?: string | null;
   lastMessage: string;
@@ -301,6 +304,8 @@ export function toConversationThread(conversation: ConversationApiItem): Message
       conversation.type === "group"
         ? conversation.title ?? `Group #${conversation.id}`
         : buildDirectConversationName(conversation),
+    avatarUrl: conversation.avatar_object?.download_url ?? null,
+    avatarObjectId: conversation.avatar_object_id,
     handle: buildConversationHandle(conversation),
     description: conversation.description,
     lastMessage: conversation.last_message_preview ?? "No messages yet",

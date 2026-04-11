@@ -5,6 +5,8 @@ use App\Models\ConversationMember;
 use App\Models\StorageObject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -166,6 +168,7 @@ it('allows group admins to rename a group and update its avatar', function () {
     $owner = User::factory()->create();
     $avatar = StorageObject::query()->create([
         'object_uuid' => (string) str()->uuid(),
+        'owner_user_id' => $owner->id,
         'purpose' => 'group_avatar',
         'media_kind' => 'image',
         'storage_driver' => 'local',
@@ -198,7 +201,76 @@ it('allows group admins to rename a group and update its avatar', function () {
     $response
         ->assertOk()
         ->assertJsonPath('data.title', 'Product circle v2')
-        ->assertJsonPath('data.avatar_object_id', $avatar->id);
+        ->assertJsonPath('data.avatar_object_id', $avatar->id)
+        ->assertJsonPath('data.avatar_object.id', $avatar->id);
+});
+
+it('rejects group avatar updates that use another users upload', function () {
+    $owner = User::factory()->create();
+    $otherUser = User::factory()->create();
+    $avatar = StorageObject::query()->create([
+        'object_uuid' => (string) str()->uuid(),
+        'owner_user_id' => $otherUser->id,
+        'purpose' => 'group_avatar',
+        'media_kind' => 'image',
+        'storage_driver' => 'local',
+        'disk_path' => 'avatars/foreign-group.png',
+        'original_name' => 'foreign-group.png',
+        'mime_type' => 'image/png',
+        'size_bytes' => 2048,
+    ]);
+
+    $conversation = Conversation::query()->create([
+        'type' => 'group',
+        'title' => 'Ops squad',
+        'created_by' => $owner->id,
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $owner->id,
+        'role' => 'owner',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    $this->actingAs($owner, 'web')
+        ->patchJson("/api/groups/{$conversation->id}", [
+            'avatar_object_id' => $avatar->id,
+        ])
+        ->assertStatus(422)
+        ->assertJsonPath('errors.avatar_object_id.0', 'You may only use group avatars that you uploaded.');
+});
+
+it('allows group admins to save a new avatar file and title in one request', function () {
+    Storage::fake(config('uploads.disk'));
+
+    $owner = User::factory()->create();
+    $conversation = Conversation::query()->create([
+        'type' => 'group',
+        'title' => 'Design team',
+        'created_by' => $owner->id,
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $owner->id,
+        'role' => 'owner',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    $response = $this->actingAs($owner, 'web')
+        ->patch("/api/groups/{$conversation->id}", [
+            'title' => 'Design team v2',
+            'avatar_file' => UploadedFile::fake()->image('group-avatar.png', 160, 160),
+        ]);
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('data.title', 'Design team v2')
+        ->assertJsonPath('data.avatar_object.purpose', 'group_avatar')
+        ->assertJsonPath('data.avatar_object.owner_user_id', $owner->id);
 });
 
 it('forbids showing a conversation to a pending member', function () {

@@ -5,6 +5,7 @@ namespace App\Services\Conversations;
 use App\Models\Conversation;
 use App\Models\ConversationMember;
 use App\Models\MessageAttachment;
+use App\Models\StorageObject;
 use App\Services\Privacy\PrivacyService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -117,11 +118,12 @@ class ConversationService
     public function updateGroup(Conversation $conversation, int $actorId, array $payload): Conversation
     {
         $this->conversationMemberService->ensureGroupManager($conversation, $actorId);
+        $validatedAvatarObjectId = $this->resolveValidatedGroupAvatarObjectId($payload, $actorId);
 
         $conversation->fill([
             'title' => $payload['title'] ?? $conversation->title,
             'description' => array_key_exists('description', $payload) ? $payload['description'] : $conversation->description,
-            'avatar_object_id' => array_key_exists('avatar_object_id', $payload) ? $payload['avatar_object_id'] : $conversation->avatar_object_id,
+            'avatar_object_id' => $validatedAvatarObjectId ?? $conversation->avatar_object_id,
             'settings_json' => array_key_exists('settings_json', $payload) ? $payload['settings_json'] : $conversation->settings_json,
         ])->save();
 
@@ -301,5 +303,32 @@ class ConversationService
             'lastMessage.sender',
             'members.user',
         ]);
+    }
+
+    protected function resolveValidatedGroupAvatarObjectId(array $payload, int $actorId): ?int
+    {
+        if (! array_key_exists('avatar_object_id', $payload)) {
+            return null;
+        }
+
+        if ($payload['avatar_object_id'] === null) {
+            return null;
+        }
+
+        $storageObject = StorageObject::query()->findOrFail((int) $payload['avatar_object_id']);
+
+        if ((int) $storageObject->owner_user_id !== $actorId) {
+            throw new InvalidArgumentException('You may only use group avatars that you uploaded.');
+        }
+
+        if ($storageObject->purpose !== 'group_avatar') {
+            throw new InvalidArgumentException('Only group avatar uploads can be used for a group photo.');
+        }
+
+        if ($storageObject->deleted_at !== null) {
+            throw new InvalidArgumentException('This uploaded group avatar is no longer available.');
+        }
+
+        return (int) $storageObject->getKey();
     }
 }

@@ -23,6 +23,7 @@ class ConversationResource extends JsonResource
             'title' => $this->title,
             'description' => $this->description,
             'avatar_object_id' => $this->avatar_object_id,
+            'avatar_object' => $this->whenLoaded('avatarObject', fn () => (new StorageObjectResource($this->avatarObject))->resolve($request)),
             'created_by' => $this->created_by,
             'settings_json' => $this->settings_json,
             'last_message_seq' => $this->last_message_seq,

@@ -11,6 +11,7 @@ use App\Models\Conversation;
 use App\Models\User;
 use App\Services\Conversations\ConversationMemberService;
 use App\Services\Conversations\ConversationService;
+use App\Services\Storage\StorageObjectService;
 use Illuminate\Http\JsonResponse;
 use InvalidArgumentException;
 
@@ -19,6 +20,7 @@ class GroupController extends Controller
     public function __construct(
         protected ConversationService $conversationService,
         protected ConversationMemberService $conversationMemberService,
+        protected StorageObjectService $storageObjectService,
     ) {
     }
 
@@ -48,14 +50,37 @@ class GroupController extends Controller
     {
         abort_unless($request->user()->can('manageGroup', $conversation), 403);
 
-        return response()->json([
-            'data' => new ConversationResource(
-                $this->conversationService->updateGroup(
-                    $conversation,
+        try {
+            $payload = $request->validated();
+
+            if ($request->boolean('clear_avatar')) {
+                $payload['avatar_object_id'] = null;
+            }
+
+            if ($request->hasFile('avatar_file')) {
+                $payload['avatar_object_id'] = $this->storageObjectService->storeUpload(
+                    $request->file('avatar_file'),
                     $request->user()->getKey(),
-                    $request->validated()
-                )
-            ),
+                    'group_avatar',
+                )->getKey();
+            }
+
+            $conversation = $this->conversationService->updateGroup(
+                $conversation,
+                $request->user()->getKey(),
+                $payload
+            );
+        } catch (InvalidArgumentException $exception) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => [
+                    $request->hasFile('avatar_file') ? 'avatar_file' : 'avatar_object_id' => [$exception->getMessage()],
+                ],
+            ], 422);
+        }
+
+        return response()->json([
+            'data' => new ConversationResource($conversation),
         ]);
     }
 
