@@ -75,6 +75,21 @@ class CallController extends Controller
         ], 201);
     }
 
+    public function show(Request $request, CallRoom $callRoom): JsonResponse
+    {
+        if (! $callRoom->participants()->where('user_id', $request->user()->getKey())->exists()) {
+            abort(404);
+        }
+
+        $callRoom->loadMissing([
+            'participants.user',
+        ]);
+
+        return response()->json([
+            'data' => (new CallRoomResource($callRoom))->resolve($request),
+        ]);
+    }
+
     public function accept(Request $request, CallRoom $callRoom): JsonResponse
     {
         try {

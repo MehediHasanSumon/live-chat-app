@@ -1,6 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { usePathname } from "next/navigation";
 import { ReactNode, Suspense, useState } from "react";
 
 import { AuthQuerySync } from "@/components/providers/auth-query-sync";
@@ -18,6 +19,8 @@ type AppProvidersProps = {
 };
 
 export function AppProviders({ children }: AppProvidersProps) {
+  const pathname = usePathname();
+  const isStandaloneAudioCallRoute = pathname?.startsWith("/calls/audio");
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -42,8 +45,8 @@ export function AppProviders({ children }: AppProvidersProps) {
       <ReverbProvider />
       <CallRealtimeProvider />
       <ConversationRealtimeProvider />
-      <CallDock />
-      <CallRoomOverlay />
+      {!isStandaloneAudioCallRoute ? <CallDock /> : null}
+      {!isStandaloneAudioCallRoute ? <CallRoomOverlay /> : null}
       {children}
     </QueryClientProvider>
   );

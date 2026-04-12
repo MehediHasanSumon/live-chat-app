@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
 
+import { openAudioCallWindow } from "@/lib/call-window";
 import {
   formatCallStatus,
   getCallLabel,
@@ -48,6 +49,7 @@ export function CallDock() {
   const joinCallMutation = useJoinCallMutation();
 
   const session = incomingCall ?? activeCall;
+  const isIncoming = Boolean(incomingCall && session && incomingCall.callRoom.room_uuid === session.callRoom.room_uuid);
 
   if (!session || !userId || Boolean(activeCall?.token && isRoomOpen && !incomingCall)) {
     return null;
@@ -58,7 +60,6 @@ export function CallDock() {
     .find((item) => item.numericId === session.callRoom.conversation_id);
 
   const participant = getCallParticipant(session.callRoom, userId);
-  const isIncoming = Boolean(incomingCall && incomingCall.callRoom.room_uuid === session.callRoom.room_uuid);
   const isAccepted = participant?.invite_status === "accepted";
   const hasJoinToken = Boolean(activeCall?.token && activeCall.callRoom.room_uuid === session.callRoom.room_uuid);
   const canOfferVideoJoin = session.callRoom.media_type === "video";
@@ -74,6 +75,20 @@ export function CallDock() {
     : `${getCallLabel(session.callRoom)} · ${formatCallStatus(session.callRoom)}`;
 
   const handleAccept = async () => {
+    if (session.callRoom.media_type === "voice") {
+      const popup = openAudioCallWindow({
+        conversationId: session.callRoom.conversation_id,
+        action: "accept",
+        roomUuid: session.callRoom.room_uuid,
+      });
+
+      if (popup) {
+        clearIncomingCall();
+        clearActiveCall();
+        return;
+      }
+    }
+
     await acceptCallMutation.mutateAsync(session.callRoom.room_uuid);
     router.push(`/messages/t/${session.callRoom.conversation_id}`);
     await joinCallMutation.mutateAsync({
@@ -83,6 +98,20 @@ export function CallDock() {
   };
 
   const handleJoin = async (wantsVideo: boolean) => {
+    if (!wantsVideo && session.callRoom.media_type === "voice") {
+      const popup = openAudioCallWindow({
+        conversationId: session.callRoom.conversation_id,
+        action: "join",
+        roomUuid: session.callRoom.room_uuid,
+      });
+
+      if (popup) {
+        clearIncomingCall();
+        clearActiveCall();
+        return;
+      }
+    }
+
     router.push(`/messages/t/${session.callRoom.conversation_id}`);
     await joinCallMutation.mutateAsync({
       roomUuid: session.callRoom.room_uuid,

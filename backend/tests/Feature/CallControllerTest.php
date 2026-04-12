@@ -122,6 +122,113 @@ it('starts a direct voice call and dispatches incoming call fanout', function ()
     });
 });
 
+it('shows an active call room to participants', function () {
+    $caller = User::factory()->create();
+    $recipient = User::factory()->create();
+    $conversation = Conversation::query()->create([
+        'type' => 'direct',
+        'created_by' => $caller->id,
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $caller->id,
+        'role' => 'owner',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $recipient->id,
+        'role' => 'member',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    $callRoom = CallRoom::query()->create([
+        'room_uuid' => (string) str()->uuid(),
+        'conversation_id' => $conversation->id,
+        'scope' => 'direct',
+        'media_type' => 'voice',
+        'created_by' => $caller->id,
+        'status' => 'ringing',
+        'max_participants' => 2,
+        'max_video_publishers' => 0,
+    ]);
+
+    CallRoomParticipant::query()->create([
+        'call_room_id' => $callRoom->id,
+        'user_id' => $caller->id,
+        'invite_status' => 'accepted',
+    ]);
+
+    CallRoomParticipant::query()->create([
+        'call_room_id' => $callRoom->id,
+        'user_id' => $recipient->id,
+        'invite_status' => 'ringing',
+    ]);
+
+    $this->actingAs($caller, 'web')
+        ->getJson("/api/calls/{$callRoom->room_uuid}")
+        ->assertOk()
+        ->assertJsonPath('data.room_uuid', $callRoom->room_uuid)
+        ->assertJsonCount(2, 'data.participants');
+});
+
+it('does not show a call room to users outside the conversation', function () {
+    $caller = User::factory()->create();
+    $recipient = User::factory()->create();
+    $outsider = User::factory()->create();
+    $conversation = Conversation::query()->create([
+        'type' => 'direct',
+        'created_by' => $caller->id,
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $caller->id,
+        'role' => 'owner',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $recipient->id,
+        'role' => 'member',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    $callRoom = CallRoom::query()->create([
+        'room_uuid' => (string) str()->uuid(),
+        'conversation_id' => $conversation->id,
+        'scope' => 'direct',
+        'media_type' => 'voice',
+        'created_by' => $caller->id,
+        'status' => 'ringing',
+        'max_participants' => 2,
+        'max_video_publishers' => 0,
+    ]);
+
+    CallRoomParticipant::query()->create([
+        'call_room_id' => $callRoom->id,
+        'user_id' => $caller->id,
+        'invite_status' => 'accepted',
+    ]);
+
+    CallRoomParticipant::query()->create([
+        'call_room_id' => $callRoom->id,
+        'user_id' => $recipient->id,
+        'invite_status' => 'ringing',
+    ]);
+
+    $this->actingAs($outsider, 'web')
+        ->getJson("/api/calls/{$callRoom->room_uuid}")
+        ->assertNotFound();
+});
+
 it('issues join tokens only for accepted participants and enforces the video publisher cap', function () {
     $owner = User::factory()->create();
     $memberA = User::factory()->create();

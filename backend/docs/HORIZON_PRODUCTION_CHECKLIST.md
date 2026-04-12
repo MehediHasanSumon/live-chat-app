@@ -75,3 +75,15 @@ That means:
 - you can keep the package and config in the repo on Windows
 - you can deploy and run Horizon on Linux/VPS
 - you should not expect `php artisan horizon` to run locally on Windows
+
+## 7. LiveKit on Windows
+
+If you use LiveKit Cloud from local Windows PHP, you may need a CA bundle path for outbound SSL verification.
+
+Set this in `.env` when needed:
+
+```env
+LIVEKIT_CA_BUNDLE=C:\path\to\cacert.pem
+```
+
+Without a valid CA bundle, LiveKit room creation can fail with `cURL error 60`.

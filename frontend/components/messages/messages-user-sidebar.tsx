@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Archive, Bell, Crown, FileText, Image, Lock, LogOut, Plus, ShieldBan } from "lucide-react";
 
+import { openAudioCallWindow } from "@/lib/call-window";
 import { formatPresenceLabel, type MessageThread } from "@/lib/messages-data";
 import {
   useArchiveConversationMutation,
@@ -79,6 +80,8 @@ function MessagesUserSidebarComponent({
   const isArchived = Boolean(thread.membership?.archived_at);
   const isMuted = Boolean(thread.membership?.muted_until);
   const muteLabel = isMuted ? "Unmute notifications" : "Mute notifications";
+  const isRequestConversation = currentMembership?.membership_state === "request_pending";
+  const canStartVoiceCall = !thread.isChatBlocked && !isRequestConversation;
 
   const handleMuteAction = async () => {
     if (isMuted) {
@@ -157,6 +160,16 @@ function MessagesUserSidebarComponent({
           </div>
 
           <MessagesQuickActions
+            onVoiceCallClick={
+              canStartVoiceCall
+                ? () => {
+                    openAudioCallWindow({
+                      conversationId: thread.id,
+                      action: "start",
+                    });
+                  }
+                : undefined
+            }
             onMuteClick={() => {
               void handleMuteAction();
             }}

@@ -9,7 +9,13 @@ import { type MessagesImageViewerItem } from "@/components/messages/messages-ima
 import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
 import { ApiClientError } from "@/lib/api-client";
-import { useJoinCallMutation, useStartCallMutation } from "@/lib/hooks/use-call-mutations";
+import { openAudioCallWindow } from "@/lib/call-window";
+import {
+  useAcceptCallMutation,
+  useDeclineCallMutation,
+  useJoinCallMutation,
+  useStartCallMutation,
+} from "@/lib/hooks/use-call-mutations";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { useConversationMessagesQuery } from "@/lib/hooks/use-conversation-messages-query";
@@ -69,8 +75,13 @@ export function MessagesThreadView({
   const markReadMutation = useMarkConversationReadMutation();
   const startCallMutation = useStartCallMutation();
   const joinCallMutation = useJoinCallMutation();
+  const acceptCallMutation = useAcceptCallMutation();
+  const declineCallMutation = useDeclineCallMutation();
   const { data: forwardConversations = [] } = useConversationsQuery(true);
   const activeCall = useCallStore((state) => state.activeCall);
+  const incomingCall = useCallStore((state) => state.incomingCall);
+  const clearIncomingCall = useCallStore((state) => state.clearIncomingCall);
+  const clearActiveCall = useCallStore((state) => state.clearActiveCall);
   const realtimeTypingUsers = useConversationRealtimeStore(
     (state) => state.typingUsersByConversation[thread.id] ?? EMPTY_TYPING_USERS,
   );
@@ -91,6 +102,7 @@ export function MessagesThreadView({
   const [removeTargetMessageId, setRemoveTargetMessageId] = useState<number | null>(null);
   const [removeScope, setRemoveScope] = useState<"self" | "everyone">("self");
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([]);
+  const [isOpeningVoiceCall, setIsOpeningVoiceCall] = useState(false);
 
   const serverMessages = useMemo(
     () => messages.map((message) => toChatMessage(message, currentUserId ?? undefined)),
@@ -126,6 +138,8 @@ export function MessagesThreadView({
 
   const currentCallForThread =
     activeCall?.callRoom.conversation_id === thread.numericId ? activeCall : null;
+  const incomingCallForThread =
+    incomingCall?.callRoom.conversation_id === thread.numericId ? incomingCall : null;
   const typingUsers = polledTypingUsers.length > 0 ? polledTypingUsers : realtimeTypingUsers;
   const removeTargetMessage = useMemo(
     () => mappedMessages.find((message) => message.numericId === removeTargetMessageId) ?? null,
@@ -481,8 +495,21 @@ export function MessagesThreadView({
       return;
     }
 
-    void handleStartCall("voice");
-  }, [handleStartCall, isBlockedConversation, isRequestConversation]);
+    setIsOpeningVoiceCall(true);
+
+    const popup = openAudioCallWindow({
+      conversationId: thread.id,
+      action: "start",
+    });
+
+    window.setTimeout(() => {
+      setIsOpeningVoiceCall(false);
+    }, 220);
+
+    if (!popup) {
+      void handleStartCall("voice");
+    }
+  }, [handleStartCall, isBlockedConversation, isRequestConversation, thread.id]);
 
   const handleStartVideoCall = useCallback(() => {
     if (isBlockedConversation || isRequestConversation) {
@@ -491,6 +518,47 @@ export function MessagesThreadView({
 
     void handleStartCall("video");
   }, [handleStartCall, isBlockedConversation, isRequestConversation]);
+
+  const handleAcceptIncomingCall = useCallback(async () => {
+    if (!incomingCallForThread) {
+      return;
+    }
+
+    if (incomingCallForThread.callRoom.media_type === "voice") {
+      const popup = openAudioCallWindow({
+        conversationId: thread.id,
+        action: "accept",
+        roomUuid: incomingCallForThread.callRoom.room_uuid,
+      });
+
+      if (popup) {
+        clearIncomingCall();
+        clearActiveCall();
+        return;
+      }
+    }
+
+    await acceptCallMutation.mutateAsync(incomingCallForThread.callRoom.room_uuid);
+    await joinCallMutation.mutateAsync({
+      roomUuid: incomingCallForThread.callRoom.room_uuid,
+      wantsVideo: incomingCallForThread.callRoom.media_type === "video",
+    });
+  }, [
+    acceptCallMutation,
+    clearActiveCall,
+    clearIncomingCall,
+    incomingCallForThread,
+    joinCallMutation,
+    thread.id,
+  ]);
+
+  const handleDeclineIncomingCall = useCallback(async () => {
+    if (!incomingCallForThread) {
+      return;
+    }
+
+    await declineCallMutation.mutateAsync(incomingCallForThread.callRoom.room_uuid);
+  }, [declineCallMutation, incomingCallForThread]);
 
   const handleUnblock = useCallback(async () => {
     if (!blockedPeerUserId) {
@@ -569,7 +637,7 @@ export function MessagesThreadView({
         onToggleInfoSidebar={onToggleInfoSidebar}
         onStartVoiceCall={canCompose ? handleStartVoiceCall : undefined}
         onStartVideoCall={canCompose ? handleStartVideoCall : undefined}
-        isStartingVoiceCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "voice"}
+        isStartingVoiceCall={isOpeningVoiceCall || (startCallMutation.isPending && startCallMutation.variables?.mediaType === "voice")}
         isStartingVideoCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "video"}
       />
 
@@ -604,6 +672,37 @@ export function MessagesThreadView({
                 <span className="font-medium text-[#2f3655]">{currentCallForThread.callRoom.status}</span>.
               </span>
             )}
+          </div>
+        ) : null}
+
+        {incomingCallForThread ? (
+          <div className="flex flex-col items-start gap-3 rounded-2xl border border-[rgba(96,91,255,0.14)] bg-[rgba(96,91,255,0.06)] px-4 py-3 text-sm text-[#575f86]">
+            <p>
+              Incoming {incomingCallForThread.callRoom.media_type === "video" ? "video" : "voice"} call for this conversation.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleAcceptIncomingCall();
+                }}
+                disabled={acceptCallMutation.isPending || joinCallMutation.isPending}
+                className="rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {acceptCallMutation.isPending || joinCallMutation.isPending ? "Accepting..." : "Accept"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleDeclineIncomingCall();
+                }}
+                disabled={declineCallMutation.isPending}
+                className="rounded-full border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {declineCallMutation.isPending ? "Declining..." : "Decline"}
+              </button>
+            </div>
           </div>
         ) : null}
 

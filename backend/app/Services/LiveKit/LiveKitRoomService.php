@@ -3,16 +3,26 @@
 namespace App\Services\LiveKit;
 
 use Agence104\LiveKit\RoomCreateOptions;
-use Agence104\LiveKit\RoomServiceClient;
+use GuzzleHttp\Client;
 
 class LiveKitRoomService
 {
-    protected function client(): RoomServiceClient
+    public function __construct(
+        protected CaBundleResolver $caBundleResolver,
+    ) {}
+
+    protected function client(): ConfigurableRoomServiceClient
     {
-        return new RoomServiceClient(
+        $caBundle = $this->caBundleResolver->resolve();
+
+        return new ConfigurableRoomServiceClient(
             config('livekit.url'),
             config('livekit.api_key'),
             config('livekit.api_secret'),
+            new Client(array_filter([
+                'verify' => $caBundle ?: true,
+                'timeout' => 10,
+            ], static fn (mixed $value): bool => $value !== null)),
         );
     }
 

@@ -78,6 +78,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/presence/offline', [RealtimeController::class, 'offline']);
     Route::post('/calls/direct/{user}/voice', [CallController::class, 'startDirect'])->defaults('mediaType', 'voice');
     Route::post('/calls/direct/{user}/video', [CallController::class, 'startDirect'])->defaults('mediaType', 'video');
+    Route::get('/calls/{callRoom}', [CallController::class, 'show']);
     Route::post('/calls/{callRoom}/accept', [CallController::class, 'accept']);
     Route::post('/calls/{callRoom}/decline', [CallController::class, 'decline']);
     Route::post('/calls/{callRoom}/end', [CallController::class, 'end']);
