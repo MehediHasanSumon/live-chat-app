@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 const MIN_VISIBLE_MS = 320;
@@ -10,15 +9,22 @@ function isModifiedEvent(event: MouseEvent | PointerEvent) {
 }
 
 export function NavigationProgress() {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [isVisible, setIsVisible] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [locationKey, setLocationKey] = useState("");
   const isNavigatingRef = useRef(false);
   const navigationStartedAtRef = useRef(0);
   const progressTimerRef = useRef<number | null>(null);
   const finishTimerRef = useRef<number | null>(null);
   const startTimerRef = useRef<number | null>(null);
+
+  function getLocationKey() {
+    if (typeof window === "undefined") {
+      return "";
+    }
+
+    return `${window.location.pathname}${window.location.search}`;
+  }
 
   function clearTimers() {
     if (startTimerRef.current) {
@@ -38,6 +44,8 @@ export function NavigationProgress() {
   }
 
   useEffect(() => {
+    setLocationKey(getLocationKey());
+
     function startNavigation() {
       if (isNavigatingRef.current) {
         return;
@@ -117,6 +125,7 @@ export function NavigationProgress() {
 
     function handleHistoryNavigation() {
       scheduleStartNavigation();
+      setLocationKey(getLocationKey());
     }
 
     const originalPushState = window.history.pushState;
@@ -124,12 +133,16 @@ export function NavigationProgress() {
 
     window.history.pushState = function pushState(...args) {
       scheduleStartNavigation();
-      return originalPushState.apply(this, args);
+      const result = originalPushState.apply(this, args);
+      setLocationKey(getLocationKey());
+      return result;
     };
 
     window.history.replaceState = function replaceState(...args) {
       scheduleStartNavigation();
-      return originalReplaceState.apply(this, args);
+      const result = originalReplaceState.apply(this, args);
+      setLocationKey(getLocationKey());
+      return result;
     };
 
     window.addEventListener("pointerdown", handlePointerDown, true);
@@ -149,9 +162,6 @@ export function NavigationProgress() {
       return;
     }
 
-    void pathname;
-    void searchParams;
-
     const elapsed = Date.now() - navigationStartedAtRef.current;
     const remaining = Math.max(MIN_VISIBLE_MS - elapsed, 0);
 
@@ -170,7 +180,7 @@ export function NavigationProgress() {
         setProgress(0);
       }, 220);
     }, remaining);
-  }, [pathname, searchParams]);
+  }, [locationKey]);
 
   return (
     <div
