@@ -147,6 +147,7 @@ export type MessageApiItem = {
   seq: number;
   sender_id: number;
   client_uuid: string | null;
+  call_room_uuid: string | null;
   type: string;
   sub_type: string | null;
   text_body: string | null;
@@ -209,6 +210,8 @@ export type ChatMessage = {
   id: string;
   numericId: number;
   seq: number;
+  type: string;
+  subType?: string | null;
   sender: "me" | "other";
   senderId: number;
   body: string;
@@ -239,6 +242,13 @@ export type ChatMessage = {
     isExpired: boolean;
     placeholderText: string | null;
   }[];
+  call?: {
+    roomUuid: string | null;
+    action: string | null;
+    status: string | null;
+    mediaType: "voice" | "video" | null;
+    durationSeconds: number;
+  } | null;
 };
 
 const attachmentPlaceholderBodies = new Set([
@@ -425,6 +435,8 @@ export function toChatMessage(message: MessageApiItem, authUserId?: number | nul
     id: String(message.id),
     numericId: message.id,
     seq: message.seq,
+    type: message.type,
+    subType: message.sub_type,
     sender: authUserId !== undefined && authUserId !== null && message.sender_id === authUserId ? "me" : "other",
     senderId: message.sender_id,
     body,
@@ -466,5 +478,21 @@ export function toChatMessage(message: MessageApiItem, authUserId?: number | nul
         isExpired: Boolean(attachment.storage_object?.deleted_at),
         placeholderText: attachment.storage_object?.placeholder_text ?? null,
       })) ?? [],
+    call:
+      message.type === "call"
+        ? {
+            roomUuid: message.call_room_uuid,
+            action: typeof message.metadata_json?.action === "string" ? message.metadata_json.action : null,
+            status: typeof message.metadata_json?.status === "string" ? message.metadata_json.status : null,
+            mediaType:
+              message.metadata_json?.media_type === "voice" || message.metadata_json?.media_type === "video"
+                ? message.metadata_json.media_type
+                : null,
+            durationSeconds:
+              typeof message.metadata_json?.duration_seconds === "number"
+                ? message.metadata_json.duration_seconds
+                : 0,
+          }
+        : null,
   };
 }

@@ -13,6 +13,6 @@ class BroadcastUserCallSignal
             $event->userId,
             $event->eventName,
             $event->payload,
-        ))->toOthers();
+        ));
     }
 }

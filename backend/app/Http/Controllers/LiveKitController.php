@@ -3,10 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Events\Domain\ConversationCallStateChanged;
+use App\Events\Domain\ConversationMessageCreated;
+use App\Events\Domain\ConversationMessageUpdated;
 use App\Services\Calls\CallService;
+use App\Http\Resources\CallRoomResource;
 use App\Services\LiveKit\LiveKitRoomService;
 use App\Services\LiveKit\LiveKitTokenService;
 use App\Services\LiveKit\LiveKitWebhookService;
+use App\Services\Realtime\UserRealtimeSignalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -60,6 +64,7 @@ class LiveKitController extends Controller
         Request $request,
         LiveKitWebhookService $webhookService,
         CallService $callService,
+        UserRealtimeSignalService $userRealtimeSignalService,
     ): JsonResponse
     {
         try {
@@ -83,7 +88,23 @@ class LiveKitController extends Controller
         ]);
 
         if ($result['call_room']) {
-            event(new ConversationCallStateChanged($result['call_room'], $result['action'] ?? 'webhook_received'));
+            $action = $result['action'] ?? $callService->resolveRealtimeAction($result['call_room'], 'updated');
+
+            event(new ConversationCallStateChanged($result['call_room'], $action));
+            $callMessage = $callService->syncCallHistoryMessage($result['call_room'], $action);
+
+            if ($callMessage['created']) {
+                event(new ConversationMessageCreated($callMessage['message']));
+            } else {
+                event(new ConversationMessageUpdated($callMessage['message']));
+            }
+
+            foreach ($result['call_room']->participants->pluck('user_id')->unique() as $userId) {
+                $userRealtimeSignalService->dispatchCallSignal((int) $userId, 'call.state.changed', [
+                    'action' => $action,
+                    'call_room' => (new CallRoomResource($result['call_room']))->resolve($request),
+                ]);
+            }
         }
 
         return response()->json([

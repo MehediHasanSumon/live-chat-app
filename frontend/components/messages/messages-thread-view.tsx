@@ -10,6 +10,7 @@ import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
 import { ApiClientError } from "@/lib/api-client";
 import { openAudioCallWindow } from "@/lib/call-window";
+import { getDirectCallTargetUserId } from "@/lib/calls-data";
 import {
   useAcceptCallMutation,
   useDeclineCallMutation,
@@ -449,6 +450,7 @@ export function MessagesThreadView({
       id: `pending-${crypto.randomUUID()}`,
       numericId: -Date.now(),
       seq: nextSeq,
+      type: "text",
       sender: "me",
       senderId: currentUserId ?? 0,
       body: text.trim() || (attachments.some((item) => item.kind === "image") ? "Photo" : "File"),
@@ -500,6 +502,10 @@ export function MessagesThreadView({
     const popup = openAudioCallWindow({
       conversationId: thread.id,
       action: "start",
+      title: thread.name,
+      avatarUrl: thread.avatarUrl ?? null,
+      targetUserId: thread.isGroup ? null : getDirectCallTargetUserId(thread, currentUserId ?? 0),
+      isGroup: Boolean(thread.isGroup),
     });
 
     window.setTimeout(() => {
@@ -509,7 +515,7 @@ export function MessagesThreadView({
     if (!popup) {
       void handleStartCall("voice");
     }
-  }, [handleStartCall, isBlockedConversation, isRequestConversation, thread.id]);
+  }, [currentUserId, handleStartCall, isBlockedConversation, isRequestConversation, thread]);
 
   const handleStartVideoCall = useCallback(() => {
     if (isBlockedConversation || isRequestConversation) {
@@ -525,10 +531,14 @@ export function MessagesThreadView({
     }
 
     if (incomingCallForThread.callRoom.media_type === "voice") {
+      const acceptedCallRoom = await acceptCallMutation.mutateAsync(incomingCallForThread.callRoom.room_uuid);
       const popup = openAudioCallWindow({
         conversationId: thread.id,
-        action: "accept",
-        roomUuid: incomingCallForThread.callRoom.room_uuid,
+        action: "join",
+        roomUuid: acceptedCallRoom.room_uuid,
+        title: thread.name,
+        avatarUrl: thread.avatarUrl ?? null,
+        isGroup: Boolean(thread.isGroup),
       });
 
       if (popup) {
@@ -536,6 +546,12 @@ export function MessagesThreadView({
         clearActiveCall();
         return;
       }
+
+      await joinCallMutation.mutateAsync({
+        roomUuid: acceptedCallRoom.room_uuid,
+        wantsVideo: false,
+      });
+      return;
     }
 
     await acceptCallMutation.mutateAsync(incomingCallForThread.callRoom.room_uuid);
@@ -549,7 +565,7 @@ export function MessagesThreadView({
     clearIncomingCall,
     incomingCallForThread,
     joinCallMutation,
-    thread.id,
+    thread,
   ]);
 
   const handleDeclineIncomingCall = useCallback(async () => {

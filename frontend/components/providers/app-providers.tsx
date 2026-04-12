@@ -36,9 +36,11 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Suspense fallback={null}>
-        <NavigationProgress />
-      </Suspense>
+      {!isStandaloneAudioCallRoute ? (
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
+      ) : null}
       <AuthQuerySync />
       <AuthStoreSync />
       <PresenceHeartbeatProvider />

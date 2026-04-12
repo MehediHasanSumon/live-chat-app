@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Events\Domain\ConversationCallStateChanged;
+use App\Events\Domain\ConversationMessageCreated;
+use App\Events\Domain\ConversationMessageUpdated;
 use App\Http\Requests\Call\EndCallRequest;
 use App\Http\Requests\Call\IssueJoinTokenRequest;
 use App\Http\Resources\CallRoomResource;
@@ -42,8 +44,21 @@ class CallController extends Controller
             ], 422);
         }
 
-        $this->dispatchCallFanout($payload['call_room'], 'started', $payload['notify_user_ids'], 'call.incoming');
+        $this->dispatchCallFanout($payload['call_room'], 'calling', $payload['notify_user_ids'], 'call.incoming');
+        $this->dispatchCallFanout(
+            $payload['call_room'],
+            $this->callService->resolveRealtimeAction($payload['call_room'], 'calling'),
+            $this->participantUserIds($payload['call_room']),
+            'call.state.changed',
+        );
         $this->notificationService->queueCallInvite($payload['call_room'], $payload['notify_user_ids']);
+        $payload['call_room'] = $this->callService->markRinging($payload['call_room']);
+        $this->dispatchCallFanout(
+            $payload['call_room'],
+            $this->callService->resolveRealtimeAction($payload['call_room'], 'ringing'),
+            $this->participantUserIds($payload['call_room']),
+            'call.state.changed',
+        );
 
         return response()->json([
             'data' => (new CallRoomResource($payload['call_room']))->resolve($request),
@@ -67,8 +82,21 @@ class CallController extends Controller
             ], 422);
         }
 
-        $this->dispatchCallFanout($payload['call_room'], 'started', $payload['notify_user_ids'], 'call.incoming');
+        $this->dispatchCallFanout($payload['call_room'], 'calling', $payload['notify_user_ids'], 'call.incoming');
+        $this->dispatchCallFanout(
+            $payload['call_room'],
+            $this->callService->resolveRealtimeAction($payload['call_room'], 'calling'),
+            $this->participantUserIds($payload['call_room']),
+            'call.state.changed',
+        );
         $this->notificationService->queueCallInvite($payload['call_room'], $payload['notify_user_ids']);
+        $payload['call_room'] = $this->callService->markRinging($payload['call_room']);
+        $this->dispatchCallFanout(
+            $payload['call_room'],
+            $this->callService->resolveRealtimeAction($payload['call_room'], 'ringing'),
+            $this->participantUserIds($payload['call_room']),
+            'call.state.changed',
+        );
 
         return response()->json([
             'data' => (new CallRoomResource($payload['call_room']))->resolve($request),
@@ -103,7 +131,12 @@ class CallController extends Controller
             ], 422);
         }
 
-        $this->dispatchCallFanout($callRoom, 'accepted', $this->participantUserIds($callRoom), 'call.state.changed');
+        $this->dispatchCallFanout(
+            $callRoom,
+            $this->callService->resolveRealtimeAction($callRoom, 'connecting'),
+            $this->participantUserIds($callRoom),
+            'call.state.changed',
+        );
 
         return response()->json([
             'data' => (new CallRoomResource($callRoom))->resolve($request),
@@ -123,7 +156,12 @@ class CallController extends Controller
             ], 422);
         }
 
-        $this->dispatchCallFanout($callRoom, 'declined', $this->participantUserIds($callRoom), 'call.state.changed');
+        $this->dispatchCallFanout(
+            $callRoom,
+            $this->callService->resolveRealtimeAction($callRoom, 'declined'),
+            $this->participantUserIds($callRoom),
+            'call.state.changed',
+        );
 
         return response()->json([
             'data' => (new CallRoomResource($callRoom))->resolve($request),
@@ -147,7 +185,12 @@ class CallController extends Controller
             ], 422);
         }
 
-        $this->dispatchCallFanout($callRoom, 'ended', $this->participantUserIds($callRoom), 'call.state.changed');
+        $this->dispatchCallFanout(
+            $callRoom,
+            $this->callService->resolveRealtimeAction($callRoom, 'ended'),
+            $this->participantUserIds($callRoom),
+            'call.state.changed',
+        );
 
         return response()->json([
             'data' => (new CallRoomResource($callRoom))->resolve($request),
@@ -171,7 +214,10 @@ class CallController extends Controller
             ], 422);
         }
 
-        event(new ConversationCallStateChanged($payload['call_room'], 'join_token_issued'));
+        event(new ConversationCallStateChanged(
+            $payload['call_room'],
+            $this->callService->resolveRealtimeAction($payload['call_room'], 'connecting'),
+        ));
 
         return response()->json([
             'data' => [
@@ -185,6 +231,13 @@ class CallController extends Controller
     protected function dispatchCallFanout(CallRoom $callRoom, string $action, array $notifyUserIds, string $userEvent): void
     {
         event(new ConversationCallStateChanged($callRoom, $action));
+        $callMessage = $this->callService->syncCallHistoryMessage($callRoom, $action, request()->user()?->getKey());
+
+        if ($callMessage['created']) {
+            event(new ConversationMessageCreated($callMessage['message']));
+        } else {
+            event(new ConversationMessageUpdated($callMessage['message']));
+        }
 
         $payload = [
             'action' => $action,

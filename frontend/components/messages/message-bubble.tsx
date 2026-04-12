@@ -24,6 +24,14 @@ type MessageBubbleProps = {
 
 const quickReactions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F525}", "\u{1F602}", "\u{1F62E}"];
 
+function formatCallDuration(seconds: number): string {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
 function MessageBubbleComponent({
   message,
   authUserId,
@@ -73,6 +81,7 @@ function MessageBubbleComponent({
 
   const imageAttachments = message.attachments?.filter((attachment) => attachment.mediaKind === "image") ?? [];
   const fileAttachments = message.attachments?.filter((attachment) => attachment.mediaKind !== "image") ?? [];
+  const isCallMessage = message.type === "call" && message.call;
   const isImageOnlyMessage =
     imageAttachments.length > 0 &&
     fileAttachments.length === 0 &&
@@ -319,6 +328,27 @@ function MessageBubbleComponent({
                   : baseBubbleClass
             } ${message.quote ? "-mt-6 relative z-10 max-w-[72%]" : ""}`}
           >
+            {isCallMessage ? (
+              <div
+                className={`min-w-[220px] rounded-[20px] border px-3.5 py-3 ${
+                  message.sender === "me"
+                    ? "border-white/16 bg-[rgba(22,27,53,0.18)]"
+                    : "border-[rgba(111,123,176,0.14)] bg-[rgba(246,248,255,0.92)]"
+                }`}
+              >
+                <div className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${message.sender === "me" ? "text-white/72" : "text-[#7b84a8]"}`}>
+                  {message.call?.mediaType === "video" ? "Video Call" : "Voice Call"}
+                </div>
+                <p className={`mt-2 text-sm font-semibold ${message.sender === "me" ? "text-white" : "text-[#2f3655]"}`}>
+                  {message.body}
+                </p>
+                <div className={`mt-2 flex items-center gap-2 text-[12px] ${message.sender === "me" ? "text-white/78" : "text-[#667099]"}`}>
+                  <span>{message.call?.action ?? message.subType ?? "call"}</span>
+                  {message.call && message.call.durationSeconds > 0 ? <span>· {formatCallDuration(message.call.durationSeconds)}</span> : null}
+                </div>
+              </div>
+            ) : null}
+
             {message.gifUrl ? (
               <a
                 href={message.gifUrl}
@@ -334,7 +364,7 @@ function MessageBubbleComponent({
               </a>
             ) : null}
 
-            {!isImageOnlyMessage && !isFileOnlyMessage ? (
+            {!isCallMessage && !isImageOnlyMessage && !isFileOnlyMessage ? (
               message.quote ? <p className="break-words text-[14px] leading-snug">{message.body}</p> : <p className="leading-5">{message.body}</p>
             ) : null}
 

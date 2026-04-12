@@ -25,6 +25,7 @@ class CallRoomResource extends JsonResource
             'started_at' => $this->started_at,
             'ended_at' => $this->ended_at,
             'ended_reason' => $this->ended_reason,
+            'duration_seconds' => $this->duration_seconds,
             'last_webhook_at' => $this->last_webhook_at,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

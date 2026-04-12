@@ -4,6 +4,7 @@ namespace App\Services\LiveKit;
 
 use Agence104\LiveKit\RoomCreateOptions;
 use GuzzleHttp\Client;
+use Throwable;
 
 class LiveKitRoomService
 {
@@ -68,5 +69,16 @@ class LiveKitRoomService
         }
 
         return $rooms;
+    }
+
+    public function deleteRoom(string $roomName): bool
+    {
+        try {
+            $this->client()->deleteRoom($roomName);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     }
 }

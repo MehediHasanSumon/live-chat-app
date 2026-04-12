@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Archive, Bell, Crown, FileText, Image, Lock, LogOut, Plus, ShieldBan } from "lucide-react";
 
 import { openAudioCallWindow } from "@/lib/call-window";
+import { getDirectCallTargetUserId } from "@/lib/calls-data";
 import { formatPresenceLabel, type MessageThread } from "@/lib/messages-data";
 import {
   useArchiveConversationMutation,
@@ -20,6 +21,7 @@ import { MessagesEncryptionBadge } from "@/components/messages/messages-encrypti
 import { MessagesGroupSettingsSection } from "@/components/messages/messages-group-settings-section";
 import { MessagesListRow } from "@/components/messages/messages-list-row";
 import { MessagesQuickActions } from "@/components/messages/messages-quick-actions";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 
 type MessagesUserSidebarProps = {
@@ -39,6 +41,7 @@ function MessagesUserSidebarComponent({
   onOpenMuteModal,
 }: MessagesUserSidebarProps) {
   const router = useRouter();
+  const authUserId = useAuthStore((state) => state.user?.id ?? null);
   const openConfirmation = useChatUiStore((state) => state.openConfirmation);
   const [searchQuery, setSearchQuery] = useState("");
   const presenceLabel = formatPresenceLabel(thread.presence);
@@ -166,6 +169,13 @@ function MessagesUserSidebarComponent({
                     openAudioCallWindow({
                       conversationId: thread.id,
                       action: "start",
+                      title: thread.name,
+                      avatarUrl: thread.avatarUrl ?? null,
+                      targetUserId:
+                        !thread.isGroup && authUserId
+                          ? getDirectCallTargetUserId(thread, authUserId)
+                          : null,
+                      isGroup: Boolean(thread.isGroup),
                     });
                   }
                 : undefined

@@ -131,10 +131,14 @@ export function CallDock() {
 
   const handleAccept = async () => {
     if (session.callRoom.media_type === "voice") {
+      const acceptedCallRoom = await acceptCallMutation.mutateAsync(session.callRoom.room_uuid);
       const popup = openAudioCallWindow({
         conversationId: session.callRoom.conversation_id,
-        action: "accept",
-        roomUuid: session.callRoom.room_uuid,
+        action: "join",
+        roomUuid: acceptedCallRoom.room_uuid,
+        title,
+        avatarUrl: thread?.avatarUrl ?? null,
+        isGroup: Boolean(thread?.isGroup),
       });
 
       if (popup) {
@@ -142,6 +146,13 @@ export function CallDock() {
         clearActiveCall();
         return;
       }
+
+      router.push(`/messages/t/${session.callRoom.conversation_id}`);
+      await joinCallMutation.mutateAsync({
+        roomUuid: acceptedCallRoom.room_uuid,
+        wantsVideo: false,
+      });
+      return;
     }
 
     await acceptCallMutation.mutateAsync(session.callRoom.room_uuid);

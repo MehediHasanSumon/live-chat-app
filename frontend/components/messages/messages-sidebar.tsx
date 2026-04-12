@@ -23,6 +23,8 @@ import { MessagesSearchBar } from "@/components/messages/messages-search-bar";
 import { MessagesSidebarHeader } from "@/components/messages/messages-sidebar-header";
 import { MessagesThreadMenu } from "@/components/messages/messages-thread-menu";
 import { MessageThreadItem } from "@/components/messages/message-thread-item";
+import { openAudioCallWindow } from "@/lib/call-window";
+import { getDirectCallTargetUserId } from "@/lib/calls-data";
 import {
   useArchiveConversationMutation,
   useMarkConversationUnreadMutation,
@@ -37,6 +39,7 @@ import { useAcceptMessageRequestMutation, useRejectMessageRequestMutation } from
 import { useMessageRequestsQuery } from "@/lib/hooks/use-message-requests-query";
 import { applyPresenceToThread, toConversationThread } from "@/lib/messages-data";
 import { useBlockedUsersQuery } from "@/lib/hooks/use-blocked-users-query";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 const filters = ["All", "Unread", "Groups", "Online"] as const;
 
@@ -67,6 +70,7 @@ export function MessagesSidebar({
   onOpenConfirmation,
   onOpenNewMessageModal,
 }: MessagesSidebarProps) {
+  const authUserId = useAuthStore((state) => state.user?.id ?? null);
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -425,10 +429,11 @@ export function MessagesSidebar({
               const readToggleLabel = hasUnreadMessages ? "Mark as read" : "Mark as unread";
               const muted = isThreadMuted(thread.membership?.muted_until);
               const muteLabel = muted ? "Unmute notifications" : "Mute notifications";
+              const canStartAudioCall = !thread.isChatBlocked && thread.membership?.membership_state !== "request_pending";
               const menuItems = [
                 { label: readToggleLabel, icon: CheckCheck },
                 { label: muteLabel, icon: Bell },
-                { label: "Audio call", icon: Phone, disabled: true },
+                { label: "Audio call", icon: Phone, disabled: !canStartAudioCall },
                 { label: "Video chat", icon: Video, disabled: true },
                 ...(!thread.isGroup ? [{ label: "Block", icon: MessageCircleOff }] : []),
                 { label: "Archive chat", icon: Archive },
@@ -484,6 +489,21 @@ export function MessagesSidebar({
                         if (label === "Block") {
                           setOpenMenuThreadId(null);
                           onOpenConfirmation?.("block", thread.id);
+                        }
+
+                        if (label === "Audio call") {
+                          setOpenMenuThreadId(null);
+                          openAudioCallWindow({
+                            conversationId: thread.id,
+                            action: "start",
+                            title: thread.name,
+                            avatarUrl: thread.avatarUrl ?? null,
+                            targetUserId:
+                              !thread.isGroup && authUserId
+                                ? getDirectCallTargetUserId(thread, authUserId)
+                                : null,
+                            isGroup: Boolean(thread.isGroup),
+                          });
                         }
 
                         if (label === "Archive chat") {

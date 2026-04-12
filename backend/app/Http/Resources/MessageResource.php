@@ -30,6 +30,7 @@ class MessageResource extends JsonResource
             'seq' => $this->seq,
             'sender_id' => $this->sender_id,
             'client_uuid' => $this->client_uuid,
+            'call_room_uuid' => $this->call_room_uuid,
             'type' => $this->type,
             'sub_type' => $this->sub_type,
             'text_body' => $this->deleted_for_everyone_at ? null : $this->text_body,

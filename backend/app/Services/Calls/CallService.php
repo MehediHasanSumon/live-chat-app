@@ -10,6 +10,7 @@ use App\Services\Conversations\ConversationMemberService;
 use App\Services\Conversations\ConversationService;
 use App\Services\LiveKit\LiveKitRoomService;
 use App\Services\LiveKit\LiveKitTokenService;
+use App\Services\Messages\MessageService;
 use App\Services\Privacy\PrivacyService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,7 @@ class CallService
         protected ConversationMemberService $conversationMemberService,
         protected LiveKitRoomService $liveKitRoomService,
         protected LiveKitTokenService $liveKitTokenService,
+        protected MessageService $messageService,
         protected PrivacyService $privacyService,
     ) {
     }
@@ -91,7 +93,7 @@ class CallService
         $updatedRoom = DB::transaction(function () use ($callRoom, $userId): CallRoom {
             $lockedRoom = $this->lockCallRoom($callRoom->room_uuid);
 
-            if (in_array($lockedRoom->status, ['ended', 'declined', 'cancelled', 'failed', 'missed'], true)) {
+            if (in_array($lockedRoom->status, CallRoom::TERMINAL_STATUSES, true)) {
                 throw new InvalidArgumentException('This call is no longer active.');
             }
 
@@ -101,10 +103,7 @@ class CallService
                 'invite_status' => 'accepted',
             ])->save();
 
-            $lockedRoom->forceFill([
-                'status' => 'active',
-                'started_at' => $lockedRoom->started_at ?? now(),
-            ])->save();
+            $this->applyResolvedStatus($lockedRoom);
 
             return $lockedRoom;
         });
@@ -117,7 +116,7 @@ class CallService
         $updatedRoom = DB::transaction(function () use ($callRoom, $userId): CallRoom {
             $lockedRoom = $this->lockCallRoom($callRoom->room_uuid);
 
-            if (in_array($lockedRoom->status, ['ended', 'declined', 'cancelled', 'failed', 'missed'], true)) {
+            if (in_array($lockedRoom->status, CallRoom::TERMINAL_STATUSES, true)) {
                 return $lockedRoom;
             }
 
@@ -146,7 +145,37 @@ class CallService
 
             if (! $hasPendingInvitees && ! $hasAcceptedOthers) {
                 $this->finishLockedRoom($lockedRoom, 'declined', 'all_declined');
+            } else {
+                $this->applyResolvedStatus($lockedRoom);
             }
+
+            return $lockedRoom;
+        });
+
+        return $this->loadCallRoom($updatedRoom->room_uuid);
+    }
+
+    public function markRinging(CallRoom $callRoom): CallRoom
+    {
+        $updatedRoom = DB::transaction(function () use ($callRoom): CallRoom {
+            $lockedRoom = $this->lockCallRoom($callRoom->room_uuid);
+
+            if ($lockedRoom->status !== 'calling') {
+                return $lockedRoom;
+            }
+
+            CallRoomParticipant::query()
+                ->where('call_room_id', $lockedRoom->id)
+                ->where('user_id', '!=', $lockedRoom->created_by)
+                ->where('invite_status', 'invited')
+                ->update([
+                    'invite_status' => 'ringing',
+                    'updated_at' => now(),
+                ]);
+
+            $lockedRoom->forceFill([
+                'status' => 'ringing',
+            ])->save();
 
             return $lockedRoom;
         });
@@ -180,7 +209,7 @@ class CallService
         $payload = DB::transaction(function () use ($callRoom, $user, $wantsVideo): array {
             $lockedRoom = $this->lockCallRoom($callRoom->room_uuid);
 
-            if (! in_array($lockedRoom->status, ['ringing', 'active', 'initiated'], true)) {
+            if (! in_array($lockedRoom->status, CallRoom::ACTIVE_STATUSES, true)) {
                 throw new InvalidArgumentException('This call can no longer be joined.');
             }
 
@@ -236,6 +265,30 @@ class CallService
         ];
     }
 
+    public function resolveRealtimeAction(CallRoom $callRoom, ?string $fallback = null): string
+    {
+        return match ($callRoom->status) {
+            'calling' => 'calling',
+            'ringing' => 'ringing',
+            'connecting' => 'connecting',
+            'active' => 'in_call',
+            'ended' => 'ended',
+            'declined' => 'declined',
+            'missed' => 'missed',
+            'cancelled' => 'cancelled',
+            'failed' => 'failed',
+            default => $fallback ?? 'updated',
+        };
+    }
+
+    /**
+     * @return array{message: \App\Models\Message, created: bool}
+     */
+    public function syncCallHistoryMessage(CallRoom $callRoom, string $action, ?int $actorId = null): array
+    {
+        return $this->messageService->syncCallEvent($callRoom, $action, $actorId);
+    }
+
     /**
      * @return array{call_room: ?CallRoom, action: ?string}
      */
@@ -253,24 +306,24 @@ class CallService
 
         return match ($eventName) {
             'participant_joined' => [
-                'call_room' => $this->syncParticipantJoined($roomUuid, $payload),
-                'action' => 'participant_joined',
+                'call_room' => $callRoom = $this->syncParticipantJoined($roomUuid, $payload),
+                'action' => $callRoom ? $this->resolveRealtimeAction($callRoom, 'connecting') : 'connecting',
             ],
             'participant_left' => [
-                'call_room' => $this->syncParticipantLeft($roomUuid, $payload),
-                'action' => 'participant_left',
+                'call_room' => $callRoom = $this->syncParticipantLeft($roomUuid, $payload),
+                'action' => $callRoom ? $this->resolveRealtimeAction($callRoom, 'ended') : 'ended',
             ],
             'room_finished' => [
-                'call_room' => $this->syncRoomFinished($roomUuid),
-                'action' => 'room_finished',
+                'call_room' => $callRoom = $this->syncRoomFinished($roomUuid),
+                'action' => $callRoom ? $this->resolveRealtimeAction($callRoom, 'ended') : 'ended',
             ],
             'room_started' => [
-                'call_room' => $this->syncRoomStarted($roomUuid),
-                'action' => 'room_started',
+                'call_room' => $callRoom = $this->syncRoomStarted($roomUuid),
+                'action' => $callRoom ? $this->resolveRealtimeAction($callRoom, 'connecting') : 'connecting',
             ],
             default => [
-                'call_room' => $this->touchWebhookTimestamp($roomUuid),
-                'action' => 'webhook_received',
+                'call_room' => $callRoom = $this->touchWebhookTimestamp($roomUuid),
+                'action' => $callRoom ? $this->resolveRealtimeAction($callRoom, 'updated') : 'updated',
             ],
         };
     }
@@ -319,7 +372,7 @@ class CallService
                 'scope' => $scope,
                 'media_type' => $mediaType,
                 'created_by' => $callerId,
-                'status' => 'ringing',
+                'status' => 'calling',
                 'max_participants' => $participants->count(),
                 'max_video_publishers' => $mediaType === 'video'
                     ? min((int) config('livekit.default_room_max_video_publishers', 4), $participants->count())
@@ -332,7 +385,7 @@ class CallService
                     'user_id' => $participantId,
                     'invite_status' => $participantId === $callerId
                         ? 'accepted'
-                        : ($scope === 'direct' ? 'ringing' : 'invited'),
+                        : 'invited',
                     'is_video_publisher' => false,
                 ]);
             }
@@ -393,11 +446,7 @@ class CallService
                 ])->save();
             }
 
-            $lockedRoom->forceFill([
-                'status' => 'active',
-                'started_at' => $lockedRoom->started_at ?? now(),
-                'last_webhook_at' => now(),
-            ])->save();
+            $this->applyResolvedStatus($lockedRoom, true);
 
             return $lockedRoom;
         });
@@ -438,18 +487,10 @@ class CallService
                 ])->save();
             }
 
-            $lockedRoom->forceFill([
-                'last_webhook_at' => now(),
-            ])->save();
-
-            $hasConnectedParticipants = CallRoomParticipant::query()
-                ->where('call_room_id', $lockedRoom->id)
-                ->whereNotNull('joined_at')
-                ->whereNull('left_at')
-                ->exists();
-
-            if (! $hasConnectedParticipants) {
+            if ($this->shouldFinishAfterParticipantLeft($lockedRoom)) {
                 $this->finishLockedRoom($lockedRoom, 'ended', 'participants_left');
+            } else {
+                $this->applyResolvedStatus($lockedRoom, true);
             }
 
             return $lockedRoom;
@@ -493,11 +534,7 @@ class CallService
                 return null;
             }
 
-            $lockedRoom->forceFill([
-                'status' => 'active',
-                'started_at' => $lockedRoom->started_at ?? now(),
-                'last_webhook_at' => now(),
-            ])->save();
+            $this->applyResolvedStatus($lockedRoom, true);
 
             return $lockedRoom;
         });
@@ -522,10 +559,15 @@ class CallService
 
     protected function finishLockedRoom(CallRoom $callRoom, string $status, string $endedReason): void
     {
+        $endedAt = $callRoom->ended_at ?? now();
+
         $callRoom->forceFill([
             'status' => $status,
-            'ended_at' => $callRoom->ended_at ?? now(),
+            'ended_at' => $endedAt,
             'ended_reason' => Str::limit($endedReason, 60, ''),
+            'duration_seconds' => $callRoom->started_at
+                ? max($callRoom->started_at->diffInSeconds($endedAt), 0)
+                : 0,
         ])->save();
 
         CallRoomParticipant::query()
@@ -555,6 +597,88 @@ class CallService
             ->update([
                 'active_room_uuid' => null,
             ]);
+
+        $roomUuid = $callRoom->room_uuid;
+
+        DB::afterCommit(function () use ($roomUuid): void {
+            $this->liveKitRoomService->deleteRoom($roomUuid);
+        });
+    }
+
+    protected function applyResolvedStatus(CallRoom $callRoom, bool $touchedByWebhook = false): void
+    {
+        $resolvedStatus = $this->resolveRoomStatus($callRoom);
+        $updates = [
+            'status' => $resolvedStatus,
+        ];
+
+        if ($resolvedStatus === 'active') {
+            $updates['started_at'] = $callRoom->started_at ?? now();
+        }
+
+        if ($touchedByWebhook) {
+            $updates['last_webhook_at'] = now();
+        }
+
+        $callRoom->forceFill($updates)->save();
+    }
+
+    protected function resolveRoomStatus(CallRoom $callRoom): string
+    {
+        $participantQuery = CallRoomParticipant::query()->where('call_room_id', $callRoom->id);
+
+        $joinedCount = (clone $participantQuery)
+            ->whereNotNull('joined_at')
+            ->whereNull('left_at')
+            ->count();
+
+        if ($joinedCount >= 2) {
+            return 'active';
+        }
+
+        $acceptedCount = (clone $participantQuery)
+            ->where('invite_status', 'accepted')
+            ->whereNull('left_at')
+            ->count();
+
+        if ($acceptedCount >= 2) {
+            return 'connecting';
+        }
+
+        $hasPendingInvitees = (clone $participantQuery)
+            ->whereIn('invite_status', ['invited', 'ringing'])
+            ->exists();
+
+        if ($hasPendingInvitees) {
+            return 'ringing';
+        }
+
+        return 'calling';
+    }
+
+    protected function shouldFinishAfterParticipantLeft(CallRoom $callRoom): bool
+    {
+        $participantQuery = CallRoomParticipant::query()->where('call_room_id', $callRoom->id);
+
+        $joinedCount = (clone $participantQuery)
+            ->whereNotNull('joined_at')
+            ->whereNull('left_at')
+            ->count();
+
+        if ($joinedCount === 0) {
+            return true;
+        }
+
+        $acceptedCount = (clone $participantQuery)
+            ->where('invite_status', 'accepted')
+            ->whereNull('left_at')
+            ->count();
+
+        $hasPendingInvitees = (clone $participantQuery)
+            ->whereIn('invite_status', ['invited', 'ringing'])
+            ->exists();
+
+        return $joinedCount < 2 && $acceptedCount < 2 && ! $hasPendingInvitees;
     }
 
     protected function loadCallRoom(string $roomUuid): CallRoom

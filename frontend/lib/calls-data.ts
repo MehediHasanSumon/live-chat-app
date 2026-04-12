@@ -20,12 +20,13 @@ export type CallRoomApiItem = {
   scope: "direct" | "group";
   media_type: "voice" | "video";
   created_by: number;
-  status: "initiated" | "ringing" | "active" | "ended" | "missed" | "declined" | "cancelled" | "failed";
+  status: "calling" | "ringing" | "connecting" | "active" | "ended" | "missed" | "declined" | "cancelled" | "failed";
   max_participants: number;
   max_video_publishers: number;
   started_at: string | null;
   ended_at: string | null;
   ended_reason: string | null;
+  duration_seconds: number | null;
   last_webhook_at: string | null;
   created_at: string;
   updated_at: string;
@@ -81,8 +82,12 @@ export function isCallTerminal(callRoom: CallRoomApiItem | null | undefined): bo
 
 export function formatCallStatus(callRoom: CallRoomApiItem): string {
   switch (callRoom.status) {
+    case "calling":
+      return "Calling";
     case "ringing":
       return "Ringing";
+    case "connecting":
+      return "Connecting";
     case "active":
       return "Active";
     case "declined":

@@ -2,6 +2,7 @@
 
 namespace App\Services\Messages;
 
+use App\Models\CallRoom;
 use App\Models\Conversation;
 use App\Models\ConversationMember;
 use App\Models\Message;
@@ -442,6 +443,73 @@ class MessageService
         return $this->loadMessage($updatedMessage);
     }
 
+    /**
+     * @return array{message: Message, created: bool}
+     */
+    public function syncCallEvent(CallRoom $callRoom, string $action, ?int $actorId = null): array
+    {
+        $message = DB::transaction(function () use ($action, $actorId, $callRoom): array {
+            $lockedConversation = Conversation::query()
+                ->whereKey($callRoom->conversation_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $message = Message::query()
+                ->where('call_room_uuid', $callRoom->room_uuid)
+                ->lockForUpdate()
+                ->first();
+
+            $textBody = $this->buildCallHistoryText($callRoom, $action);
+            $metadata = $this->buildCallHistoryMetadata($callRoom, $action);
+            $created = false;
+
+            if (! $message) {
+                $nextSeq = (int) $lockedConversation->last_message_seq + 1;
+
+                $message = Message::query()->create([
+                    'conversation_id' => $lockedConversation->getKey(),
+                    'seq' => $nextSeq,
+                    'sender_id' => $actorId ?? $callRoom->created_by,
+                    'client_uuid' => null,
+                    'call_room_uuid' => $callRoom->room_uuid,
+                    'type' => 'call',
+                    'sub_type' => $action,
+                    'text_body' => $textBody,
+                    'metadata_json' => $metadata,
+                    'editable_until_at' => null,
+                ]);
+
+                $this->syncConversationAfterMessageMutation($lockedConversation, $message);
+                $this->incrementUnreadCounts($lockedConversation->id, $message->sender_id);
+                $created = true;
+            } else {
+                $message->forceFill([
+                    'sender_id' => $message->sender_id ?: ($actorId ?? $callRoom->created_by),
+                    'sub_type' => $action,
+                    'text_body' => $textBody,
+                    'metadata_json' => $metadata,
+                ])->save();
+
+                if ($lockedConversation->last_message_id === $message->getKey()) {
+                    $lockedConversation->forceFill([
+                        'last_message_preview' => $this->buildPreview($message),
+                        'last_message_at' => $message->created_at,
+                    ])->save();
+                }
+            }
+
+            return [
+                'message' => $message,
+                'created' => $created,
+            ];
+        });
+
+        return [
+            'message' => $this->loadMessage($message['message']),
+            'created' => $message['created'],
+        ];
+    }
+
     protected function resolveReplyTarget(Conversation $conversation, int $userId, int $replyToMessageId): Message
     {
         $replyTo = Message::query()
@@ -496,9 +564,63 @@ class MessageService
             'video' => 'Video',
             'file' => 'File',
             'gif' => 'GIF',
-            'call' => 'Call event',
+            'call' => $message->text_body ?: 'Call event',
             default => 'New message',
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function buildCallHistoryMetadata(CallRoom $callRoom, string $action): array
+    {
+        return [
+            'action' => $action,
+            'status' => $callRoom->status,
+            'room_uuid' => $callRoom->room_uuid,
+            'media_type' => $callRoom->media_type,
+            'started_at' => $callRoom->started_at?->toIso8601String(),
+            'ended_at' => $callRoom->ended_at?->toIso8601String(),
+            'ended_reason' => $callRoom->ended_reason,
+            'duration_seconds' => (int) ($callRoom->duration_seconds ?? 0),
+        ];
+    }
+
+    protected function buildCallHistoryText(CallRoom $callRoom, string $action): string
+    {
+        $callLabel = $callRoom->media_type === 'video' ? 'Video call' : 'Voice call';
+        $duration = $this->formatDurationLabel((int) ($callRoom->duration_seconds ?? 0));
+
+        return match ($action) {
+            'calling' => "{$callLabel} started",
+            'ringing' => "{$callLabel} ringing",
+            'connecting' => "{$callLabel} accepted",
+            'in_call' => $duration ? "{$callLabel} in call · {$duration}" : "{$callLabel} in call",
+            'declined' => "{$callLabel} declined",
+            'missed' => "{$callLabel} missed",
+            'cancelled' => "{$callLabel} cancelled",
+            'failed' => "{$callLabel} failed",
+            'ended' => $duration ? "{$callLabel} ended · {$duration}" : "{$callLabel} ended",
+            default => $callLabel,
+        };
+    }
+
+    protected function formatDurationLabel(int $totalSeconds): ?string
+    {
+        if ($totalSeconds <= 0) {
+            return null;
+        }
+
+        $safeSeconds = max(0, $totalSeconds);
+        $hours = intdiv($safeSeconds, 3600);
+        $minutes = intdiv($safeSeconds % 3600, 60);
+        $seconds = $safeSeconds % 60;
+
+        if ($hours > 0) {
+            return sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+        }
+
+        return sprintf('%02d:%02d', $minutes, $seconds);
     }
 
     protected function incrementUnreadCounts(int $conversationId, int $senderId): void

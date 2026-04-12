@@ -7,6 +7,7 @@ use App\Models\CallRoom;
 use App\Models\CallRoomParticipant;
 use App\Models\Conversation;
 use App\Models\ConversationMember;
+use App\Models\Message;
 use App\Models\User;
 use App\Models\UserSetting;
 use App\Providers\EventServiceProvider;
@@ -94,9 +95,13 @@ it('starts a direct voice call and dispatches incoming call fanout', function ()
 
     $roomUuid = $response->json('data.room_uuid');
     $callRoom = CallRoom::query()->where('room_uuid', $roomUuid)->firstOrFail();
+    $callMessage = Message::query()->where('call_room_uuid', $roomUuid)->first();
 
     expect($callRoom->status)->toBe('ringing')
         ->and($callRoom->conversation->active_room_uuid)->toBe($roomUuid)
+        ->and($callMessage)->not->toBeNull()
+        ->and($callMessage?->type)->toBe('call')
+        ->and($callMessage?->sub_type)->toBe('ringing')
         ->and(
             CallRoomParticipant::query()
                 ->where('call_room_id', $callRoom->id)
@@ -112,7 +117,13 @@ it('starts a direct voice call and dispatches incoming call fanout', function ()
 
     Event::assertDispatched(ConversationCallStateChanged::class, function (ConversationCallStateChanged $event) use ($roomUuid): bool {
         return $event->callRoom->room_uuid === $roomUuid
-            && $event->action === 'started';
+            && $event->action === 'calling';
+    });
+
+    Event::assertDispatched(ConversationCallStateChanged::class, function (ConversationCallStateChanged $event) use ($roomUuid): bool {
+        return $event->callRoom->room_uuid === $roomUuid
+            && $event->action === 'ringing'
+            && $event->callRoom->status === 'ringing';
     });
 
     Event::assertDispatched(UserCallSignaled::class, function (UserCallSignaled $event) use ($recipient, $roomUuid): bool {
@@ -120,6 +131,162 @@ it('starts a direct voice call and dispatches incoming call fanout', function ()
             && $event->eventName === 'call.incoming'
             && $event->payload['call_room']['room_uuid'] === $roomUuid;
     });
+});
+
+it('moves a call into connecting on accept and stores the call duration when it ends', function () {
+    $caller = User::factory()->create();
+    $recipient = User::factory()->create();
+    $conversation = Conversation::query()->create([
+        'type' => 'direct',
+        'created_by' => $caller->id,
+        'active_room_uuid' => (string) str()->uuid(),
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $caller->id,
+        'role' => 'owner',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $recipient->id,
+        'role' => 'member',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    $callRoom = CallRoom::query()->create([
+        'room_uuid' => $conversation->active_room_uuid,
+        'conversation_id' => $conversation->id,
+        'scope' => 'direct',
+        'media_type' => 'voice',
+        'created_by' => $caller->id,
+        'status' => 'ringing',
+        'max_participants' => 2,
+        'max_video_publishers' => 0,
+    ]);
+
+    CallRoomParticipant::query()->create([
+        'call_room_id' => $callRoom->id,
+        'user_id' => $caller->id,
+        'invite_status' => 'accepted',
+        'joined_at' => now()->subSeconds(150),
+    ]);
+
+    CallRoomParticipant::query()->create([
+        'call_room_id' => $callRoom->id,
+        'user_id' => $recipient->id,
+        'invite_status' => 'ringing',
+    ]);
+
+    $acceptResponse = $this->actingAs($recipient, 'web')
+        ->postJson("/api/calls/{$callRoom->room_uuid}/accept");
+
+    $acceptResponse
+        ->assertOk()
+        ->assertJsonPath('data.status', 'connecting')
+        ->assertJsonPath('data.started_at', null);
+
+    $webhookService = Mockery::mock(LiveKitWebhookService::class);
+    $webhookService->shouldReceive('parse')
+        ->once()
+        ->andReturn([
+            'event' => 'participant_joined',
+            'room' => ['name' => $callRoom->room_uuid],
+            'participant' => ['identity' => (string) $recipient->id],
+        ]);
+
+    $this->app->instance(LiveKitWebhookService::class, $webhookService);
+
+    $this->postJson('/api/webhooks/livekit')
+        ->assertOk()
+        ->assertJsonPath('event', 'participant_joined')
+        ->assertJsonPath('call_room', $callRoom->room_uuid);
+
+    $callRoom->refresh();
+    $callRoom->forceFill([
+        'started_at' => now()->subSeconds(125),
+    ])->save();
+
+    $this->actingAs($caller, 'web')
+        ->postJson("/api/calls/{$callRoom->room_uuid}/end", [
+            'reason' => 'ended_by_participant',
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.status', 'ended')
+        ->assertJsonPath('data.duration_seconds', 125);
+
+    expect($callRoom->fresh()->status)->toBe('ended')
+        ->and($callRoom->fresh()->duration_seconds)->toBe(125)
+        ->and(Message::query()->where('call_room_uuid', $callRoom->room_uuid)->value('sub_type'))->toBe('ended')
+        ->and($conversation->fresh()->active_room_uuid)->toBeNull();
+});
+
+it('keeps declined calls in the database with a terminal status', function () {
+    $caller = User::factory()->create();
+    $recipient = User::factory()->create();
+    $conversation = Conversation::query()->create([
+        'type' => 'direct',
+        'created_by' => $caller->id,
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $caller->id,
+        'role' => 'owner',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $recipient->id,
+        'role' => 'member',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    $callRoom = CallRoom::query()->create([
+        'room_uuid' => (string) str()->uuid(),
+        'conversation_id' => $conversation->id,
+        'scope' => 'direct',
+        'media_type' => 'voice',
+        'created_by' => $caller->id,
+        'status' => 'ringing',
+        'max_participants' => 2,
+        'max_video_publishers' => 0,
+    ]);
+
+    $conversation->forceFill([
+        'active_room_uuid' => $callRoom->room_uuid,
+    ])->save();
+
+    CallRoomParticipant::query()->create([
+        'call_room_id' => $callRoom->id,
+        'user_id' => $caller->id,
+        'invite_status' => 'accepted',
+        'joined_at' => now()->subSeconds(20),
+    ]);
+
+    CallRoomParticipant::query()->create([
+        'call_room_id' => $callRoom->id,
+        'user_id' => $recipient->id,
+        'invite_status' => 'ringing',
+    ]);
+
+    $this->actingAs($recipient, 'web')
+        ->postJson("/api/calls/{$callRoom->room_uuid}/decline")
+        ->assertOk()
+        ->assertJsonPath('data.status', 'declined')
+        ->assertJsonPath('data.duration_seconds', 0);
+
+    expect(CallRoom::query()->whereKey($callRoom->id)->exists())->toBeTrue()
+        ->and($callRoom->fresh()->status)->toBe('declined')
+        ->and(Message::query()->where('call_room_uuid', $callRoom->room_uuid)->value('sub_type'))->toBe('declined')
+        ->and($callRoom->fresh()->ended_reason)->toBe('all_declined');
 });
 
 it('shows an active call room to participants', function () {
@@ -161,6 +328,7 @@ it('shows an active call room to participants', function () {
         'call_room_id' => $callRoom->id,
         'user_id' => $caller->id,
         'invite_status' => 'accepted',
+        'joined_at' => now()->subSeconds(20),
     ]);
 
     CallRoomParticipant::query()->create([
@@ -216,6 +384,7 @@ it('does not show a call room to users outside the conversation', function () {
         'call_room_id' => $callRoom->id,
         'user_id' => $caller->id,
         'invite_status' => 'accepted',
+        'joined_at' => now()->subSeconds(20),
     ]);
 
     CallRoomParticipant::query()->create([
@@ -343,6 +512,7 @@ it('syncs livekit webhook events into call room state and clears the active room
         'call_room_id' => $callRoom->id,
         'user_id' => $caller->id,
         'invite_status' => 'accepted',
+        'joined_at' => now()->subSeconds(20),
     ]);
 
     CallRoomParticipant::query()->create([
@@ -390,11 +560,12 @@ it('syncs livekit webhook events into call room state and clears the active room
         ->assertJsonPath('event', 'room_finished');
 
     expect($callRoom->fresh()->status)->toBe('ended')
+        ->and($callRoom->fresh()->duration_seconds)->toBeGreaterThanOrEqual(0)
         ->and($conversation->fresh()->active_room_uuid)->toBeNull();
 
     Event::assertDispatched(ConversationCallStateChanged::class, function (ConversationCallStateChanged $event) use ($callRoom): bool {
         return $event->callRoom->room_uuid === $callRoom->room_uuid
-            && in_array($event->action, ['participant_joined', 'room_finished'], true);
+            && in_array($event->action, ['in_call', 'ended'], true);
     });
 });
 

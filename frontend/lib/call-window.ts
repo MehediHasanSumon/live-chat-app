@@ -6,9 +6,21 @@ type OpenAudioCallWindowOptions = {
   conversationId: string | number;
   action: AudioCallWindowAction;
   roomUuid?: string;
+  title?: string;
+  avatarUrl?: string | null;
+  targetUserId?: number | null;
+  isGroup?: boolean;
 };
 
-function buildAudioCallUrl({ conversationId, action, roomUuid }: OpenAudioCallWindowOptions): string {
+function buildAudioCallUrl({
+  conversationId,
+  action,
+  roomUuid,
+  title,
+  avatarUrl,
+  targetUserId,
+  isGroup,
+}: OpenAudioCallWindowOptions): string {
   const params = new URLSearchParams({
     conversationId: String(conversationId),
     action,
@@ -16,6 +28,22 @@ function buildAudioCallUrl({ conversationId, action, roomUuid }: OpenAudioCallWi
 
   if (roomUuid) {
     params.set("roomUuid", roomUuid);
+  }
+
+  if (title) {
+    params.set("title", title);
+  }
+
+  if (avatarUrl) {
+    params.set("avatarUrl", avatarUrl);
+  }
+
+  if (typeof targetUserId === "number") {
+    params.set("targetUserId", String(targetUserId));
+  }
+
+  if (typeof isGroup === "boolean") {
+    params.set("isGroup", isGroup ? "1" : "0");
   }
 
   return `/calls/audio?${params.toString()}`;

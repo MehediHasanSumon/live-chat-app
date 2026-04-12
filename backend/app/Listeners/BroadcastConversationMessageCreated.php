@@ -24,6 +24,6 @@ class BroadcastConversationMessageCreated
             [
                 'message' => (new MessageResource($message))->resolve(new Request()),
             ],
-        ))->toOthers();
+        ));
     }
 }

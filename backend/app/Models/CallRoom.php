@@ -11,13 +11,16 @@ class CallRoom extends Model
 {
     use HasFactory;
 
-    public const ACTIVE_STATUSES = ['initiated', 'ringing', 'active'];
+    public const ACTIVE_STATUSES = ['calling', 'ringing', 'connecting', 'active'];
+
+    public const TERMINAL_STATUSES = ['ended', 'missed', 'declined', 'cancelled', 'failed'];
 
     protected $guarded = [];
 
     protected function casts(): array
     {
         return [
+            'duration_seconds' => 'integer',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
             'last_webhook_at' => 'datetime',

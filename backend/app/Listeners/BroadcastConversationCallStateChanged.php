@@ -22,6 +22,6 @@ class BroadcastConversationCallStateChanged
                 'action' => $event->action,
                 'call_room' => (new CallRoomResource($callRoom))->resolve(new Request()),
             ],
-        ))->toOthers();
+        ));
     }
 }
