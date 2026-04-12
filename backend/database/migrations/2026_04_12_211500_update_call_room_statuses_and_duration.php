@@ -28,6 +28,10 @@ return new class extends Migration
             ->where('status', 'calling')
             ->update(['status' => 'initiated']);
 
+        DB::table('call_rooms')
+            ->where('status', 'connecting')
+            ->update(['status' => 'active']);
+
         Schema::table('call_rooms', function (Blueprint $table): void {
             $table->enum('status', ['initiated', 'ringing', 'active', 'ended', 'missed', 'declined', 'cancelled', 'failed'])->change();
         });
