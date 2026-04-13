@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Archive, Bell, Crown, FileText, Image, Lock, LogOut, Plus, ShieldBan } from "lucide-react";
 
-import { openAudioCallWindow } from "@/lib/call-window";
+import { openCallWindow } from "@/lib/call-window";
 import { getDirectCallTargetUserId } from "@/lib/calls-data";
 import { formatPresenceLabel, type MessageThread } from "@/lib/messages-data";
 import {
@@ -85,6 +85,7 @@ function MessagesUserSidebarComponent({
   const muteLabel = isMuted ? "Unmute notifications" : "Mute notifications";
   const isRequestConversation = currentMembership?.membership_state === "request_pending";
   const canStartVoiceCall = !thread.isChatBlocked && !isRequestConversation;
+  const canStartVideoCall = canStartVoiceCall;
 
   const handleMuteAction = async () => {
     if (isMuted) {
@@ -166,9 +167,10 @@ function MessagesUserSidebarComponent({
             onVoiceCallClick={
               canStartVoiceCall
                 ? () => {
-                    openAudioCallWindow({
+                    openCallWindow({
                       conversationId: thread.id,
                       action: "start",
+                      mediaType: "voice",
                       title: thread.name,
                       avatarUrl: thread.avatarUrl ?? null,
                       targetUserId:
@@ -180,6 +182,20 @@ function MessagesUserSidebarComponent({
                   }
                 : undefined
             }
+            onVideoCallClick={canStartVideoCall ? () => {
+              openCallWindow({
+                conversationId: thread.id,
+                action: "start",
+                mediaType: "video",
+                title: thread.name,
+                avatarUrl: thread.avatarUrl ?? null,
+                targetUserId:
+                  !thread.isGroup && authUserId
+                    ? getDirectCallTargetUserId(thread, authUserId)
+                    : null,
+                isGroup: Boolean(thread.isGroup),
+              });
+            } : undefined}
             onMuteClick={() => {
               void handleMuteAction();
             }}

@@ -2,13 +2,15 @@
 
 import {
   LiveKitRoom,
+  ParticipantTile,
   RoomAudioRenderer,
   useConnectionState,
   useLocalParticipant,
   useRemoteParticipants,
+  useTracks,
 } from "@livekit/components-react";
-import { Ellipsis, Lock, Mic, MicOff, PhoneCall, PhoneOff, UserPlus, Video, Volume2, X } from "lucide-react";
-import { ConnectionState } from "livekit-client";
+import { Camera, CameraOff, Lock, Mic, MicOff, PhoneCall, PhoneOff, UserPlus, Video, X } from "lucide-react";
+import { ConnectionState, Track } from "livekit-client";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -23,9 +25,9 @@ import {
   type CallRoomApiItem,
   type JoinCallApiPayload,
 } from "@/lib/calls-data";
+import { publishPopupClosingSignal } from "@/lib/call-popup-sync";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationQuery } from "@/lib/hooks/use-conversation-query";
-import { publishPopupClosingSignal } from "@/lib/call-popup-sync";
 import { toConversationThread, type MessageThread } from "@/lib/messages-data";
 import { getEchoInstance } from "@/lib/reverb";
 
@@ -126,17 +128,21 @@ function getApiErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return "We could not prepare the audio call.";
+  return "We could not prepare the call.";
 }
 
-async function startVoiceCall(thread: MessageThread, authUserId: number): Promise<CallRoomApiItem> {
+async function startCall(
+  thread: MessageThread,
+  authUserId: number,
+  mediaType: "voice" | "video",
+): Promise<CallRoomApiItem> {
   if (thread.isChatBlocked || thread.membership?.membership_state === "request_pending") {
-    throw new Error("This conversation is not ready for audio calling yet.");
+    throw new Error("This conversation is not ready for calling yet.");
   }
 
   if (thread.isGroup) {
     return apiClient
-      .post<CallRoomResponse>(`/api/conversations/${thread.id}/calls/group/voice`)
+      .post<CallRoomResponse>(`/api/conversations/${thread.id}/calls/group/${mediaType}`)
       .then((response) => response.data);
   }
 
@@ -147,36 +153,37 @@ async function startVoiceCall(thread: MessageThread, authUserId: number): Promis
   }
 
   return apiClient
-    .post<CallRoomResponse>(`/api/calls/direct/${targetUserId}/voice`)
+    .post<CallRoomResponse>(`/api/calls/direct/${targetUserId}/${mediaType}`)
     .then((response) => response.data);
 }
 
-async function startVoiceCallFast(
+async function startCallFast(
   conversationId: string,
   options: {
     targetUserId?: number | null;
     isGroup?: boolean;
+    mediaType: "voice" | "video";
   },
 ): Promise<CallRoomApiItem> {
   if (options.isGroup) {
     return apiClient
-      .post<CallRoomResponse>(`/api/conversations/${conversationId}/calls/group/voice`)
+      .post<CallRoomResponse>(`/api/conversations/${conversationId}/calls/group/${options.mediaType}`)
       .then((response) => response.data);
   }
 
   if (typeof options.targetUserId === "number") {
     return apiClient
-      .post<CallRoomResponse>(`/api/calls/direct/${options.targetUserId}/voice`)
+      .post<CallRoomResponse>(`/api/calls/direct/${options.targetUserId}/${options.mediaType}`)
       .then((response) => response.data);
   }
 
   throw new Error("We could not identify the other participant for this call.");
 }
 
-async function createJoinToken(roomUuid: string) {
+async function createJoinToken(roomUuid: string, wantsVideo = false) {
   return apiClient
     .post<JoinTokenResponse>(`/api/calls/${roomUuid}/join-token`, {
-      wants_video: false,
+      wants_video: wantsVideo,
     })
     .then((response) => response.data);
 }
@@ -195,74 +202,7 @@ type AudioCallShellProps = {
   isLeaving: boolean;
 };
 
-function AudioCallActions({ onLeave, isLeaving }: { onLeave: () => void; isLeaving: boolean }) {
-  const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
-
-  const toggleMicrophone = useCallback(async () => {
-    await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
-  }, [isMicrophoneEnabled, localParticipant]);
-
-  const disabledButtonClass =
-    "inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/6 text-white/34 opacity-70";
-  const activeButtonClass =
-    "inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white shadow-[0_14px_24px_rgba(0,0,0,0.18)] transition hover:bg-white/14";
-
-  return (
-    <div className="flex items-center justify-center gap-4 px-4 pb-8 pt-3">
-      <button
-        type="button"
-        disabled
-        aria-label="Add user to group call"
-        className={disabledButtonClass}
-      >
-        <UserPlus className="h-4.5 w-4.5" />
-      </button>
-      <button
-        type="button"
-        disabled
-        aria-label="Switch to video call"
-        className={disabledButtonClass}
-      >
-        <Video className="h-4.5 w-4.5" />
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          void toggleMicrophone();
-        }}
-        aria-label={isMicrophoneEnabled ? "Mute microphone" : "Unmute microphone"}
-        className={activeButtonClass}
-      >
-        {isMicrophoneEnabled ? <Mic className="h-4.5 w-4.5" /> : <MicOff className="h-4.5 w-4.5" />}
-      </button>
-      <button
-        type="button"
-        onClick={onLeave}
-        disabled={isLeaving}
-        aria-label={isLeaving ? "Ending call" : "End call"}
-        className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ff5d72_0%,#ff3f62_100%)] text-white shadow-[0_18px_28px_rgba(255,75,110,0.28)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <PhoneOff className="h-4.5 w-4.5" />
-      </button>
-    </div>
-  );
-}
-
-type AudioCallStageProps = {
-  callRoom: CallRoomApiItem;
-  title: string;
-  avatarUrl?: string | null;
-  onLeave: () => void;
-  isLeaving: boolean;
-};
-
-function AudioCallStage({
-  callRoom,
-  title,
-  avatarUrl = null,
-  onLeave,
-  isLeaving,
-}: AudioCallStageProps) {
+function useCallStageMeta(callRoom: CallRoomApiItem) {
   const connectionState = useConnectionState();
   const remoteParticipants = useRemoteParticipants();
   const remoteParticipantCount = remoteParticipants.length;
@@ -326,39 +266,132 @@ function AudioCallStage({
   const statusLabel = getRealtimeStatus(callRoom, connectionState, remoteParticipantCount);
   const durationLabel = statusLabel === "In call" ? formatCallDuration(elapsedSeconds) : null;
 
+  return {
+    statusLabel,
+    durationLabel,
+  };
+}
+
+function CallWindowHeader({
+  title,
+  avatarUrl = null,
+  statusLabel,
+  durationLabel,
+}: {
+  title: string;
+  avatarUrl?: string | null;
+  statusLabel: string;
+  durationLabel: string | null;
+}) {
+  return (
+    <header className="flex items-start justify-between gap-4 px-4 pb-3 pt-4 md:px-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <MessageAvatar
+          name={title}
+          online={false}
+          imageUrl={avatarUrl}
+          sizeClass="h-12 w-12"
+          textClass="text-base"
+        />
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-semibold tracking-[-0.02em] text-white/96">{title}</h1>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-[11px] font-medium text-white/82 backdrop-blur">
+              {durationLabel ? `${statusLabel} · ${durationLabel}` : statusLabel}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-[rgba(255,255,255,0.04)] px-3 py-1.5 text-[11px] font-medium text-white/62 backdrop-blur">
+              <Lock className="h-3.5 w-3.5" />
+              End-to-end encrypted
+            </span>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function CallPopupControls({
+  isVideoCall,
+  onLeave,
+  isLeaving,
+}: {
+  isVideoCall: boolean;
+  onLeave: () => void;
+  isLeaving: boolean;
+}) {
+  const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
+
+  return (
+    <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-6">
+      <div className="flex items-center gap-3 rounded-full border border-white/10 bg-[rgba(12,16,31,0.84)] px-4 py-3 shadow-[0_28px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl">
+        <button
+          type="button"
+          onClick={() => {
+            void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
+          }}
+          aria-label={isMicrophoneEnabled ? "Mute microphone" : "Unmute microphone"}
+          className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white shadow-[0_14px_24px_rgba(0,0,0,0.18)] transition hover:bg-white/14"
+        >
+          {isMicrophoneEnabled ? <Mic className="h-4.5 w-4.5" /> : <MicOff className="h-4.5 w-4.5" />}
+        </button>
+
+        {isVideoCall ? (
+          <button
+            type="button"
+            onClick={() => {
+              void localParticipant.setCameraEnabled(!isCameraEnabled);
+            }}
+            aria-label={isCameraEnabled ? "Turn camera off" : "Turn camera on"}
+            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white shadow-[0_14px_24px_rgba(0,0,0,0.18)] transition hover:bg-white/14"
+          >
+            {isCameraEnabled ? <Camera className="h-4.5 w-4.5" /> : <CameraOff className="h-4.5 w-4.5" />}
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled
+            aria-label="Add user to group call"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/6 text-white/34 opacity-70"
+          >
+            <UserPlus className="h-4.5 w-4.5" />
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onLeave}
+          disabled={isLeaving}
+          aria-label={isLeaving ? "Ending call" : "End call"}
+          className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ff5d72_0%,#ff3f62_100%)] text-white shadow-[0_18px_28px_rgba(255,75,110,0.28)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <PhoneOff className="h-4.5 w-4.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AudioCallStage({
+  callRoom,
+  title,
+  avatarUrl = null,
+  onLeave,
+  isLeaving,
+}: {
+  callRoom: CallRoomApiItem;
+  title: string;
+  avatarUrl?: string | null;
+  onLeave: () => void;
+  isLeaving: boolean;
+}) {
+  const { statusLabel, durationLabel } = useCallStageMeta(callRoom);
+
   return (
     <>
       <RoomAudioRenderer />
-      <header className="flex items-start justify-between gap-4 px-4 pb-3 pt-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <MessageAvatar
-            name={title}
-            online={false}
-            imageUrl={avatarUrl}
-            sizeClass="h-12 w-12"
-            textClass="text-base"
-          />
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold tracking-[-0.02em] text-white/96">{title}</h1>
-            <div className="mt-0.5 flex items-center gap-1.5 text-sm text-white/72">
-              <Lock className="h-3.5 w-3.5" />
-              <span>End-to-end encrypted</span>
-            </div>
-          </div>
-        </div>
+      <CallWindowHeader title={title} avatarUrl={avatarUrl} statusLabel={statusLabel} durationLabel={durationLabel} />
 
-        <div className="flex items-center gap-2">
-          <div className="inline-flex items-center rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/82 shadow-[0_10px_24px_rgba(0,0,0,0.15)] backdrop-blur">
-            <Volume2 className="mr-1.5 h-3.5 w-3.5" />
-            Audio only
-          </div>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white/78 shadow-[0_10px_24px_rgba(0,0,0,0.15)] backdrop-blur">
-            <Ellipsis className="h-4 w-4" />
-          </div>
-        </div>
-      </header>
-
-      <div className="flex flex-1 flex-col items-center justify-center px-6 pb-6 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center px-6 pb-24 text-center">
         <div className="relative">
           <div className="absolute inset-[-26px] rounded-full border border-white/8 bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_68%)] blur-2xl" />
           <div className="absolute inset-[-12px] animate-pulse rounded-full border border-white/10" />
@@ -380,37 +413,103 @@ function AudioCallStage({
         </p>
       </div>
 
-      <AudioCallActions onLeave={onLeave} isLeaving={isLeaving} />
+      <CallPopupControls isVideoCall={false} onLeave={onLeave} isLeaving={isLeaving} />
+    </>
+  );
+}
+
+function VideoParticipantGrid() {
+  const tracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }], {
+    onlySubscribed: false,
+  });
+
+  return (
+    <div className="grid flex-1 auto-rows-[minmax(220px,1fr)] grid-cols-1 gap-4 overflow-auto p-5 md:grid-cols-2">
+      {tracks.map((trackRef) => {
+        const key = `${trackRef.participant.identity}-${trackRef.source}`;
+
+        return (
+          <div
+            key={key}
+            className="overflow-hidden rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(18,24,44,0.96)_0%,rgba(14,18,34,0.94)_100%)] shadow-[0_28px_70px_rgba(4,8,20,0.42)]"
+          >
+            <ParticipantTile trackRef={trackRef} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function VideoCallStage({
+  callRoom,
+  title,
+  avatarUrl = null,
+  onLeave,
+  isLeaving,
+}: {
+  callRoom: CallRoomApiItem;
+  title: string;
+  avatarUrl?: string | null;
+  onLeave: () => void;
+  isLeaving: boolean;
+}) {
+  const { statusLabel, durationLabel } = useCallStageMeta(callRoom);
+
+  return (
+    <>
+      <RoomAudioRenderer />
+      <CallWindowHeader title={title} avatarUrl={avatarUrl} statusLabel={statusLabel} durationLabel={durationLabel} />
+
+      <div className="flex min-h-0 flex-1 px-4 pb-24 pt-2 md:px-5">
+        <div className="flex min-h-0 flex-1 overflow-hidden rounded-[34px] border border-white/8 bg-[linear-gradient(180deg,rgba(10,14,29,0.92)_0%,rgba(8,12,22,0.94)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_32px_90px_rgba(0,0,0,0.34)]">
+          <VideoParticipantGrid />
+        </div>
+      </div>
+
+      <CallPopupControls isVideoCall onLeave={onLeave} isLeaving={isLeaving} />
     </>
   );
 }
 
 function AudioCallShell({ payload, title, avatarUrl = null, onLeave, isLeaving }: AudioCallShellProps) {
+  const isVideoCall = payload.call_room.media_type === "video";
+
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(255,189,141,0.18),transparent_22%),radial-gradient(circle_at_bottom,rgba(51,87,124,0.24),transparent_32%),linear-gradient(180deg,#262932_0%,#1f222c_100%)] text-white">
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(255,189,141,0.14),transparent_18%),radial-gradient(circle_at_bottom,rgba(51,87,124,0.22),transparent_28%),linear-gradient(180deg,#141927_0%,#0e1320_100%)] text-white">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-x-[12%] top-[12%] h-[34%] rounded-full bg-[radial-gradient(circle,rgba(165,108,86,0.42)_0%,rgba(165,108,86,0)_72%)] blur-3xl" />
         <div className="absolute inset-x-[10%] bottom-[8%] h-[38%] rounded-full bg-[radial-gradient(circle,rgba(42,68,96,0.42)_0%,rgba(42,68,96,0)_72%)] blur-3xl" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_22%,rgba(8,10,16,0.2)_100%)]" />
       </div>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[460px] flex-col">
+      <div className={`relative mx-auto flex min-h-screen w-full flex-col ${isVideoCall ? "max-w-[1280px]" : "max-w-[460px]"}`}>
         <LiveKitRoom
           token={payload.token.token}
           serverUrl={normalizeLiveKitServerUrl(payload.token.url)}
           connect
           audio
-          video={false}
+          video={isVideoCall}
           data-lk-theme="default"
           className="flex min-h-0 flex-1 flex-col"
         >
-          <AudioCallStage
-            callRoom={payload.call_room}
-            title={title}
-            avatarUrl={avatarUrl}
-            onLeave={onLeave}
-            isLeaving={isLeaving}
-          />
+          {isVideoCall ? (
+            <VideoCallStage
+              callRoom={payload.call_room}
+              title={title}
+              avatarUrl={avatarUrl}
+              onLeave={onLeave}
+              isLeaving={isLeaving}
+            />
+          ) : (
+            <AudioCallStage
+              callRoom={payload.call_room}
+              title={title}
+              avatarUrl={avatarUrl}
+              onLeave={onLeave}
+              isLeaving={isLeaving}
+            />
+          )}
         </LiveKitRoom>
       </div>
     </div>
@@ -422,6 +521,7 @@ export function AudioCallWindow() {
   const conversationId = searchParams.get("conversationId") ?? "";
   const action = searchParams.get("action") ?? "start";
   const roomUuid = searchParams.get("roomUuid") ?? "";
+  const requestedMediaType = searchParams.get("mediaType") === "video" ? "video" : "voice";
   const initialTitle = searchParams.get("title") ?? "";
   const initialAvatarUrl = searchParams.get("avatarUrl");
   const targetUserIdParam = searchParams.get("targetUserId");
@@ -446,6 +546,7 @@ export function AudioCallWindow() {
   const didInitializeRef = useRef(false);
   const didEndRef = useRef(false);
   const currentRoomUuid = payload?.call_room.room_uuid ?? roomUuid ?? activeConversationRoomUuid;
+  const activeMediaType = payload?.call_room.media_type ?? roomSnapshot?.media_type ?? requestedMediaType;
 
   const closeWindow = useCallback(() => {
     window.close();
@@ -457,7 +558,7 @@ export function AudioCallWindow() {
     }, 120);
   }, [conversationId]);
 
-  const endCall = useCallback(async (reason = "left_from_audio_popup", closeAfter = true) => {
+  const endCall = useCallback(async (reason = "left_from_call_popup", closeAfter = true) => {
     const activeRoomUuid = payload?.call_room.room_uuid ?? roomUuid;
 
     if (!activeRoomUuid || didEndRef.current) {
@@ -545,8 +646,8 @@ export function AudioCallWindow() {
           if (!targetRoomUuid) {
             const callRoom =
               conversationId && (isGroup || targetUserId !== null)
-                ? await startVoiceCallFast(conversationId, { isGroup, targetUserId })
-                : await startVoiceCall(thread as MessageThread, authUserId as number);
+                ? await startCallFast(conversationId, { isGroup, targetUserId, mediaType: requestedMediaType })
+                : await startCall(thread as MessageThread, authUserId as number, requestedMediaType);
             setRoomSnapshot(callRoom);
             targetRoomUuid = callRoom.room_uuid;
           }
@@ -557,7 +658,7 @@ export function AudioCallWindow() {
           setRoomSnapshot(acceptedCallRoom);
         }
 
-        const joinPayload = await createJoinToken(targetRoomUuid);
+        const joinPayload = await createJoinToken(targetRoomUuid, requestedMediaType === "video");
         setRoomSnapshot(joinPayload.call_room);
         setPayload(joinPayload);
       } catch (error) {
@@ -568,7 +669,7 @@ export function AudioCallWindow() {
     };
 
     void run();
-  }, [action, activeConversationRoomUuid, authUserId, conversationId, isConversationError, isGroup, roomUuid, targetUserId, thread]);
+  }, [action, activeConversationRoomUuid, authUserId, conversationId, isConversationError, isGroup, requestedMediaType, roomUuid, targetUserId, thread]);
 
   useEffect(() => {
     if (!currentRoomUuid) {
@@ -586,7 +687,7 @@ export function AudioCallWindow() {
       publishPopupClosingSignal({
         roomUuid: activeRoomUuid,
         conversationId,
-        reason: "audio_popup_closed",
+        reason: "call_popup_closed",
       });
 
       const xsrfToken = getCookie("XSRF-TOKEN");
@@ -602,7 +703,7 @@ export function AudioCallWindow() {
           ...(xsrfToken ? { "X-XSRF-TOKEN": xsrfToken } : {}),
         },
         body: JSON.stringify({
-          reason: "audio_popup_closed",
+          reason: "call_popup_closed",
         }),
       }).catch(() => {
         // Ignore browser shutdown failures.
@@ -715,7 +816,7 @@ export function AudioCallWindow() {
       {payload ? (
         <AudioCallShell
           payload={payload}
-          title={(thread?.name ?? initialTitle) || "Voice call"}
+          title={(thread?.name ?? initialTitle) || (activeMediaType === "video" ? "Video call" : "Voice call")}
           avatarUrl={thread?.avatarUrl ?? initialAvatarUrl ?? null}
           onLeave={() => {
             void endCall();
@@ -724,17 +825,24 @@ export function AudioCallWindow() {
         />
       ) : (
         <div className="flex min-h-screen items-center justify-center px-5 py-6">
-          <div className="w-full max-w-[420px] rounded-[28px] border border-[rgba(111,123,176,0.14)] bg-white px-6 py-7 text-center shadow-[0_24px_70px_rgba(96,109,160,0.12)]">
+          <div className={`w-full rounded-[28px] border border-[rgba(111,123,176,0.14)] bg-white px-6 py-7 text-center shadow-[0_24px_70px_rgba(96,109,160,0.12)] ${activeMediaType === "video" ? "max-w-[560px]" : "max-w-[420px]"}`}>
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(96,91,255,0.08)] text-[var(--accent)]">
-              {errorMessage ? <X className="h-7 w-7" /> : <PhoneCall className="h-7 w-7" />}
+              {errorMessage ? (
+                <X className="h-7 w-7" />
+              ) : activeMediaType === "video" ? (
+                <Video className="h-7 w-7" />
+              ) : (
+                <PhoneCall className="h-7 w-7" />
+              )}
             </div>
 
             <h1 className="mt-4 text-2xl font-semibold tracking-tight text-[#2f3655]">
-              {errorMessage ? "Audio call unavailable" : "Preparing audio call"}
+              {errorMessage ? "Call unavailable" : `Preparing ${activeMediaType === "video" ? "video" : "audio"} call`}
             </h1>
 
             <p className="mt-3 text-sm leading-6 text-[#7580a8]">
-              {errorMessage ?? "We are opening a separate voice call window for this conversation."}
+              {errorMessage ??
+                `We are opening a separate ${activeMediaType === "video" ? "video" : "voice"} call window for this conversation.`}
             </p>
 
             {!errorMessage && roomSnapshot ? (
@@ -754,8 +862,8 @@ export function AudioCallWindow() {
               <div className="mx-auto mt-5 h-10 w-10 animate-spin rounded-full border-2 border-[rgba(111,123,176,0.16)] border-t-[var(--accent)]" />
             ) : null}
 
-            <div className="mt-6 flex items-center justify-center gap-2">
-              {errorMessage ? (
+            {errorMessage ? (
+              <div className="mt-6 flex items-center justify-center">
                 <button
                   type="button"
                   onClick={closeWindow}
@@ -763,8 +871,8 @@ export function AudioCallWindow() {
                 >
                   Close
                 </button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

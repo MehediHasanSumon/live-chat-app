@@ -2,17 +2,15 @@
 
 import { useEffect } from "react";
 import { Lock, PhoneCall, PhoneOff, Video } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
 
 import { MessageAvatar } from "@/components/messages/message-avatar";
 import { apiClient } from "@/lib/api-client";
-import { openAudioCallWindow } from "@/lib/call-window";
+import { openCallWindow } from "@/lib/call-window";
 import { type CallRoomApiItem, getCallParticipant } from "@/lib/calls-data";
 import {
   useAcceptCallMutation,
   useDeclineCallMutation,
-  useJoinCallMutation,
 } from "@/lib/hooks/use-call-mutations";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { toConversationThread } from "@/lib/messages-data";
@@ -24,7 +22,6 @@ type CallRoomResponse = {
 };
 
 export function CallDock() {
-  const router = useRouter();
   const { userId } = useAuthStore(useShallow((state) => ({
     userId: state.user?.id ?? null,
   })));
@@ -44,7 +41,6 @@ export function CallDock() {
   })));
   const acceptCallMutation = useAcceptCallMutation();
   const declineCallMutation = useDeclineCallMutation();
-  const joinCallMutation = useJoinCallMutation();
 
   const session = incomingCall ?? activeCall;
   const isIncoming = Boolean(incomingCall && session && incomingCall.callRoom.room_uuid === session.callRoom.room_uuid);
@@ -100,43 +96,23 @@ export function CallDock() {
 
   const participant = getCallParticipant(session.callRoom, userId);
   const isAccepted = participant?.invite_status === "accepted";
-  const joinRequested = joinCallMutation.isPending;
   const acceptRequested = acceptCallMutation.isPending;
   const declineRequested = declineCallMutation.isPending;
   const title = thread?.name ?? `Conversation #${session.callRoom.conversation_id}`;
 
   const handleAccept = async () => {
-    if (session.callRoom.media_type === "voice") {
-      const acceptedCallRoom = await acceptCallMutation.mutateAsync(session.callRoom.room_uuid);
-      const popup = openAudioCallWindow({
-        conversationId: session.callRoom.conversation_id,
-        action: "join",
-        roomUuid: acceptedCallRoom.room_uuid,
-        title,
-        avatarUrl: thread?.avatarUrl ?? null,
-        isGroup: Boolean(thread?.isGroup),
-      });
-
-      if (popup) {
-        clearIncomingCall();
-        clearActiveCall();
-        return;
-      }
-
-      router.push(`/messages/t/${session.callRoom.conversation_id}`);
-      await joinCallMutation.mutateAsync({
-        roomUuid: acceptedCallRoom.room_uuid,
-        wantsVideo: false,
-      });
-      return;
-    }
-
-    await acceptCallMutation.mutateAsync(session.callRoom.room_uuid);
-    router.push(`/messages/t/${session.callRoom.conversation_id}`);
-    await joinCallMutation.mutateAsync({
-      roomUuid: session.callRoom.room_uuid,
-      wantsVideo: session.callRoom.media_type === "video",
+    const acceptedCallRoom = await acceptCallMutation.mutateAsync(session.callRoom.room_uuid);
+    openCallWindow({
+      conversationId: session.callRoom.conversation_id,
+      action: "join",
+      mediaType: acceptedCallRoom.media_type,
+      roomUuid: acceptedCallRoom.room_uuid,
+      title,
+      avatarUrl: thread?.avatarUrl ?? null,
+      isGroup: Boolean(thread?.isGroup),
     });
+    clearIncomingCall();
+    clearActiveCall();
   };
 
   if (isIncoming && !isAccepted) {
@@ -184,7 +160,7 @@ export function CallDock() {
                 onClick={() => {
                   void handleAccept();
                 }}
-                disabled={acceptRequested || joinRequested}
+                disabled={acceptRequested}
                 className="group flex flex-col items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#46c95d_0%,#2faa48_100%)] text-white shadow-[0_12px_20px_rgba(52,181,77,0.2)] transition group-hover:scale-[1.03]">
@@ -195,7 +171,7 @@ export function CallDock() {
                   )}
                 </span>
                 <span className="text-[11px] font-semibold text-[#4c5478]">
-                  {acceptRequested || joinRequested ? "Accepting..." : "Accept"}
+                  {acceptRequested ? "Accepting..." : "Accept"}
                 </span>
               </button>
             </div>

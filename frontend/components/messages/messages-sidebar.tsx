@@ -23,7 +23,7 @@ import { MessagesSearchBar } from "@/components/messages/messages-search-bar";
 import { MessagesSidebarHeader } from "@/components/messages/messages-sidebar-header";
 import { MessagesThreadMenu } from "@/components/messages/messages-thread-menu";
 import { MessageThreadItem } from "@/components/messages/message-thread-item";
-import { openAudioCallWindow } from "@/lib/call-window";
+import { openCallWindow } from "@/lib/call-window";
 import { getDirectCallTargetUserId } from "@/lib/calls-data";
 import {
   useArchiveConversationMutation,
@@ -434,7 +434,7 @@ export function MessagesSidebar({
                 { label: readToggleLabel, icon: CheckCheck },
                 { label: muteLabel, icon: Bell },
                 { label: "Audio call", icon: Phone, disabled: !canStartAudioCall },
-                { label: "Video chat", icon: Video, disabled: true },
+                { label: "Video chat", icon: Video, disabled: !canStartAudioCall },
                 ...(!thread.isGroup ? [{ label: "Block", icon: MessageCircleOff }] : []),
                 { label: "Archive chat", icon: Archive },
                 { label: "Delete chat", icon: Trash2 },
@@ -493,9 +493,26 @@ export function MessagesSidebar({
 
                         if (label === "Audio call") {
                           setOpenMenuThreadId(null);
-                          openAudioCallWindow({
+                          openCallWindow({
                             conversationId: thread.id,
                             action: "start",
+                            mediaType: "voice",
+                            title: thread.name,
+                            avatarUrl: thread.avatarUrl ?? null,
+                            targetUserId:
+                              !thread.isGroup && authUserId
+                                ? getDirectCallTargetUserId(thread, authUserId)
+                                : null,
+                            isGroup: Boolean(thread.isGroup),
+                          });
+                        }
+
+                        if (label === "Video chat") {
+                          setOpenMenuThreadId(null);
+                          openCallWindow({
+                            conversationId: thread.id,
+                            action: "start",
+                            mediaType: "video",
                             title: thread.name,
                             avatarUrl: thread.avatarUrl ?? null,
                             targetUserId:

@@ -7,7 +7,6 @@ import { ReactNode, useState } from "react";
 import { AuthQuerySync } from "@/components/providers/auth-query-sync";
 import { AuthStoreSync } from "@/components/providers/auth-store-sync";
 import { CallDock } from "@/components/providers/call-dock";
-import { CallRoomOverlay } from "@/components/providers/call-room-overlay";
 import { CallRealtimeProvider } from "@/components/providers/call-realtime-provider";
 import { ConversationRealtimeProvider } from "@/components/providers/conversation-realtime-provider";
 import { PresenceHeartbeatProvider } from "@/components/providers/presence-heartbeat-provider";
@@ -19,7 +18,7 @@ type AppProvidersProps = {
 
 export function AppProviders({ children }: AppProvidersProps) {
   const pathname = usePathname();
-  const isStandaloneAudioCallRoute = pathname?.startsWith("/calls/audio");
+  const isStandaloneAudioCallRoute = pathname?.startsWith("/calls/");
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -42,7 +41,6 @@ export function AppProviders({ children }: AppProvidersProps) {
       <CallRealtimeProvider />
       <ConversationRealtimeProvider />
       {!isStandaloneAudioCallRoute ? <CallDock /> : null}
-      {!isStandaloneAudioCallRoute ? <CallRoomOverlay /> : null}
       {children}
     </QueryClientProvider>
   );

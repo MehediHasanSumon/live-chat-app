@@ -9,13 +9,11 @@ import { type MessagesImageViewerItem } from "@/components/messages/messages-ima
 import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
 import { ApiClientError } from "@/lib/api-client";
-import { openAudioCallWindow } from "@/lib/call-window";
+import { openCallWindow } from "@/lib/call-window";
 import { getDirectCallTargetUserId } from "@/lib/calls-data";
 import {
   useAcceptCallMutation,
   useDeclineCallMutation,
-  useJoinCallMutation,
-  useStartCallMutation,
 } from "@/lib/hooks/use-call-mutations";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
@@ -74,8 +72,6 @@ export function MessagesThreadView({
   const acceptRequestMutation = useAcceptMessageRequestMutation();
   const rejectRequestMutation = useRejectMessageRequestMutation();
   const markReadMutation = useMarkConversationReadMutation();
-  const startCallMutation = useStartCallMutation();
-  const joinCallMutation = useJoinCallMutation();
   const acceptCallMutation = useAcceptCallMutation();
   const declineCallMutation = useDeclineCallMutation();
   const { data: forwardConversations = [] } = useConversationsQuery(true);
@@ -104,6 +100,7 @@ export function MessagesThreadView({
   const [removeScope, setRemoveScope] = useState<"self" | "everyone">("self");
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([]);
   const [isOpeningVoiceCall, setIsOpeningVoiceCall] = useState(false);
+  const [isOpeningVideoCall, setIsOpeningVideoCall] = useState(false);
 
   const serverMessages = useMemo(
     () => messages.map((message) => toChatMessage(message, currentUserId ?? undefined)),
@@ -320,22 +317,35 @@ export function MessagesThreadView({
     };
   }, [handleLoadOlder, hasNextPage, thread.id]);
 
-  const handleStartCall = useCallback(async (mediaType: "voice" | "video") => {
-    if (!currentUserId) {
+  const handleStartCall = useCallback((mediaType: "voice" | "video") => {
+    if (isBlockedConversation || isRequestConversation) {
       return;
     }
 
-    const callRoom = await startCallMutation.mutateAsync({
-      thread,
+    if (mediaType === "voice") {
+      setIsOpeningVoiceCall(true);
+    } else {
+      setIsOpeningVideoCall(true);
+    }
+
+    openCallWindow({
+      conversationId: thread.id,
+      action: "start",
       mediaType,
-      authUserId: currentUserId,
+      title: thread.name,
+      avatarUrl: thread.avatarUrl ?? null,
+      targetUserId: thread.isGroup ? null : getDirectCallTargetUserId(thread, currentUserId ?? 0),
+      isGroup: Boolean(thread.isGroup),
     });
 
-    await joinCallMutation.mutateAsync({
-      roomUuid: callRoom.room_uuid,
-      wantsVideo: mediaType === "video",
-    });
-  }, [currentUserId, joinCallMutation, startCallMutation, thread]);
+    window.setTimeout(() => {
+      if (mediaType === "voice") {
+        setIsOpeningVoiceCall(false);
+      } else {
+        setIsOpeningVideoCall(false);
+      }
+    }, 220);
+  }, [currentUserId, isBlockedConversation, isRequestConversation, thread]);
 
   const cancelEditing = useCallback(() => {
     setEditingMessageId(null);
@@ -493,78 +503,35 @@ export function MessagesThreadView({
   );
 
   const handleStartVoiceCall = useCallback(() => {
-    if (isBlockedConversation || isRequestConversation) {
-      return;
-    }
-
-    setIsOpeningVoiceCall(true);
-
-    const popup = openAudioCallWindow({
-      conversationId: thread.id,
-      action: "start",
-      title: thread.name,
-      avatarUrl: thread.avatarUrl ?? null,
-      targetUserId: thread.isGroup ? null : getDirectCallTargetUserId(thread, currentUserId ?? 0),
-      isGroup: Boolean(thread.isGroup),
-    });
-
-    window.setTimeout(() => {
-      setIsOpeningVoiceCall(false);
-    }, 220);
-
-    if (!popup) {
-      void handleStartCall("voice");
-    }
-  }, [currentUserId, handleStartCall, isBlockedConversation, isRequestConversation, thread]);
+    handleStartCall("voice");
+  }, [handleStartCall]);
 
   const handleStartVideoCall = useCallback(() => {
-    if (isBlockedConversation || isRequestConversation) {
-      return;
-    }
-
-    void handleStartCall("video");
-  }, [handleStartCall, isBlockedConversation, isRequestConversation]);
+    handleStartCall("video");
+  }, [handleStartCall]);
 
   const handleAcceptIncomingCall = useCallback(async () => {
     if (!incomingCallForThread) {
       return;
     }
 
-    if (incomingCallForThread.callRoom.media_type === "voice") {
-      const acceptedCallRoom = await acceptCallMutation.mutateAsync(incomingCallForThread.callRoom.room_uuid);
-      const popup = openAudioCallWindow({
-        conversationId: thread.id,
-        action: "join",
-        roomUuid: acceptedCallRoom.room_uuid,
-        title: thread.name,
-        avatarUrl: thread.avatarUrl ?? null,
-        isGroup: Boolean(thread.isGroup),
-      });
-
-      if (popup) {
-        clearIncomingCall();
-        clearActiveCall();
-        return;
-      }
-
-      await joinCallMutation.mutateAsync({
-        roomUuid: acceptedCallRoom.room_uuid,
-        wantsVideo: false,
-      });
-      return;
-    }
-
-    await acceptCallMutation.mutateAsync(incomingCallForThread.callRoom.room_uuid);
-    await joinCallMutation.mutateAsync({
-      roomUuid: incomingCallForThread.callRoom.room_uuid,
-      wantsVideo: incomingCallForThread.callRoom.media_type === "video",
+    const acceptedCallRoom = await acceptCallMutation.mutateAsync(incomingCallForThread.callRoom.room_uuid);
+    openCallWindow({
+      conversationId: thread.id,
+      action: "join",
+      mediaType: acceptedCallRoom.media_type,
+      roomUuid: acceptedCallRoom.room_uuid,
+      title: thread.name,
+      avatarUrl: thread.avatarUrl ?? null,
+      isGroup: Boolean(thread.isGroup),
     });
+    clearIncomingCall();
+    clearActiveCall();
   }, [
     acceptCallMutation,
     clearActiveCall,
     clearIncomingCall,
     incomingCallForThread,
-    joinCallMutation,
     thread,
   ]);
 
@@ -653,8 +620,8 @@ export function MessagesThreadView({
         onToggleInfoSidebar={onToggleInfoSidebar}
         onStartVoiceCall={canCompose ? handleStartVoiceCall : undefined}
         onStartVideoCall={canCompose ? handleStartVideoCall : undefined}
-        isStartingVoiceCall={isOpeningVoiceCall || (startCallMutation.isPending && startCallMutation.variables?.mediaType === "voice")}
-        isStartingVideoCall={startCallMutation.isPending && startCallMutation.variables?.mediaType === "video"}
+        isStartingVoiceCall={isOpeningVoiceCall}
+        isStartingVideoCall={isOpeningVideoCall}
       />
 
       <div
@@ -677,17 +644,40 @@ export function MessagesThreadView({
         </div>
 
         {currentCallForThread ? (
-          <div className="rounded-2xl border border-[rgba(96,91,255,0.14)] bg-[rgba(96,91,255,0.06)] px-4 py-3 text-sm text-[#575f86]">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgba(96,91,255,0.14)] bg-[rgba(96,91,255,0.06)] px-4 py-3 text-sm text-[#575f86]">
+            <span>
+              {currentCallForThread.token ? (
+                <>
+                  {currentCallForThread.callRoom.media_type === "video" ? "Video" : "Voice"} session ready in{" "}
+                  <span className="font-medium text-[#2f3655]">{currentCallForThread.publishMode}</span> mode.
+                </>
+              ) : (
+                <>
+                  {currentCallForThread.callRoom.media_type === "video" ? "Video" : "Voice"} call is{" "}
+                  <span className="font-medium text-[#2f3655]">{currentCallForThread.callRoom.status}</span>.
+                </>
+              )}
+            </span>
+
             {currentCallForThread.token ? (
-              <span>
-                Call session ready in <span className="font-medium text-[#2f3655]">{currentCallForThread.publishMode}</span> mode.
-              </span>
-            ) : (
-              <span>
-                {currentCallForThread.callRoom.media_type === "video" ? "Video" : "Voice"} call is{" "}
-                <span className="font-medium text-[#2f3655]">{currentCallForThread.callRoom.status}</span>.
-              </span>
-            )}
+              <button
+                type="button"
+                onClick={() => {
+                  openCallWindow({
+                    conversationId: thread.id,
+                    action: "join",
+                    mediaType: currentCallForThread.callRoom.media_type,
+                    roomUuid: currentCallForThread.callRoom.room_uuid,
+                    title: thread.name,
+                    avatarUrl: thread.avatarUrl ?? null,
+                    isGroup: Boolean(thread.isGroup),
+                  });
+                }}
+                className="rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.18)] transition hover:brightness-105"
+              >
+                {currentCallForThread.callRoom.media_type === "video" ? "Open video window" : "Open call window"}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -703,10 +693,10 @@ export function MessagesThreadView({
                 onClick={() => {
                   void handleAcceptIncomingCall();
                 }}
-                disabled={acceptCallMutation.isPending || joinCallMutation.isPending}
+                disabled={acceptCallMutation.isPending}
                 className="rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {acceptCallMutation.isPending || joinCallMutation.isPending ? "Accepting..." : "Accept"}
+                {acceptCallMutation.isPending ? "Accepting..." : "Accept"}
               </button>
               <button
                 type="button"

@@ -1,10 +1,12 @@
 "use client";
 
-type AudioCallWindowAction = "start" | "accept" | "join";
+export type CallWindowAction = "start" | "accept" | "join";
+export type CallWindowMediaType = "voice" | "video";
 
-type OpenAudioCallWindowOptions = {
+type OpenCallWindowOptions = {
   conversationId: string | number;
-  action: AudioCallWindowAction;
+  action: CallWindowAction;
+  mediaType?: CallWindowMediaType;
   roomUuid?: string;
   title?: string;
   avatarUrl?: string | null;
@@ -12,18 +14,20 @@ type OpenAudioCallWindowOptions = {
   isGroup?: boolean;
 };
 
-function buildAudioCallUrl({
+function buildCallUrl({
   conversationId,
   action,
+  mediaType = "voice",
   roomUuid,
   title,
   avatarUrl,
   targetUserId,
   isGroup,
-}: OpenAudioCallWindowOptions): string {
+}: OpenCallWindowOptions): string {
   const params = new URLSearchParams({
     conversationId: String(conversationId),
     action,
+    mediaType,
   });
 
   if (roomUuid) {
@@ -46,16 +50,17 @@ function buildAudioCallUrl({
     params.set("isGroup", isGroup ? "1" : "0");
   }
 
-  return `/calls/audio?${params.toString()}`;
+  return `/calls/room?${params.toString()}`;
 }
 
-export function openAudioCallWindow(options: OpenAudioCallWindowOptions): Window | null {
+export function openCallWindow(options: OpenCallWindowOptions): Window | null {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const width = 460;
-  const height = 760;
+  const mediaType = options.mediaType ?? "voice";
+  const width = mediaType === "video" ? 1280 : 460;
+  const height = mediaType === "video" ? 860 : 760;
   const left = Math.max(Math.round(window.screenX + (window.outerWidth - width) / 2), 0);
   const top = Math.max(Math.round(window.screenY + (window.outerHeight - height) / 2), 0);
   const features = [
@@ -67,11 +72,30 @@ export function openAudioCallWindow(options: OpenAudioCallWindowOptions): Window
     "resizable=yes",
     "scrollbars=no",
   ].join(",");
-  const target = `audio-call-${options.conversationId}`;
-  const url = buildAudioCallUrl(options);
+  const target = `call-${mediaType}-${options.conversationId}`;
+  const url = buildCallUrl(options);
   const popup = window.open(url, target, features) ?? window.open(url, "_blank");
 
-  popup?.focus();
+  if (!popup) {
+    window.location.assign(url);
+    return null;
+  }
+
+  popup.focus();
 
   return popup;
+}
+
+export function openAudioCallWindow(options: Omit<OpenCallWindowOptions, "mediaType">): Window | null {
+  return openCallWindow({
+    ...options,
+    mediaType: "voice",
+  });
+}
+
+export function openVideoCallWindow(options: Omit<OpenCallWindowOptions, "mediaType">): Window | null {
+  return openCallWindow({
+    ...options,
+    mediaType: "video",
+  });
 }
