@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, House, MessageSquare, Settings, Users, X } from "lucide-react";
 
+import { useMessagesBadgeCount } from "@/lib/hooks/use-messages-badge-count";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { cn } from "@/lib/utils";
 
@@ -19,12 +20,11 @@ type NavItem = {
   href: string;
   label: string;
   icon: typeof House;
-  badge?: string;
 };
 
 const mainItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: House },
-  { href: "/messages", label: "Messages", icon: MessageSquare, badge: "3" },
+  { href: "/messages", label: "Messages", icon: MessageSquare },
 ];
 
 const settingsItems = ["General", "Security", "Notifications"];
@@ -51,11 +51,13 @@ function SidebarLink({
   pathname,
   isCollapsed,
   onNavigate,
+  badge,
 }: {
   item: NavItem;
   pathname: string;
   isCollapsed: boolean;
   onNavigate: () => void;
+  badge?: string;
 }) {
   const Icon = item.icon;
   const isActive =
@@ -76,14 +78,14 @@ function SidebarLink({
       <div className={cn("flex min-w-0 flex-1 items-center", isCollapsed ? "justify-center lg:justify-center" : "justify-start")}>
         <Icon className={cn("h-[15px] w-5 shrink-0", isCollapsed ? "mr-0" : "mr-3", isActive ? "text-[#ea580c]" : "group-hover:text-[#ea580c]")} />
         <span className={cn("whitespace-nowrap text-sm font-medium", isCollapsed ? "hidden lg:hidden" : "inline")}>{item.label}</span>
-        {item.badge ? (
+        {badge ? (
           <span
             className={cn(
               "ml-auto rounded-full bg-[#ea580c] px-2 py-0.5 text-[11px] font-semibold leading-none text-white",
               isCollapsed ? "absolute right-1.5 top-1.5 hidden lg:inline-flex" : "inline-flex",
             )}
           >
-            {item.badge}
+            {badge}
           </span>
         ) : null}
       </div>
@@ -99,6 +101,7 @@ export function AdminDashboardSidebar({
 }: AdminDashboardSidebarProps) {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
+  const { badgeCount } = useMessagesBadgeCount(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSettingsHoverOpen, setIsSettingsHoverOpen] = useState(false);
   const displayName = user?.name?.trim() || user?.username || "Guest User";
@@ -141,7 +144,14 @@ export function AdminDashboardSidebar({
         <nav className="flex-1 overflow-y-auto px-3 py-4 lg:overflow-visible">
           <div className="space-y-0">
             {mainItems.map((item) => (
-              <SidebarLink key={item.label} item={item} pathname={pathname} isCollapsed={isCollapsed} onNavigate={onCloseMobile} />
+              <SidebarLink
+                key={item.label}
+                item={item}
+                pathname={pathname}
+                isCollapsed={isCollapsed}
+                onNavigate={onCloseMobile}
+                badge={item.href === "/messages" && badgeCount > 0 ? String(badgeCount) : undefined}
+              />
             ))}
           </div>
 

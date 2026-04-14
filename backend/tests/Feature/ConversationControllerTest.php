@@ -375,6 +375,7 @@ it('hides blocked direct conversations from the standard conversation list', fun
             'role' => 'owner',
             'membership_state' => 'active',
             'joined_at' => now(),
+            'unread_count_cache' => $conversation->is($visibleConversation) ? 2 : 7,
         ]);
 
         ConversationMember::query()->create([
@@ -399,7 +400,8 @@ it('hides blocked direct conversations from the standard conversation list', fun
         ->getJson('/api/conversations')
         ->assertOk()
         ->assertJsonCount(1, 'data')
-        ->assertJsonPath('data.0.id', $visibleConversation->id);
+        ->assertJsonPath('data.0.id', $visibleConversation->id)
+        ->assertJsonPath('meta.total_unread_count', 2);
 });
 
 it('filters conversations server side for unread groups and online tabs', function () {

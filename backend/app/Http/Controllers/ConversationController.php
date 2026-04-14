@@ -28,13 +28,24 @@ class ConversationController extends Controller
             'filter' => ['nullable', 'string', 'in:all,unread,groups,online'],
         ]);
 
+        $userId = (int) $request->user()->getKey();
+        $conversations = $this->conversationService->listForUser(
+            $userId,
+            $validated['filter'] ?? 'all',
+        );
+
+        $totalUnreadCount = $conversations->sum(
+            fn (Conversation $conversation): int => max(
+                0,
+                (int) ($conversation->members->firstWhere('user_id', $userId)?->unread_count_cache ?? 0)
+            )
+        );
+
         return response()->json([
-            'data' => ConversationResource::collection(
-                $this->conversationService->listForUser(
-                    $request->user()->getKey(),
-                    $validated['filter'] ?? 'all',
-                )
-            )->resolve(),
+            'data' => ConversationResource::collection($conversations)->resolve(),
+            'meta' => [
+                'total_unread_count' => $totalUnreadCount,
+            ],
         ]);
     }
 
