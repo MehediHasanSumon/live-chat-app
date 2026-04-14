@@ -10,16 +10,46 @@ use Spatie\Permission\PermissionRegistrar;
 
 class AdminPermissionController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+        ]);
+
+        $perPage = (int) ($validated['per_page'] ?? 10);
+        $search = trim((string) ($validated['search'] ?? ''));
         $permissions = Permission::query()
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('guard_name', 'like', "%{$search}%");
+                });
+            })
             ->orderBy('name')
-            ->get()
-            ->map(fn (Permission $permission): array => $this->serializePermission($permission))
-            ->values();
+            ->paginate($perPage)
+            ->withQueryString();
 
         return response()->json([
-            'data' => $permissions,
+            'data' => $permissions->getCollection()
+                ->map(fn (Permission $permission): array => $this->serializePermission($permission))
+                ->values(),
+            'meta' => [
+                'current_page' => $permissions->currentPage(),
+                'from' => $permissions->firstItem(),
+                'last_page' => $permissions->lastPage(),
+                'per_page' => $permissions->perPage(),
+                'to' => $permissions->lastItem(),
+                'total' => $permissions->total(),
+            ],
+            'links' => [
+                'first' => $permissions->url(1),
+                'last' => $permissions->url($permissions->lastPage()),
+                'prev' => $permissions->previousPageUrl(),
+                'next' => $permissions->nextPageUrl(),
+            ],
         ]);
     }
 

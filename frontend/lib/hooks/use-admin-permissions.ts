@@ -13,8 +13,26 @@ export type AdminPermissionRecord = {
   updated_at: string | null;
 };
 
-type PermissionsResponse = {
+export type PaginationMeta = {
+  current_page: number;
+  from: number | null;
+  last_page: number;
+  per_page: number;
+  to: number | null;
+  total: number;
+};
+
+type PaginationLinks = {
+  first: string | null;
+  last: string | null;
+  prev: string | null;
+  next: string | null;
+};
+
+export type PermissionsResponse = {
   data: AdminPermissionRecord[];
+  meta: PaginationMeta;
+  links: PaginationLinks;
 };
 
 type PermissionResponse = {
@@ -25,13 +43,32 @@ type PermissionPayload = {
   name: string;
 };
 
-export function useAdminPermissionsQuery(enabled = true) {
+type PermissionListParams = {
+  page: number;
+  perPage: number;
+  search: string;
+};
+
+function buildPermissionsPath({ page, perPage, search }: PermissionListParams) {
+  const params = new URLSearchParams({
+    page: String(page),
+    per_page: String(perPage),
+  });
+  const normalizedSearch = search.trim();
+
+  if (normalizedSearch) {
+    params.set("search", normalizedSearch);
+  }
+
+  return `/api/admin/permissions?${params.toString()}`;
+}
+
+export function useAdminPermissionsQuery(params: PermissionListParams, enabled = true) {
   return useQuery({
-    queryKey: queryKeys.admin.permissions,
-    queryFn: () => apiClient.get<PermissionsResponse>("/api/admin/permissions", { skipAuthRedirect: true }),
+    queryKey: queryKeys.admin.permissions.list(params.page, params.perPage, params.search.trim()),
+    queryFn: () => apiClient.get<PermissionsResponse>(buildPermissionsPath(params), { skipAuthRedirect: true }),
     enabled,
     retry: false,
-    select: (response) => response.data,
   });
 }
 
@@ -42,7 +79,7 @@ export function useCreateAdminPermissionMutation() {
     mutationFn: (payload: PermissionPayload) =>
       apiClient.post<PermissionResponse>("/api/admin/permissions", payload, { skipAuthRedirect: true }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.admin.permissions });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.admin.permissions.all });
     },
   });
 }
@@ -54,7 +91,7 @@ export function useUpdateAdminPermissionMutation() {
     mutationFn: ({ permissionId, payload }: { permissionId: number; payload: PermissionPayload }) =>
       apiClient.patch<PermissionResponse>(`/api/admin/permissions/${permissionId}`, payload, { skipAuthRedirect: true }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.admin.permissions });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.admin.permissions.all });
     },
   });
 }
@@ -66,7 +103,7 @@ export function useDeleteAdminPermissionMutation() {
     mutationFn: (permissionId: number) =>
       apiClient.delete<void>(`/api/admin/permissions/${permissionId}`, { skipAuthRedirect: true }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.admin.permissions });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.admin.permissions.all });
     },
   });
 }

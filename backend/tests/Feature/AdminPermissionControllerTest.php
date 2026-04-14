@@ -16,7 +16,48 @@ it('returns the permission list for authenticated users', function () {
 
     $response
         ->assertOk()
-        ->assertJsonPath('data.0.name', 'admin.ops.view');
+        ->assertJsonPath('data.0.name', 'admin.ops.view')
+        ->assertJsonPath('meta.current_page', 1)
+        ->assertJsonPath('meta.per_page', 10);
+});
+
+it('paginates permissions from the server', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
+    $user = User::factory()->create();
+
+    foreach (range(1, 13) as $index) {
+        Permission::findOrCreate(sprintf('feature.%02d', $index), 'web');
+    }
+
+    $response = $this->actingAs($user, 'web')
+        ->getJson('/api/admin/permissions?page=2&per_page=5');
+
+    $response
+        ->assertOk()
+        ->assertJsonCount(5, 'data')
+        ->assertJsonPath('meta.current_page', 2)
+        ->assertJsonPath('meta.per_page', 5)
+        ->assertJsonPath('meta.total', 15)
+        ->assertJsonPath('meta.last_page', 3);
+});
+
+it('filters permissions by search on the server', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
+    $user = User::factory()->create();
+
+    Permission::findOrCreate('reports.view', 'web');
+    Permission::findOrCreate('reports.export', 'web');
+    Permission::findOrCreate('messages.delete', 'web');
+
+    $response = $this->actingAs($user, 'web')
+        ->getJson('/api/admin/permissions?search=reports&per_page=10');
+
+    $response
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.name', 'reports.export')
+        ->assertJsonPath('data.1.name', 'reports.view')
+        ->assertJsonPath('meta.total', 2);
 });
 
 it('creates a custom permission', function () {
