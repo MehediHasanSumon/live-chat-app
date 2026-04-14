@@ -23,5 +23,6 @@ export const queryKeys = {
   admin: {
     opsHealth: ["admin", "ops", "health"] as const,
     opsStatus: ["admin", "ops", "status"] as const,
+    permissions: ["admin", "permissions"] as const,
   },
 };

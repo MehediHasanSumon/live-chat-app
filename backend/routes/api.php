@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CallController;
+use App\Http\Controllers\AdminPermissionController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LiveKitController;
@@ -97,6 +98,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/admin/storage/cleanup/run', [AdminStoragePolicyController::class, 'runCleanup']);
     Route::post('/admin/storage/objects/{storageObject}/exempt', [AdminStoragePolicyController::class, 'exempt']);
     Route::delete('/admin/storage/objects/{storageObject}/exempt', [AdminStoragePolicyController::class, 'removeExemption']);
+    Route::get('/admin/permissions', [AdminPermissionController::class, 'index']);
+    Route::post('/admin/permissions', [AdminPermissionController::class, 'store']);
+    Route::patch('/admin/permissions/{permission}', [AdminPermissionController::class, 'update']);
+    Route::delete('/admin/permissions/{permission}', [AdminPermissionController::class, 'destroy']);
     Route::get('/admin/ops/health', [AdminOpsController::class, 'health']);
     Route::get('/admin/ops/status', [AdminOpsController::class, 'status']);
     Route::patch('/settings/theme', [SettingsController::class, 'theme']);
