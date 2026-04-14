@@ -14,8 +14,8 @@ export function MessagesShell({
   asideVisible = true,
 }: MessagesShellProps) {
   return (
-    <main className="shell px-4 py-4 sm:px-6">
-      <div className="glass-card mx-auto flex h-[calc(100vh-2rem)] min-h-[calc(100vh-2rem)] w-full max-w-[1600px] overflow-hidden rounded-[1.25rem]">
+    <main>
+      <div className="glass-card mx-auto flex h-[calc(100vh-6rem)] min-h-[calc(100vh-6rem)] w-full max-w-[1600px] overflow-hidden rounded-[1.25rem] lg:h-[calc(100vh-7rem)] lg:min-h-[calc(100vh-7rem)]">
         <div className="flex h-full w-[380px] shrink-0">{sidebar}</div>
         <div className="min-w-0 flex h-full flex-1">{content}</div>
         {aside ? (
