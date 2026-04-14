@@ -8,7 +8,7 @@ import {
   useLocalParticipant,
   useRemoteParticipants,
   useSpeakingParticipants,
-  type TrackRefContextIfNeeded,
+  type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
 import { AlertTriangle, Radio, Wifi } from "lucide-react";
 import { ConnectionQuality, ConnectionState } from "livekit-client";
@@ -67,7 +67,7 @@ function getQualityTone(quality: ConnectionQuality): string {
   }
 }
 
-export function SpeakingParticipantTile({ trackRef }: { trackRef: TrackRefContextIfNeeded }) {
+export function SpeakingParticipantTile({ trackRef }: { trackRef: TrackReferenceOrPlaceholder }) {
   const isSpeaking = useIsSpeaking(trackRef.participant);
 
   return (

@@ -70,7 +70,7 @@ export const useCallStore = create<CallStoreState>((set) => ({
     set((state) => {
       const participant = getCallParticipant(callRoom, userId);
 
-      if (isCallParticipantInactive(participant) || isCallTerminal(callRoom)) {
+      if (!participant || isCallParticipantInactive(participant) || isCallTerminal(callRoom)) {
         return {
           incomingCall:
             state.incomingCall?.callRoom.room_uuid === callRoom.room_uuid ? null : state.incomingCall,

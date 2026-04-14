@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:deploy": "next build && node scripts/prepare-standalone.mjs",
     "start": "next start",
     "lint": "eslint",
     "analyze": "ANALYZE=true next build"

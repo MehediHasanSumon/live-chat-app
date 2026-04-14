@@ -1,0 +1,22 @@
+<VirtualHost *:80>
+    ServerName app.ddrbit.com
+    Redirect permanent / https://app.ddrbit.com/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName app.ddrbit.com
+
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/app.ddrbit.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/app.ddrbit.com/privkey.pem
+
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+    RequestHeader set X-Forwarded-Port "443"
+
+    ProxyPass / http://127.0.0.1:3000/
+    ProxyPassReverse / http://127.0.0.1:3000/
+
+    ErrorLog ${APACHE_LOG_DIR}/app.ddrbit.com-error.log
+    CustomLog ${APACHE_LOG_DIR}/app.ddrbit.com-access.log combined
+</VirtualHost>

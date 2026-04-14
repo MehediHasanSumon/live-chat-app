@@ -1,0 +1,10 @@
+[Unit]
+Description=DDRBit Laravel Scheduler
+After=network.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/app/backend
+ExecStart=/usr/bin/php artisan schedule:run

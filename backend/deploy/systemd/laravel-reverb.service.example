@@ -1,16 +1,16 @@
 [Unit]
-Description=DDRBit Laravel Horizon
+Description=DDRBit Laravel Reverb
 After=network.target redis.service
 
 [Service]
 Type=simple
 User=www-data
 Group=www-data
+WorkingDirectory=/var/www/app/backend
+ExecStart=/usr/bin/php artisan reverb:start --host=127.0.0.1 --port=8080
+ExecReload=/usr/bin/php artisan reverb:restart
 Restart=always
 RestartSec=5
-WorkingDirectory=/var/www/app/backend
-ExecStart=/usr/bin/php artisan horizon
-ExecStop=/usr/bin/php artisan horizon:terminate
 KillSignal=SIGTERM
 TimeoutStopSec=60
 
