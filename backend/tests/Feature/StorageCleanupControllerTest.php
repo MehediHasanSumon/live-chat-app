@@ -5,13 +5,16 @@ use App\Models\StorageCleanupRun;
 use App\Models\StorageObject;
 use App\Models\StoragePolicy;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
 it('shows and updates storage policy while writing an audit log', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
     $admin = User::factory()->create();
+    $admin->assignRole('admin');
 
     $showResponse = $this->actingAs($admin, 'web')
         ->getJson('/api/admin/storage/policy');
@@ -40,7 +43,9 @@ it('shows and updates storage policy while writing an audit log', function () {
 it('previews and runs cleanup for eligible large files and records audit trails', function () {
     Storage::fake(config('uploads.disk'));
 
+    $this->seed(RolesAndPermissionsSeeder::class);
     $admin = User::factory()->create();
+    $admin->assignRole('admin');
     $diskPath = 'uploads/2026/04/cleanup-large.bin';
 
     Storage::disk(config('uploads.disk'))->put($diskPath, str_repeat('A', 2_000_000));
@@ -94,7 +99,9 @@ it('previews and runs cleanup for eligible large files and records audit trails'
 });
 
 it('supports exempting and removing exemptions with audit logs', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
     $admin = User::factory()->create();
+    $admin->assignRole('admin');
 
     $storageObject = StorageObject::query()->create([
         'object_uuid' => (string) str()->uuid(),

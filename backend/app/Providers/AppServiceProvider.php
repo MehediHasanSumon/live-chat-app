@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Conversation;
 use App\Policies\ConversationPolicy;
+use App\Support\Access\AdminRole;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -26,6 +27,17 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(Conversation::class, ConversationPolicy::class);
+        Gate::before(function ($user, string $ability) {
+            if (! method_exists($user, 'hasRole')) {
+                return null;
+            }
+
+            if ($ability === 'viewHorizon') {
+                return null;
+            }
+
+            return $user->hasRole(AdminRole::SUPER_ADMIN) ? true : null;
+        });
 
         RateLimiter::for('web-login', function (Request $request): Limit {
             $login = (string) $request->input('login', 'guest');

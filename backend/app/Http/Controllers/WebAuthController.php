@@ -36,6 +36,7 @@ class WebAuthController extends Controller
         Auth::guard('web')->login($user);
 
         $request->session()->regenerate();
+        $this->logAuthActivity($request, $user, 'registered', 'User registered.');
 
         return response()->json([
             'data' => (new AuthenticatedUserResource($user->fresh(['settings'])))->resolve(),
@@ -73,12 +74,22 @@ class WebAuthController extends Controller
         $user->forceFill([
             'last_seen_at' => now(),
         ])->save();
+        $this->logAuthActivity($request, $user, 'logged_in', 'User logged in.', [
+            'remember' => $request->remember(),
+        ]);
 
         return new AuthenticatedUserResource($user->fresh(['settings']));
     }
 
     public function logout(Request $request): Response
     {
+        /** @var User|null $user */
+        $user = $request->user('web');
+
+        if ($user) {
+            $this->logAuthActivity($request, $user, 'logged_out', 'User logged out.');
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
@@ -101,5 +112,20 @@ class WebAuthController extends Controller
         ], 422);
 
         throw $exception;
+    }
+
+    protected function logAuthActivity(Request $request, User $user, string $event, string $description, array $properties = []): void
+    {
+        activity('auth')
+            ->performedOn($user)
+            ->causedBy($user)
+            ->event($event)
+            ->withProperties([
+                'username' => $user->username,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                ...$properties,
+            ])
+            ->log($description);
     }
 }

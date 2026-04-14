@@ -14,7 +14,7 @@ class AuthenticatedUserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $this->resource->loadMissing(['settings', 'avatarObject']);
+        $this->resource->loadMissing(['settings', 'avatarObject', 'roles', 'permissions']);
 
         return [
             'user' => (new UserResource($this->resource))->resolve($request),

@@ -21,6 +21,12 @@ class UserResource extends JsonResource
             'status' => $this->status,
             'last_seen_at' => $this->last_seen_at,
             'avatar_object_id' => $this->avatar_object_id,
+            'roles' => method_exists($this->resource, 'getRoleNames')
+                ? $this->resource->getRoleNames()->values()->all()
+                : [],
+            'permissions' => method_exists($this->resource, 'getAllPermissions')
+                ? $this->resource->getAllPermissions()->pluck('name')->values()->all()
+                : [],
         ];
     }
 }

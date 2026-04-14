@@ -6,13 +6,25 @@ use App\Models\NotificationOutbox;
 use App\Models\StorageObject;
 use App\Models\StoragePolicy;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
-it('returns admin ops health details', function () {
+it('forbids admin ops access for users without the required role or permission', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
     $user = User::factory()->create();
+
+    $this->actingAs($user, 'web')
+        ->getJson('/api/admin/ops/health')
+        ->assertForbidden();
+});
+
+it('returns admin ops health details', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
+    $user = User::factory()->create();
+    $user->assignRole('admin');
 
     DB::table('jobs')->insert([
         'queue' => config('queue.queues.notifications', 'notifications'),
@@ -37,7 +49,9 @@ it('returns admin ops health details', function () {
 });
 
 it('returns admin ops status details including queue separation and counters', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
     $user = User::factory()->create();
+    $user->assignRole('admin');
 
     $conversation = Conversation::query()->create([
         'type' => 'group',

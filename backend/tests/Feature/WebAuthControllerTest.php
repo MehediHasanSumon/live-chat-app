@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Models\UserSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Activitylog\Models\Activity;
 
 uses(RefreshDatabase::class);
 
@@ -24,10 +25,17 @@ it('registers a web user and creates default settings', function () {
         ->assertJsonPath('data.settings.theme', 'system');
 
     $user = User::query()->where('username', 'sumon')->firstOrFail();
+    $activity = Activity::query()->latest('id')->first();
 
     $this->assertAuthenticatedAs($user, 'web');
 
-    expect(UserSetting::query()->where('user_id', $user->id)->exists())->toBeTrue();
+    expect(UserSetting::query()->where('user_id', $user->id)->exists())->toBeTrue()
+        ->and($activity)->not->toBeNull()
+        ->and($activity?->log_name)->toBe('auth')
+        ->and($activity?->event)->toBe('registered')
+        ->and($activity?->description)->toBe('User registered.')
+        ->and((int) $activity?->causer_id)->toBe($user->id)
+        ->and($activity?->getExtraProperty('username'))->toBe('sumon');
 });
 
 it('rejects duplicate register credentials', function () {
@@ -66,9 +74,17 @@ it('logs in a web user with username credentials', function () {
         ->assertJsonPath('data.user.username', 'sumon')
         ->assertJsonPath('data.settings.theme', 'system');
 
+    $activity = Activity::query()->latest('id')->first();
+
     $this->assertAuthenticatedAs($user, 'web');
 
-    expect(UserSetting::query()->where('user_id', $user->id)->exists())->toBeTrue();
+    expect(UserSetting::query()->where('user_id', $user->id)->exists())->toBeTrue()
+        ->and($activity)->not->toBeNull()
+        ->and($activity?->log_name)->toBe('auth')
+        ->and($activity?->event)->toBe('logged_in')
+        ->and($activity?->description)->toBe('User logged in.')
+        ->and((int) $activity?->causer_id)->toBe($user->id)
+        ->and($activity?->getExtraProperty('remember'))->toBeFalse();
 });
 
 it('rejects invalid web login credentials', function () {
@@ -160,4 +176,12 @@ it('logs out the authenticated web user', function () {
     $response->assertNoContent();
 
     $this->assertGuest('web');
+
+    $activity = Activity::query()->latest('id')->first();
+
+    expect($activity)->not->toBeNull()
+        ->and($activity?->log_name)->toBe('auth')
+        ->and($activity?->event)->toBe('logged_out')
+        ->and($activity?->description)->toBe('User logged out.')
+        ->and((int) $activity?->causer_id)->toBe($user->id);
 });

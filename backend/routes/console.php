@@ -11,3 +11,4 @@ Artisan::command('inspire', function () {
 
 Schedule::job(new DispatchScheduledNotificationDigestsJob())->everyMinute();
 Schedule::command('calls:cleanup-stale')->everyMinute();
+Schedule::command('activitylog:clean --force')->daily();
