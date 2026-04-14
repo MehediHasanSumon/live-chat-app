@@ -26,6 +26,16 @@ export const queryKeys = {
     permissions: {
       all: ["admin", "permissions"] as const,
       list: (page: number, perPage: number, search: string) => ["admin", "permissions", { page, perPage, search }] as const,
+      options: ["admin", "permissions", "options"] as const,
+    },
+    roles: {
+      all: ["admin", "roles"] as const,
+      list: (page: number, perPage: number, search: string) => ["admin", "roles", { page, perPage, search }] as const,
+      options: ["admin", "roles", "options"] as const,
+    },
+    users: {
+      all: ["admin", "users"] as const,
+      list: (page: number, perPage: number, search: string) => ["admin", "users", { page, perPage, search }] as const,
     },
   },
 };

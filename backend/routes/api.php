@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\CallController;
 use App\Http\Controllers\AdminPermissionController;
+use App\Http\Controllers\AdminRoleController;
+use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LiveKitController;
@@ -99,9 +101,19 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/admin/storage/objects/{storageObject}/exempt', [AdminStoragePolicyController::class, 'exempt']);
     Route::delete('/admin/storage/objects/{storageObject}/exempt', [AdminStoragePolicyController::class, 'removeExemption']);
     Route::get('/admin/permissions', [AdminPermissionController::class, 'index']);
+    Route::get('/admin/permissions/options', [AdminPermissionController::class, 'options']);
     Route::post('/admin/permissions', [AdminPermissionController::class, 'store']);
     Route::patch('/admin/permissions/{permission}', [AdminPermissionController::class, 'update']);
     Route::delete('/admin/permissions/{permission}', [AdminPermissionController::class, 'destroy']);
+    Route::get('/admin/roles', [AdminRoleController::class, 'index']);
+    Route::get('/admin/roles/options', [AdminRoleController::class, 'options']);
+    Route::post('/admin/roles', [AdminRoleController::class, 'store']);
+    Route::patch('/admin/roles/{role}', [AdminRoleController::class, 'update']);
+    Route::delete('/admin/roles/{role}', [AdminRoleController::class, 'destroy']);
+    Route::get('/admin/users', [AdminUserController::class, 'index']);
+    Route::post('/admin/users', [AdminUserController::class, 'store']);
+    Route::patch('/admin/users/{user}', [AdminUserController::class, 'update']);
+    Route::delete('/admin/users/{user}', [AdminUserController::class, 'destroy']);
     Route::get('/admin/ops/health', [AdminOpsController::class, 'health']);
     Route::get('/admin/ops/status', [AdminOpsController::class, 'status']);
     Route::patch('/settings/theme', [SettingsController::class, 'theme']);

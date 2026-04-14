@@ -56,7 +56,7 @@ function PermissionsPageContent() {
   const page = parsePageParam(searchParams.get("page"));
   const perPage = parsePerPageParam(searchParams.get("per_page"));
   const search = parseSearchParam(searchParams.get("search"));
-  const { data: permissionsResponse, isLoading, isFetching, error } = useAdminPermissionsQuery({ page, perPage, search }, true);
+  const { data: permissionsResponse, isLoading, error } = useAdminPermissionsQuery({ page, perPage, search }, true);
   const permissions = permissionsResponse?.data ?? [];
   const paginationMeta = permissionsResponse?.meta;
   const createPermission = useCreateAdminPermissionMutation();
@@ -69,7 +69,7 @@ function PermissionsPageContent() {
   const [isCreateSectionOpen, setIsCreateSectionOpen] = useState(false);
 
   const isSubmitting = createPermission.isPending || updatePermission.isPending;
-  const isTableBusy = isLoading || isFetching || deletePermission.isPending;
+  const isTableBusy = deletePermission.isPending;
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {

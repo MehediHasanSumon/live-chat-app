@@ -71,6 +71,19 @@ class AdminPermissionController extends Controller
         ], 201);
     }
 
+    public function options(): JsonResponse
+    {
+        $permissions = Permission::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Permission $permission): array => $this->serializePermission($permission))
+            ->values();
+
+        return response()->json([
+            'data' => $permissions,
+        ]);
+    }
+
     public function update(Request $request, Permission $permission): JsonResponse
     {
         $validated = $request->validate([
