@@ -39,3 +39,4 @@ yarn-error.log*
 
 # Tests / coverage
 coverage/
+/deploy/
