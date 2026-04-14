@@ -2,10 +2,10 @@ import { ReactNode } from "react";
 
 import { AdminDashboardShell } from "@/components/admin/admin-dashboard-shell";
 
-type AdminLayoutProps = {
+type ProtectedLayoutProps = {
   children: ReactNode;
 };
 
-export default function AdminLayout({ children }: AdminLayoutProps) {
+export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
   return <AdminDashboardShell>{children}</AdminDashboardShell>;
 }

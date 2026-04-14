@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { matchesProtectedPrefix, protectedPrefixes } from "@/lib/protected-routes";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-const protectedPrefixes = ["/messages", "/settings", "/admin"];
 const guestOnlyRoutes = new Set(["/login", "/register"]);
 const authCookieNames = ["laravel-session", "XSRF-TOKEN"];
 
@@ -12,7 +13,7 @@ function hasCookies(request: NextRequest): boolean {
 }
 
 function isProtectedPath(pathname: string): boolean {
-  return protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return matchesProtectedPrefix(pathname, protectedPrefixes);
 }
 
 async function isAuthenticated(request: NextRequest): Promise<boolean> {
@@ -89,5 +90,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/register", "/messages/:path*", "/settings/:path*", "/admin/:path*"],
+  matcher: ["/login", "/register", "/messages/:path*", "/settings/:path*", "/dashboard/:path*", "/ops/:path*", "/storage/:path*"],
 };

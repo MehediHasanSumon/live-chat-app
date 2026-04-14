@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, House, LogOut, MessageSquare, Settings, Users, X } from "lucide-react";
 
+import { useLogoutMutation } from "@/lib/hooks/use-auth-mutations";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { cn } from "@/lib/utils";
 
 type AdminDashboardSidebarProps = {
   isCollapsed: boolean;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
+  onExpandDesktop: () => void;
 };
 
 type NavItem = {
@@ -21,11 +24,28 @@ type NavItem = {
 };
 
 const mainItems: NavItem[] = [
-  { href: "/admin", label: "Dashboard", icon: House },
+  { href: "/dashboard", label: "Dashboard", icon: House },
   { href: "/messages", label: "Messages", icon: MessageSquare, badge: "3" },
 ];
 
 const settingsItems = ["General", "Security", "Notifications"];
+
+function getInitials(name: string, username: string) {
+  const parts = name
+    .split(" ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return username.slice(0, 2).toUpperCase();
+  }
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
 
 function SidebarLink({
   item,
@@ -40,8 +60,8 @@ function SidebarLink({
 }) {
   const Icon = item.icon;
   const isActive =
-    item.href === "/admin"
-      ? pathname === "/admin"
+    item.href === "/dashboard"
+      ? pathname === "/dashboard"
       : pathname === item.href || pathname.startsWith(`${item.href}/`) || (item.href === "/messages" && pathname.startsWith("/messages"));
 
   return (
@@ -72,9 +92,27 @@ function SidebarLink({
   );
 }
 
-export function AdminDashboardSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: AdminDashboardSidebarProps) {
+export function AdminDashboardSidebar({
+  isCollapsed,
+  isMobileOpen,
+  onCloseMobile,
+  onExpandDesktop,
+}: AdminDashboardSidebarProps) {
+  const router = useRouter();
   const pathname = usePathname();
+  const user = useAuthStore((state) => state.user);
+  const logoutMutation = useLogoutMutation();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsHoverOpen, setIsSettingsHoverOpen] = useState(false);
+  const displayName = user?.name?.trim() || user?.username || "Guest User";
+  const displayUsername = user?.username ? `@${user.username}` : "@guest";
+  const initials = getInitials(displayName, user?.username ?? "GU");
+
+  async function handleLogout() {
+    await logoutMutation.mutateAsync();
+    onCloseMobile();
+    router.replace("/login");
+  }
 
   return (
     <>
@@ -89,9 +127,9 @@ export function AdminDashboardSidebar({ isCollapsed, isMobileOpen, onCloseMobile
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-screen w-[280px] flex-col overflow-hidden bg-[linear-gradient(180deg,#111420_0%,#0c0e13_100%)] text-white transition-transform duration-300",
+          "fixed left-0 top-0 z-50 flex h-screen w-[300px] flex-col bg-[linear-gradient(180deg,#111420_0%,#0c0e13_100%)] text-white transition-transform duration-300 overflow-hidden lg:overflow-visible",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-          isCollapsed ? "lg:w-[76px]" : "lg:w-[260px]",
+          isCollapsed ? "lg:w-[84px]" : "lg:w-[300px]",
         )}
       >
         <div className="flex h-16 items-center border-b border-white/[0.06] px-5">
@@ -109,7 +147,7 @@ export function AdminDashboardSidebar({ isCollapsed, isMobileOpen, onCloseMobile
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 lg:overflow-visible">
           <p className={cn("mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500", isCollapsed ? "hidden lg:hidden" : "block")}>
             Main
           </p>
@@ -131,10 +169,31 @@ export function AdminDashboardSidebar({ isCollapsed, isMobileOpen, onCloseMobile
             onNavigate={onCloseMobile}
           />
 
-          <div className="mt-0.5">
+          <div
+            className="relative mt-0.5"
+            onMouseEnter={() => {
+              if (isCollapsed) {
+                setIsSettingsHoverOpen(true);
+              }
+            }}
+            onMouseLeave={() => {
+              if (isCollapsed) {
+                setIsSettingsHoverOpen(false);
+              }
+            }}
+          >
             <button
               type="button"
-              onClick={() => setIsSettingsOpen((current) => !current)}
+              onClick={() => {
+                if (isCollapsed) {
+                  onExpandDesktop();
+                  setIsSettingsOpen(true);
+                  setIsSettingsHoverOpen(false);
+                  return;
+                }
+
+                setIsSettingsOpen((current) => !current);
+              }}
               className="group relative flex w-full items-center rounded-lg px-3 py-2.5 text-slate-400 transition hover:bg-[#191c24] hover:text-white"
             >
               <div className={cn("flex min-w-0 flex-1 items-center", isCollapsed ? "justify-center lg:justify-center" : "justify-start")}>
@@ -161,25 +220,51 @@ export function AdminDashboardSidebar({ isCollapsed, isMobileOpen, onCloseMobile
                 ))}
               </div>
             ) : null}
+
+            {isCollapsed && isSettingsHoverOpen ? (
+              <div className="absolute left-[calc(100%+12px)] top-0 hidden min-w-[220px] rounded-2xl border border-white/10 bg-[#141925] p-3 shadow-[0_24px_60px_rgba(5,8,20,0.4)] lg:block">
+                <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Settings</p>
+                <div className="space-y-1">
+                  {settingsItems.map((item) => (
+                    <Link
+                      key={item}
+                      href="/settings"
+                      onClick={onCloseMobile}
+                      className="flex items-center rounded-xl px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5 hover:text-[#ea580c]"
+                    >
+                      <span className="mr-3 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-600" />
+                      <span>{item}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="mx-2 my-4 border-t border-white/[0.06]" />
-          <SidebarLink
-            item={{ href: "/", label: "Sign Out", icon: LogOut }}
-            pathname={pathname}
-            isCollapsed={isCollapsed}
-            onNavigate={onCloseMobile}
-          />
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={logoutMutation.isPending}
+            className="group relative flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm text-slate-400 transition-all duration-200 hover:bg-[#191c24] hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            <div className={cn("flex min-w-0 flex-1 items-center", isCollapsed ? "justify-center lg:justify-center" : "justify-start")}>
+              <LogOut className={cn("h-[15px] w-5 shrink-0 group-hover:text-[#ea580c]", isCollapsed ? "mr-0" : "mr-3")} />
+              <span className={cn("whitespace-nowrap text-sm font-medium", isCollapsed ? "hidden lg:hidden" : "inline")}>
+                {logoutMutation.isPending ? "Signing Out..." : "Sign Out"}
+              </span>
+            </div>
+          </button>
         </nav>
 
         <div className="shrink-0 border-t border-white/[0.06] p-3">
           <div className="flex items-center rounded-lg bg-[#191c24] px-3 py-2.5">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white ring-2 ring-white/10">
-              AM
+              {initials}
             </div>
             <div className={cn("ml-3 min-w-0", isCollapsed ? "hidden lg:hidden" : "block")}>
-              <p className="truncate text-sm font-semibold text-white">Alex Morgan</p>
-              <p className="truncate text-[11px] text-slate-500">alex@nexus.io</p>
+              <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+              <p className="truncate text-[11px] text-slate-500">{displayUsername}</p>
             </div>
           </div>
         </div>

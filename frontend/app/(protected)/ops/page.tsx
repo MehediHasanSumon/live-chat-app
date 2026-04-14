@@ -35,7 +35,7 @@ export default function AdminOpsPage() {
           </div>
           <div className="flex items-center gap-3">
             <Link
-              href="/admin/storage"
+              href="/storage"
               className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
             >
               Storage admin

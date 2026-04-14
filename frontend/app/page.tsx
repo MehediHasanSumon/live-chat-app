@@ -59,19 +59,19 @@ export default function Home() {
                 Open messages
               </Link>
               <Link
-                href="/admin"
+                href="/dashboard"
                 className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
               >
                 Dashboard
               </Link>
               <Link
-                href="/admin/storage"
+                href="/storage"
                 className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
               >
                 Storage admin
               </Link>
               <Link
-                href="/admin/ops"
+                href="/ops"
                 className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
               >
                 Ops

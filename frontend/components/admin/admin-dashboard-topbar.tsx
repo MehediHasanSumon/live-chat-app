@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronDown, LogOut, Menu, PanelLeftOpen, Search, Settings, User } from "lucide-react";
 
+import { useLogoutMutation } from "@/lib/hooks/use-auth-mutations";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { cn } from "@/lib/utils";
 
 type AdminDashboardTopbarProps = {
@@ -19,7 +22,7 @@ const notifications = [
     time: "2 min ago",
     border: "border-[#ea580c]",
     icon: "bg-emerald-100 text-emerald-600",
-    marker: "✓",
+    marker: "OK",
   },
   {
     title: "New user registered",
@@ -43,18 +46,41 @@ const notifications = [
     time: "3 hrs ago",
     border: "border-violet-400",
     icon: "bg-violet-100 text-violet-600",
-    marker: "•",
+    marker: "*",
   },
 ];
+
+function getInitials(name: string, username: string) {
+  const parts = name
+    .split(" ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return username.slice(0, 2).toUpperCase();
+  }
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
 
 export function AdminDashboardTopbar({
   isSidebarCollapsed,
   onOpenSidebar,
   onToggleSidebar,
 }: AdminDashboardTopbarProps) {
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const logoutMutation = useLogoutMutation();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const displayName = user?.name?.trim() || user?.username || "Guest User";
+  const displayUsername = user?.username ? `@${user.username}` : "@guest";
+  const initials = getInitials(displayName, user?.username ?? "GU");
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
@@ -79,6 +105,12 @@ export function AdminDashboardTopbar({
       document.removeEventListener("keydown", handleKeydown);
     };
   }, []);
+
+  async function handleLogout() {
+    await logoutMutation.mutateAsync();
+    setIsProfileOpen(false);
+    router.replace("/login");
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b border-slate-200/60 bg-white/80 px-4 backdrop-blur-xl lg:px-6" ref={rootRef}>
@@ -184,10 +216,10 @@ export function AdminDashboardTopbar({
             aria-label="User menu"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[linear-gradient(135deg,#111827,#334155)] text-xs font-semibold text-white">
-              AM
+              {initials}
             </div>
             <div className="hidden text-left sm:block">
-              <p className="text-sm font-semibold leading-tight text-slate-800">Alex Morgan</p>
+              <p className="text-sm font-semibold leading-tight text-slate-800">{displayName}</p>
               <p className="text-[11px] leading-tight text-slate-500">Administrator</p>
             </div>
             <ChevronDown className="hidden h-3 w-3 text-slate-400 sm:block" />
@@ -200,8 +232,8 @@ export function AdminDashboardTopbar({
             )}
           >
             <div className="border-b border-slate-100 px-4 py-3">
-              <p className="text-sm font-semibold text-slate-900">Alex Morgan</p>
-              <p className="text-xs text-slate-500">alex@nexus.io</p>
+              <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+              <p className="text-xs text-slate-500">{displayUsername}</p>
             </div>
             <div className="py-1.5">
               <Link href="/settings" className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
@@ -214,10 +246,15 @@ export function AdminDashboardTopbar({
               </Link>
             </div>
             <div className="border-t border-slate-100 py-1.5">
-              <Link href="/" className="flex items-center gap-3 px-4 py-2 text-sm text-rose-600 transition hover:bg-rose-50">
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={logoutMutation.isPending}
+                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70"
+              >
                 <LogOut className="h-4 w-4" />
-                Sign Out
-              </Link>
+                {logoutMutation.isPending ? "Signing Out..." : "Sign Out"}
+              </button>
             </div>
           </div>
         </div>
