@@ -101,5 +101,6 @@ export const config = {
     "/users/:path*",
     "/roles/:path*",
     "/permissions/:path*",
+    "/system-log/:path*",
   ],
 };

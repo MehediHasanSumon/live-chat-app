@@ -37,5 +37,9 @@ export const queryKeys = {
       all: ["admin", "users"] as const,
       list: (page: number, perPage: number, search: string) => ["admin", "users", { page, perPage, search }] as const,
     },
+    systemLogs: {
+      all: ["admin", "system-logs"] as const,
+      list: (page: number, perPage: number, search: string) => ["admin", "system-logs", { page, perPage, search }] as const,
+    },
   },
 };

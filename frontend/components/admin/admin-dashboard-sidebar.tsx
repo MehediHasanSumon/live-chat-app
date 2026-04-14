@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, House, MessageSquare, Settings, Users, X } from "lucide-react";
+import { ChevronDown, House, MessageSquare, ScrollText, Settings, Users, X } from "lucide-react";
 
 import { useMessagesBadgeCount } from "@/lib/hooks/use-messages-badge-count";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -27,9 +27,12 @@ type DropdownItem = {
   label: string;
 };
 
+type DropdownOpenState = "auto" | "open" | "closed";
+
 const mainItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: House },
   { href: "/messages", label: "Messages", icon: MessageSquare },
+  { href: "/system-log", label: "System Log", icon: ScrollText },
 ];
 
 const userManagementItems: DropdownItem[] = [
@@ -173,28 +176,32 @@ function SidebarDropdown({
         <ChevronDown className={cn("ml-2 h-3.5 w-3.5 transition", isOpen && "rotate-180", isCollapsed ? "hidden lg:hidden" : "inline")} />
       </button>
 
-      {isOpen && !isCollapsed ? (
-        <div className="pl-5">
-          {items.map((item) => {
-            const itemIsActive = isRouteActive(pathname, item.href);
+      <div
+        className={cn(
+          "overflow-hidden pl-5 transition-[max-height,opacity] duration-300 ease-in-out",
+          isCollapsed ? "max-h-0 opacity-0" : isOpen ? "max-h-40 opacity-100" : "max-h-0 opacity-0",
+        )}
+        aria-hidden={!isOpen || isCollapsed}
+      >
+        {items.map((item) => {
+          const itemIsActive = isRouteActive(pathname, item.href);
 
-            return (
-              <Link
-                key={`${label}-${item.href}-${item.label}`}
-                href={item.href}
-                onClick={onNavigate}
-                className={cn(
-                  "flex items-center rounded-md px-3 py-2 text-sm transition",
-                  itemIsActive ? "text-[#ea580c]" : "text-slate-500 hover:bg-[#191c24] hover:text-[#ea580c]",
-                )}
-              >
-                <span className={cn("mr-3 h-1.5 w-1.5 shrink-0 rounded-full", itemIsActive ? "bg-[#ea580c]" : "bg-slate-600")} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      ) : null}
+          return (
+            <Link
+              key={`${label}-${item.href}-${item.label}`}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                "flex items-center rounded-md px-3 py-2 text-sm transition",
+                itemIsActive ? "text-[#ea580c]" : "text-slate-500 hover:bg-[#191c24] hover:text-[#ea580c]",
+              )}
+            >
+              <span className={cn("mr-3 h-1.5 w-1.5 shrink-0 rounded-full", itemIsActive ? "bg-[#ea580c]" : "bg-slate-600")} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
 
       {isCollapsed && isHoverOpen ? (
         <div className="absolute left-[calc(100%+12px)] top-0 hidden min-w-[220px] rounded-2xl border border-white/10 bg-[#141925] p-3 shadow-[0_24px_60px_rgba(5,8,20,0.4)] lg:block">
@@ -234,15 +241,17 @@ export function AdminDashboardSidebar({
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
   const { badgeCount } = useMessagesBadgeCount(true);
-  const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
+  const [userManagementOpenState, setUserManagementOpenState] = useState<DropdownOpenState>("auto");
   const [isUserManagementHoverOpen, setIsUserManagementHoverOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsOpenState, setSettingsOpenState] = useState<DropdownOpenState>("auto");
   const [isSettingsHoverOpen, setIsSettingsHoverOpen] = useState(false);
   const displayName = user?.name?.trim() || user?.username || "Guest User";
   const displayUsername = user?.username ? `@${user.username}` : "@guest";
   const initials = getInitials(displayName, user?.username ?? "GU");
-  const userManagementOpen = isUserManagementOpen || userManagementItems.some((item) => isRouteActive(pathname, item.href));
-  const settingsOpen = isSettingsOpen || settingsItems.some((item) => isRouteActive(pathname, item.href));
+  const userManagementHasActiveItem = userManagementItems.some((item) => isRouteActive(pathname, item.href));
+  const settingsHasActiveItem = settingsItems.some((item) => isRouteActive(pathname, item.href));
+  const userManagementOpen = userManagementOpenState === "open" || (userManagementOpenState === "auto" && userManagementHasActiveItem);
+  const settingsOpen = settingsOpenState === "open" || (settingsOpenState === "auto" && settingsHasActiveItem);
 
   return (
     <>
@@ -299,7 +308,7 @@ export function AdminDashboardSidebar({
             isCollapsed={isCollapsed}
             isOpen={userManagementOpen}
             isHoverOpen={isUserManagementHoverOpen}
-            onToggle={() => setIsUserManagementOpen((current) => !current)}
+            onToggle={() => setUserManagementOpenState(userManagementOpen ? "closed" : "open")}
             onHoverChange={setIsUserManagementHoverOpen}
             onNavigate={onCloseMobile}
             onExpandDesktop={onExpandDesktop}
@@ -313,7 +322,7 @@ export function AdminDashboardSidebar({
             isCollapsed={isCollapsed}
             isOpen={settingsOpen}
             isHoverOpen={isSettingsHoverOpen}
-            onToggle={() => setIsSettingsOpen((current) => !current)}
+            onToggle={() => setSettingsOpenState(settingsOpen ? "closed" : "open")}
             onHoverChange={setIsSettingsHoverOpen}
             onNavigate={onCloseMobile}
             onExpandDesktop={onExpandDesktop}

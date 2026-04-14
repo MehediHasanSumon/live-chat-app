@@ -3,6 +3,7 @@
 use App\Http\Controllers\CallController;
 use App\Http\Controllers\AdminPermissionController;
 use App\Http\Controllers\AdminRoleController;
+use App\Http\Controllers\AdminSystemLogController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\GroupController;
@@ -114,6 +115,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/admin/users', [AdminUserController::class, 'store']);
     Route::patch('/admin/users/{user}', [AdminUserController::class, 'update']);
     Route::delete('/admin/users/{user}', [AdminUserController::class, 'destroy']);
+    Route::get('/admin/system-logs', [AdminSystemLogController::class, 'index']);
     Route::get('/admin/ops/health', [AdminOpsController::class, 'health']);
     Route::get('/admin/ops/status', [AdminOpsController::class, 'status']);
     Route::patch('/settings/theme', [SettingsController::class, 'theme']);
