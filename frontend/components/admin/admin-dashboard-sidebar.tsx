@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, House, LogOut, MessageSquare, Settings, Users, X } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ChevronDown, House, MessageSquare, Settings, Users, X } from "lucide-react";
 
-import { useLogoutMutation } from "@/lib/hooks/use-auth-mutations";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { cn } from "@/lib/utils";
 
@@ -98,21 +97,13 @@ export function AdminDashboardSidebar({
   onCloseMobile,
   onExpandDesktop,
 }: AdminDashboardSidebarProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
-  const logoutMutation = useLogoutMutation();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSettingsHoverOpen, setIsSettingsHoverOpen] = useState(false);
   const displayName = user?.name?.trim() || user?.username || "Guest User";
   const displayUsername = user?.username ? `@${user.username}` : "@guest";
   const initials = getInitials(displayName, user?.username ?? "GU");
-
-  async function handleLogout() {
-    await logoutMutation.mutateAsync();
-    onCloseMobile();
-    router.replace("/login");
-  }
 
   return (
     <>
@@ -129,7 +120,7 @@ export function AdminDashboardSidebar({
         className={cn(
           "fixed left-0 top-0 z-50 flex h-screen w-[300px] flex-col bg-[linear-gradient(180deg,#111420_0%,#0c0e13_100%)] text-white transition-transform duration-300 overflow-hidden lg:overflow-visible",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-          isCollapsed ? "lg:w-[84px]" : "lg:w-[300px]",
+          isCollapsed ? "lg:w-[64px]" : "lg:w-[300px]",
         )}
       >
         <div className="flex h-16 items-center border-b border-white/[0.06] px-5">
@@ -148,29 +139,23 @@ export function AdminDashboardSidebar({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4 lg:overflow-visible">
-          <p className={cn("mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500", isCollapsed ? "hidden lg:hidden" : "block")}>
-            Main
-          </p>
-
-          <div className="space-y-0.5">
+          <div className="space-y-0">
             {mainItems.map((item) => (
               <SidebarLink key={item.label} item={item} pathname={pathname} isCollapsed={isCollapsed} onNavigate={onCloseMobile} />
             ))}
           </div>
 
-          <p className={cn("mb-2 mt-6 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500", isCollapsed ? "hidden lg:hidden" : "block")}>
-            Management
-          </p>
-
-          <SidebarLink
+          <div className="mt-0">
+            <SidebarLink
             item={{ href: "/settings", label: "Users", icon: Users }}
             pathname={pathname}
             isCollapsed={isCollapsed}
             onNavigate={onCloseMobile}
           />
+          </div>
 
           <div
-            className="relative mt-0.5"
+            className="relative mt-0"
             onMouseEnter={() => {
               if (isCollapsed) {
                 setIsSettingsHoverOpen(true);
@@ -241,24 +226,10 @@ export function AdminDashboardSidebar({
             ) : null}
           </div>
 
-          <div className="mx-2 my-4 border-t border-white/[0.06]" />
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={logoutMutation.isPending}
-            className="group relative flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm text-slate-400 transition-all duration-200 hover:bg-[#191c24] hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            <div className={cn("flex min-w-0 flex-1 items-center", isCollapsed ? "justify-center lg:justify-center" : "justify-start")}>
-              <LogOut className={cn("h-[15px] w-5 shrink-0 group-hover:text-[#ea580c]", isCollapsed ? "mr-0" : "mr-3")} />
-              <span className={cn("whitespace-nowrap text-sm font-medium", isCollapsed ? "hidden lg:hidden" : "inline")}>
-                {logoutMutation.isPending ? "Signing Out..." : "Sign Out"}
-              </span>
-            </div>
-          </button>
         </nav>
 
         <div className="shrink-0 border-t border-white/[0.06] p-3">
-          <div className="flex items-center rounded-lg bg-[#191c24] px-3 py-2.5">
+          <div className={cn("flex items-center", isCollapsed ? "justify-center bg-transparent px-0 py-0" : "rounded-lg bg-[#191c24] px-3 py-2.5")}>
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white ring-2 ring-white/10">
               {initials}
             </div>

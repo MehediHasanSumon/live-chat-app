@@ -51,7 +51,7 @@ export function AdminDashboardShell({ children }: AdminDashboardShellProps) {
       <div
         className={cn(
           "min-h-screen transition-[margin] duration-300",
-          isSidebarCollapsed ? "lg:ml-[84px]" : "lg:ml-[300px]",
+          isSidebarCollapsed ? "lg:ml-[64px]" : "lg:ml-[300px]",
         )}
       >
         <AdminDashboardTopbar
