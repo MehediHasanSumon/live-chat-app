@@ -53,6 +53,7 @@ export type MessageThread = {
   id: string;
   numericId: number;
   lastMessageSeq: number;
+  activeRoomUuid?: string | null;
   name: string;
   avatarUrl?: string | null;
   avatarObjectId?: number | null;
@@ -248,6 +249,11 @@ export type ChatMessage = {
     status: string | null;
     mediaType: "voice" | "video" | null;
     durationSeconds: number;
+    ringDurationSeconds: number;
+    endedReason: string | null;
+    acceptedBy: string[];
+    declinedBy: string[];
+    missedBy: string[];
   } | null;
 };
 
@@ -312,6 +318,7 @@ export function toConversationThread(conversation: ConversationApiItem): Message
     id: String(conversation.id),
     numericId: conversation.id,
     lastMessageSeq: conversation.last_message_seq,
+    activeRoomUuid: conversation.active_room_uuid,
     name:
       conversation.type === "group"
         ? conversation.title ?? `Group #${conversation.id}`
@@ -492,6 +499,23 @@ export function toChatMessage(message: MessageApiItem, authUserId?: number | nul
               typeof message.metadata_json?.duration_seconds === "number"
                 ? message.metadata_json.duration_seconds
                 : 0,
+            ringDurationSeconds:
+              typeof message.metadata_json?.ring_duration_seconds === "number"
+                ? message.metadata_json.ring_duration_seconds
+                : 0,
+            endedReason:
+              typeof message.metadata_json?.ended_reason === "string"
+                ? message.metadata_json.ended_reason
+                : null,
+            acceptedBy: Array.isArray(message.metadata_json?.accepted_by)
+              ? message.metadata_json.accepted_by.filter((value): value is string => typeof value === "string")
+              : [],
+            declinedBy: Array.isArray(message.metadata_json?.declined_by)
+              ? message.metadata_json.declined_by.filter((value): value is string => typeof value === "string")
+              : [],
+            missedBy: Array.isArray(message.metadata_json?.missed_by)
+              ? message.metadata_json.missed_by.filter((value): value is string => typeof value === "string")
+              : [],
           }
         : null,
   };

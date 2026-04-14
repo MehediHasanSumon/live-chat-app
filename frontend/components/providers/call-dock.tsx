@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
-import { Lock, PhoneCall, PhoneOff, Video } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { useState } from "react";
+import { BellOff, Lock, PhoneCall, PhoneMissed, PhoneOff, Radio, Video } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 import { MessageAvatar } from "@/components/messages/message-avatar";
 import { apiClient } from "@/lib/api-client";
 import { openCallWindow } from "@/lib/call-window";
-import { type CallRoomApiItem, getCallParticipant } from "@/lib/calls-data";
+import { type CallRoomApiItem, formatCallStatus, getCallParticipant } from "@/lib/calls-data";
 import {
-  useAcceptCallMutation,
   useDeclineCallMutation,
+  useEndCallMutation,
 } from "@/lib/hooks/use-call-mutations";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { toConversationThread } from "@/lib/messages-data";
@@ -22,28 +23,70 @@ type CallRoomResponse = {
 };
 
 export function CallDock() {
-  const { userId } = useAuthStore(useShallow((state) => ({
+  const { userId, settings } = useAuthStore(useShallow((state) => ({
     userId: state.user?.id ?? null,
+    settings: state.settings,
   })));
   const { data: conversations = [] } = useConversationsQuery(Boolean(userId));
   const {
     incomingCall,
     activeCall,
+    missedCallCount,
+    lastMissedCall,
     clearIncomingCall,
     clearActiveCall,
+    clearMissedCalls,
     hydrateCallRoom,
   } = useCallStore(useShallow((state) => ({
     incomingCall: state.incomingCall,
     activeCall: state.activeCall,
+    missedCallCount: state.missedCallCount,
+    lastMissedCall: state.lastMissedCall,
     clearIncomingCall: state.clearIncomingCall,
     clearActiveCall: state.clearActiveCall,
+    clearMissedCalls: state.clearMissedCalls,
     hydrateCallRoom: state.hydrateCallRoom,
   })));
-  const acceptCallMutation = useAcceptCallMutation();
   const declineCallMutation = useDeclineCallMutation();
+  const endCallMutation = useEndCallMutation();
+  const [isAcceptingIncomingCall, setIsAcceptingIncomingCall] = useState(false);
 
   const session = incomingCall ?? activeCall;
   const isIncoming = Boolean(incomingCall && session && incomingCall.callRoom.room_uuid === session.callRoom.room_uuid);
+  const conflictingActiveCall =
+    incomingCall &&
+    activeCall &&
+    incomingCall.callRoom.room_uuid !== activeCall.callRoom.room_uuid
+      ? activeCall
+      : null;
+  const isSilentAlert = useMemo(() => {
+    if (!settings) {
+      return false;
+    }
+
+    if (!settings.sound_enabled) {
+      return true;
+    }
+
+    if (!settings.quiet_hours_enabled || !settings.quiet_hours_start || !settings.quiet_hours_end) {
+      return false;
+    }
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const [startHour, startMinute] = settings.quiet_hours_start.split(":").map((value) => Number(value));
+    const [endHour, endMinute] = settings.quiet_hours_end.split(":").map((value) => Number(value));
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
+
+    if (Number.isNaN(startMinutes) || Number.isNaN(endMinutes)) {
+      return false;
+    }
+
+    return startMinutes <= endMinutes
+      ? currentMinutes >= startMinutes && currentMinutes <= endMinutes
+      : currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+  }, [settings]);
 
   useEffect(() => {
     if (!userId) {
@@ -86,7 +129,66 @@ export function CallDock() {
     };
   }, [activeCall?.callRoom.room_uuid, conversations, hydrateCallRoom, incomingCall?.callRoom.room_uuid, userId]);
 
-  if (!session || !userId) {
+  if (!userId) {
+    return null;
+  }
+
+  const missedThread = lastMissedCall
+    ? conversations
+        .map((conversation) => toConversationThread(conversation))
+        .find((item) => item.numericId === lastMissedCall.conversation_id)
+    : null;
+
+  if (!session && missedCallCount > 0 && lastMissedCall) {
+    return (
+      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
+        <div className="pointer-events-auto flex w-full max-w-[420px] items-center gap-3 rounded-[28px] border border-rose-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(255,247,247,0.98)_100%)] px-4 py-4 text-[#2f3655] shadow-[0_24px_70px_rgba(160,96,109,0.14)]">
+          <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+            <PhoneMissed className="h-4.5 w-4.5" />
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-[#2f3655]">
+              {missedCallCount} missed {missedCallCount === 1 ? "call" : "calls"}
+            </p>
+            <p className="mt-1 truncate text-xs text-[#6c759a]">
+              {missedThread?.name ?? `Conversation #${lastMissedCall.conversation_id}`} - {lastMissedCall.media_type === "video" ? "Video" : "Voice"}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                openCallWindow({
+                  conversationId: lastMissedCall.conversation_id,
+                  action: "start",
+                  mediaType: lastMissedCall.media_type,
+                  title: missedThread?.name,
+                  avatarUrl: missedThread?.avatarUrl ?? null,
+                  isGroup: Boolean(missedThread?.isGroup),
+                });
+                clearMissedCalls();
+              }}
+              className="rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition hover:brightness-105"
+            >
+              Call back
+            </button>
+
+            <button
+              type="button"
+              onClick={clearMissedCalls}
+              className="rounded-full border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
     return null;
   }
 
@@ -96,23 +198,41 @@ export function CallDock() {
 
   const participant = getCallParticipant(session.callRoom, userId);
   const isAccepted = participant?.invite_status === "accepted";
-  const acceptRequested = acceptCallMutation.isPending;
+  const acceptRequested = isAcceptingIncomingCall;
   const declineRequested = declineCallMutation.isPending;
   const title = thread?.name ?? `Conversation #${session.callRoom.conversation_id}`;
+  const shouldShowResumeCard =
+    !isIncoming &&
+    isAccepted &&
+    activeCall?.callRoom.room_uuid === session.callRoom.room_uuid &&
+    activeCall.source === "synced";
+  const resumeLabel = shouldShowResumeCard ? "Move here" : "Resume";
 
   const handleAccept = async () => {
-    const acceptedCallRoom = await acceptCallMutation.mutateAsync(session.callRoom.room_uuid);
-    openCallWindow({
-      conversationId: session.callRoom.conversation_id,
-      action: "join",
-      mediaType: acceptedCallRoom.media_type,
-      roomUuid: acceptedCallRoom.room_uuid,
-      title,
-      avatarUrl: thread?.avatarUrl ?? null,
-      isGroup: Boolean(thread?.isGroup),
-    });
-    clearIncomingCall();
-    clearActiveCall();
+    setIsAcceptingIncomingCall(true);
+
+    if (conflictingActiveCall) {
+      await endCallMutation.mutateAsync({
+        roomUuid: conflictingActiveCall.callRoom.room_uuid,
+        reason: "switched_to_incoming_call",
+      });
+    }
+
+    try {
+      openCallWindow({
+        conversationId: session.callRoom.conversation_id,
+        action: "accept",
+        mediaType: session.callRoom.media_type,
+        roomUuid: session.callRoom.room_uuid,
+        title,
+        avatarUrl: thread?.avatarUrl ?? null,
+        isGroup: Boolean(thread?.isGroup),
+      });
+      clearIncomingCall();
+      clearActiveCall();
+    } finally {
+      setIsAcceptingIncomingCall(false);
+    }
   };
 
   if (isIncoming && !isAccepted) {
@@ -138,6 +258,22 @@ export function CallDock() {
             <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[rgba(96,91,255,0.08)] px-2.5 py-1.5 text-[11px] text-[#6c759a]">
               <Lock className="h-3 w-3" />
               End-to-end encrypted
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              {conflictingActiveCall ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-700">
+                  <PhoneCall className="h-3 w-3" />
+                  Busy on another call
+                </span>
+              ) : null}
+
+              {isSilentAlert ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1.5 text-[11px] font-medium text-slate-600">
+                  <BellOff className="h-3 w-3" />
+                  Silent alert
+                </span>
+              ) : null}
             </div>
 
             <div className="mt-8 flex items-start justify-center gap-8">
@@ -171,10 +307,74 @@ export function CallDock() {
                   )}
                 </span>
                 <span className="text-[11px] font-semibold text-[#4c5478]">
-                  {acceptRequested ? "Accepting..." : "Accept"}
+                  {acceptRequested ? "Accepting..." : conflictingActiveCall ? "Switch & accept" : "Accept"}
                 </span>
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (shouldShowResumeCard) {
+    return (
+      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
+        <div className="pointer-events-auto flex w-full max-w-[430px] items-center gap-3 rounded-[28px] border border-[rgba(111,123,176,0.14)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(246,248,255,0.98)_100%)] px-4 py-4 text-[#2f3655] shadow-[0_24px_70px_rgba(96,109,160,0.2)]">
+          <MessageAvatar
+            name={title}
+            imageUrl={thread?.avatarUrl ?? null}
+            sizeClass="h-12 w-12"
+            textClass="text-base"
+          />
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(96,91,255,0.08)] text-[var(--accent)]">
+                <Radio className="h-4 w-4" />
+              </span>
+              <p className="truncate text-sm font-semibold text-[#2f3655]">
+                Move active {session.callRoom.media_type === "video" ? "video" : "voice"} call here
+              </p>
+            </div>
+
+            <p className="mt-1 truncate text-xs text-[#6c759a]">
+              {title} - {formatCallStatus(session.callRoom)} - live on another device
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                openCallWindow({
+                  conversationId: session.callRoom.conversation_id,
+                  action: "join",
+                  mediaType: session.callRoom.media_type,
+                  roomUuid: session.callRoom.room_uuid,
+                  title,
+                  avatarUrl: thread?.avatarUrl ?? null,
+                  isGroup: Boolean(thread?.isGroup),
+                });
+              }}
+              className="rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition hover:brightness-105"
+            >
+              {resumeLabel}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                void endCallMutation.mutateAsync({
+                  roomUuid: session.callRoom.room_uuid,
+                  reason: "ended_from_resume_card",
+                });
+              }}
+              disabled={endCallMutation.isPending}
+              className="rounded-full border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {endCallMutation.isPending ? "Ending..." : "End"}
+            </button>
           </div>
         </div>
       </div>

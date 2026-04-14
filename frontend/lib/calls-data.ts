@@ -1,4 +1,4 @@
-import { type MessageThread } from "@/lib/messages-data";
+import { type ConversationUser, type MessageThread } from "@/lib/messages-data";
 
 export type CallRoomParticipantApiItem = {
   id: number;
@@ -11,6 +11,7 @@ export type CallRoomParticipantApiItem = {
   is_video_publisher: boolean;
   created_at: string;
   updated_at: string;
+  user?: ConversationUser;
 };
 
 export type CallRoomApiItem = {
@@ -21,6 +22,7 @@ export type CallRoomApiItem = {
   media_type: "voice" | "video";
   created_by: number;
   status: "calling" | "ringing" | "connecting" | "active" | "ended" | "missed" | "declined" | "cancelled" | "failed";
+  is_locked: boolean;
   max_participants: number;
   max_video_publishers: number;
   started_at: string | null;
@@ -52,6 +54,11 @@ export type CallSignalPayload = {
   call_room: CallRoomApiItem;
 };
 
+export type CallMuteRequestPayload = {
+  room_uuid: string;
+  actor_user_id: number;
+};
+
 export function getDirectCallTargetUserId(
   thread: MessageThread,
   authUserId: number,
@@ -70,6 +77,16 @@ export function getCallParticipant(
   }
 
   return callRoom.participants?.find((participant) => participant.user_id === userId) ?? null;
+}
+
+export function isCallParticipantInactive(
+  participant: CallRoomParticipantApiItem | null | undefined,
+): boolean {
+  if (!participant) {
+    return true;
+  }
+
+  return ["declined", "missed", "left", "kicked"].includes(participant.invite_status);
 }
 
 export function isCallTerminal(callRoom: CallRoomApiItem | null | undefined): boolean {

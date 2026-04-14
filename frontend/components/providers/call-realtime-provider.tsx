@@ -11,7 +11,17 @@ import { queryKeys } from "@/lib/query-keys";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 import { useCallStore } from "@/lib/stores/call-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { type CallSignalPayload, isCallTerminal } from "@/lib/calls-data";
+import {
+  type CallRoomApiItem,
+  type CallSignalPayload,
+  getCallParticipant,
+  isCallParticipantInactive,
+  isCallTerminal,
+} from "@/lib/calls-data";
+
+type CallRoomResponse = {
+  data: CallRoomApiItem;
+};
 
 function invalidateConversationQueries(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -31,10 +41,12 @@ export function CallRealtimeProvider() {
     receiveIncomingCall,
     syncCallState,
     clearActiveCall,
+    hydrateCallRoom,
   } = useCallStore(useShallow((state) => ({
     receiveIncomingCall: state.receiveIncomingCall,
     syncCallState: state.syncCallState,
     clearActiveCall: state.clearActiveCall,
+    hydrateCallRoom: state.hydrateCallRoom,
   })));
   const { userId } = useAuthStore(useShallow((state) => ({
     userId: state.user?.id ?? null,
@@ -59,10 +71,12 @@ export function CallRealtimeProvider() {
     };
 
     const handleStateChanged = (payload: CallSignalPayload) => {
-      syncCallState(payload);
+      syncCallState(payload, userId);
       invalidateConversationQueries(queryClient, payload.call_room.conversation_id);
 
-      if (isCallTerminal(payload.call_room)) {
+      const participant = getCallParticipant(payload.call_room, userId);
+
+      if (isCallTerminal(payload.call_room) || isCallParticipantInactive(participant)) {
         clearActiveCall();
       }
     };
@@ -89,10 +103,12 @@ export function CallRealtimeProvider() {
     const conversationChannel = echo.private(`conversation.${activeThreadId}`);
 
     const handleStateChanged = (payload: CallSignalPayload) => {
-      syncCallState(payload);
+      syncCallState(payload, userId);
       invalidateConversationQueries(queryClient, payload.call_room.conversation_id);
 
-      if (isCallTerminal(payload.call_room)) {
+      const participant = getCallParticipant(payload.call_room, userId);
+
+      if (isCallTerminal(payload.call_room) || isCallParticipantInactive(participant)) {
         clearActiveCall();
       }
     };
@@ -102,7 +118,7 @@ export function CallRealtimeProvider() {
     return () => {
       echo.leave(`conversation.${activeThreadId}`);
     };
-  }, [activeThreadId, clearActiveCall, queryClient, syncCallState]);
+  }, [activeThreadId, clearActiveCall, queryClient, syncCallState, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -118,31 +134,36 @@ export function CallRealtimeProvider() {
       }
 
       handledPopupClosuresRef.current.set(signal.roomUuid, now);
+      const activeRoomUuid = useCallStore.getState().activeCall?.callRoom.room_uuid;
+
+      if (activeRoomUuid === signal.roomUuid) {
+        clearActiveCall();
+      }
 
       void apiClient
-        .post(`/api/calls/${signal.roomUuid}/end`, {
-          reason: signal.reason,
+        .get<CallRoomResponse>(`/api/calls/${signal.roomUuid}`, {
+          skipAuthRedirect: true,
         })
-        .catch(() => {
-          // Ignore duplicate or already-closed popup end requests.
-        })
-        .finally(() => {
-          const activeRoomUuid = useCallStore.getState().activeCall?.callRoom.room_uuid;
-
-          if (activeRoomUuid === signal.roomUuid) {
-            clearActiveCall();
-          }
-
-          if (signal.conversationId != null) {
-            invalidateConversationQueries(queryClient, Number(signal.conversationId));
-            void queryClient.invalidateQueries({ queryKey: queryKeys.messages.list(signal.conversationId) });
+        .then((response) => {
+          if (!userId || isCallTerminal(response.data)) {
             return;
           }
 
-          void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+          hydrateCallRoom(response.data, userId);
+        })
+        .catch(() => {
+          // Ignore popup sync fetch failures and fall back to query invalidation.
         });
+
+      if (signal.conversationId != null) {
+        invalidateConversationQueries(queryClient, Number(signal.conversationId));
+        void queryClient.invalidateQueries({ queryKey: queryKeys.messages.list(signal.conversationId) });
+        return;
+      }
+
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
     });
-  }, [clearActiveCall, queryClient, userId]);
+  }, [clearActiveCall, hydrateCallRoom, queryClient, userId]);
 
   return null;
 }

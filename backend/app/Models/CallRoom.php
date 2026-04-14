@@ -20,6 +20,7 @@ class CallRoom extends Model
     protected function casts(): array
     {
         return [
+            'is_locked' => 'boolean',
             'duration_seconds' => 'integer',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',

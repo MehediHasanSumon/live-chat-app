@@ -574,6 +574,31 @@ class MessageService
      */
     protected function buildCallHistoryMetadata(CallRoom $callRoom, string $action): array
     {
+        $participants = $callRoom->relationLoaded('participants')
+            ? $callRoom->participants
+            : $callRoom->participants()->with('user')->get();
+        $acceptedParticipants = $participants
+            ->filter(fn ($participant) => $participant->joined_at !== null || $participant->invite_status === 'accepted')
+            ->pluck('user.name')
+            ->filter()
+            ->values();
+        $declinedParticipants = $participants
+            ->where('invite_status', 'declined')
+            ->pluck('user.name')
+            ->filter()
+            ->values();
+        $missedParticipants = $participants
+            ->where('invite_status', 'missed')
+            ->pluck('user.name')
+            ->filter()
+            ->values();
+        $ringDurationSeconds = 0;
+        $ringEndAt = $callRoom->started_at ?? $callRoom->ended_at;
+
+        if ($callRoom->created_at && $ringEndAt) {
+            $ringDurationSeconds = max((int) $callRoom->created_at->diffInSeconds($ringEndAt), 0);
+        }
+
         return [
             'action' => $action,
             'status' => $callRoom->status,
@@ -583,6 +608,10 @@ class MessageService
             'ended_at' => $callRoom->ended_at?->toIso8601String(),
             'ended_reason' => $callRoom->ended_reason,
             'duration_seconds' => (int) ($callRoom->duration_seconds ?? 0),
+            'ring_duration_seconds' => $ringDurationSeconds,
+            'accepted_by' => $acceptedParticipants->all(),
+            'declined_by' => $declinedParticipants->all(),
+            'missed_by' => $missedParticipants->all(),
         ];
     }
 

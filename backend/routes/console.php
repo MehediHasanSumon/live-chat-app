@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::job(new DispatchScheduledNotificationDigestsJob())->everyMinute();
+Schedule::command('calls:cleanup-stale')->everyMinute();

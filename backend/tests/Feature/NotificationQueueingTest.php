@@ -2,6 +2,8 @@
 
 use App\Models\Conversation;
 use App\Models\ConversationMember;
+use App\Models\CallRoom;
+use App\Models\CallRoomParticipant;
 use App\Models\NotificationOutbox;
 use App\Models\User;
 use App\Models\UserRestriction;
@@ -160,4 +162,100 @@ it('produces call invite outbox notifications when a call starts', function () {
     expect($notification->user_id)->toBe($recipient->id)
         ->and($notification->status)->toBe('sent')
         ->and($notification->sent_at)->not->toBeNull();
+});
+
+it('marks call invites as silent when notification sound is disabled', function () {
+    $caller = User::factory()->create();
+    $recipient = User::factory()->create();
+
+    UserSetting::query()->create([
+        'user_id' => $recipient->id,
+        'show_active_status' => true,
+        'allow_message_requests' => false,
+        'push_enabled' => true,
+        'sound_enabled' => false,
+        'vibrate_enabled' => true,
+        'quiet_hours_enabled' => false,
+        'theme' => 'system',
+        'updated_at' => now(),
+    ]);
+
+    $roomService = Mockery::mock(LiveKitRoomService::class);
+    $roomService->shouldReceive('createRoom')->once()->andReturn(['name' => 'stub-room']);
+    $this->app->instance(LiveKitRoomService::class, $roomService);
+
+    $this->actingAs($caller, 'web')
+        ->postJson("/api/calls/direct/{$recipient->id}/voice")
+        ->assertCreated();
+
+    $notification = NotificationOutbox::query()
+        ->where('type', 'call_invite')
+        ->latest('id')
+        ->firstOrFail();
+
+    expect($notification->status)->toBe('sent')
+        ->and($notification->payload_json['silent'] ?? null)->toBeTrue()
+        ->and($notification->payload_json['can_accept'] ?? null)->toBeTrue();
+});
+
+it('marks call invites as busy when the recipient is already in another active call', function () {
+    $busyCaller = User::factory()->create();
+    $newCaller = User::factory()->create();
+    $recipient = User::factory()->create();
+
+    UserSetting::query()->create([
+        'user_id' => $recipient->id,
+        'show_active_status' => true,
+        'allow_message_requests' => false,
+        'push_enabled' => true,
+        'sound_enabled' => true,
+        'vibrate_enabled' => true,
+        'quiet_hours_enabled' => false,
+        'theme' => 'system',
+        'updated_at' => now(),
+    ]);
+
+    $busyConversation = createNotificationConversation($busyCaller, $recipient);
+
+    $existingCall = CallRoom::query()->create([
+        'room_uuid' => (string) str()->uuid(),
+        'conversation_id' => $busyConversation->id,
+        'scope' => 'direct',
+        'media_type' => 'voice',
+        'created_by' => $busyCaller->id,
+        'status' => 'active',
+        'max_participants' => 2,
+        'max_video_publishers' => 0,
+        'started_at' => now()->subMinutes(1),
+    ]);
+
+    CallRoomParticipant::query()->create([
+        'call_room_id' => $existingCall->id,
+        'user_id' => $busyCaller->id,
+        'invite_status' => 'accepted',
+        'joined_at' => now()->subMinutes(1),
+    ]);
+
+    CallRoomParticipant::query()->create([
+        'call_room_id' => $existingCall->id,
+        'user_id' => $recipient->id,
+        'invite_status' => 'accepted',
+        'joined_at' => now()->subMinutes(1),
+    ]);
+
+    $roomService = Mockery::mock(LiveKitRoomService::class);
+    $roomService->shouldReceive('createRoom')->once()->andReturn(['name' => 'stub-room']);
+    $this->app->instance(LiveKitRoomService::class, $roomService);
+
+    $this->actingAs($newCaller, 'web')
+        ->postJson("/api/calls/direct/{$recipient->id}/voice")
+        ->assertCreated();
+
+    $notification = NotificationOutbox::query()
+        ->where('type', 'call_invite')
+        ->latest('id')
+        ->firstOrFail();
+
+    expect($notification->status)->toBe('sent')
+        ->and($notification->payload_json['busy'] ?? null)->toBeTrue();
 });

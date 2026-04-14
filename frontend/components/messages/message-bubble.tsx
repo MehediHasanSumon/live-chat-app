@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { CornerUpLeft, Download, FileText, Forward, PencilLine, Send, SmilePlus, Trash2, X } from "lucide-react";
+import { CornerUpLeft, Download, FileText, Forward, PencilLine, PhoneCall, Send, SmilePlus, Trash2, X } from "lucide-react";
 
 import { MessageAvatar } from "@/components/messages/message-avatar";
 import { MessageUserHoverCard } from "@/components/messages/message-user-hover-card";
@@ -19,6 +19,7 @@ type MessageBubbleProps = {
   onEdit?: (messageId: number, currentBody: string) => void;
   onForward?: (messageId: number) => void;
   onRemove?: (messageId: number) => void;
+  onRetryCall?: (message: ChatMessage) => void;
   isReacting?: boolean;
 };
 
@@ -30,6 +31,22 @@ function formatCallDuration(seconds: number): string {
   const remainder = safeSeconds % 60;
 
   return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
+function buildCallHistorySummary(message: ChatMessage): string[] {
+  if (!message.call) {
+    return [];
+  }
+
+  const lines: string[] = [];
+
+  if (message.call.durationSeconds > 0) {
+    lines.push(`Duration ${formatCallDuration(message.call.durationSeconds)}`);
+  } else if (message.call.ringDurationSeconds > 0) {
+    lines.push(`Rang for ${formatCallDuration(message.call.ringDurationSeconds)}`);
+  }
+
+  return lines;
 }
 
 function MessageBubbleComponent({
@@ -44,6 +61,7 @@ function MessageBubbleComponent({
   onEdit,
   onForward,
   onRemove,
+  onRetryCall,
   isReacting = false,
 }: MessageBubbleProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -82,6 +100,7 @@ function MessageBubbleComponent({
   const imageAttachments = message.attachments?.filter((attachment) => attachment.mediaKind === "image") ?? [];
   const fileAttachments = message.attachments?.filter((attachment) => attachment.mediaKind !== "image") ?? [];
   const isCallMessage = message.type === "call" && message.call;
+  const callSummaryLines = useMemo(() => buildCallHistorySummary(message), [message]);
   const isImageOnlyMessage =
     imageAttachments.length > 0 &&
     fileAttachments.length === 0 &&
@@ -336,16 +355,34 @@ function MessageBubbleComponent({
                     : "border-[rgba(111,123,176,0.14)] bg-[rgba(246,248,255,0.92)]"
                 }`}
               >
-                <div className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${message.sender === "me" ? "text-white/72" : "text-[#7b84a8]"}`}>
-                  {message.call?.mediaType === "video" ? "Video Call" : "Voice Call"}
-                </div>
-                <p className={`mt-2 text-sm font-semibold ${message.sender === "me" ? "text-white" : "text-[#2f3655]"}`}>
+                <p className={`text-[13px] font-semibold leading-[1.02] ${message.sender === "me" ? "text-white" : "text-[#2f3655]"}`}>
                   {message.body}
                 </p>
-                <div className={`mt-2 flex items-center gap-2 text-[12px] ${message.sender === "me" ? "text-white/78" : "text-[#667099]"}`}>
-                  <span>{message.call?.action ?? message.subType ?? "call"}</span>
-                  {message.call && message.call.durationSeconds > 0 ? <span>· {formatCallDuration(message.call.durationSeconds)}</span> : null}
-                </div>
+                {callSummaryLines.length > 0 ? (
+                  <div className={`mt-1 space-y-0 text-[11px] leading-[1.02] ${message.sender === "me" ? "text-white/82" : "text-[#667099]"}`}>
+                    {callSummaryLines.map((line) => (
+                      <p key={`${message.id}-${line}`}>{line}</p>
+                    ))}
+                  </div>
+                ) : null}
+                {onRetryCall && message.call?.mediaType ? (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onRetryCall(message);
+                      }}
+                      className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition ${
+                        message.sender === "me"
+                          ? "bg-white/14 text-white hover:bg-white/18"
+                          : "bg-[var(--accent-soft)] text-[var(--accent)] hover:bg-[rgba(96,91,255,0.14)]"
+                      }`}
+                    >
+                      <PhoneCall className="h-3.5 w-3.5" />
+                      Retry call
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -505,5 +542,6 @@ export const MessageBubble = memo(MessageBubbleComponent, (prev, next) =>
   prev.onReply === next.onReply &&
   prev.onEdit === next.onEdit &&
   prev.onForward === next.onForward &&
-  prev.onRemove === next.onRemove,
+  prev.onRemove === next.onRemove &&
+  prev.onRetryCall === next.onRetryCall
 );

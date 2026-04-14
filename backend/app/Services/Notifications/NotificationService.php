@@ -4,16 +4,19 @@ namespace App\Services\Notifications;
 
 use App\Jobs\DeliverNotificationOutboxJob;
 use App\Models\CallRoom;
+use App\Models\CallRoomParticipant;
 use App\Models\ConversationMember;
 use App\Models\Message;
 use App\Models\NotificationOutbox;
 use App\Models\UserBlock;
 use App\Models\UserDevice;
 use App\Models\UserRestriction;
+use App\Models\UserSetting;
 use App\Services\Realtime\UserRealtimeSignalService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class NotificationService
@@ -95,30 +98,51 @@ class NotificationService
     public function queueCallInvite(CallRoom $callRoom, array $notifyUserIds): void
     {
         foreach (collect($notifyUserIds)->map(fn ($id) => (int) $id)->unique() as $userId) {
+            $deliveryProfile = $this->resolveDeliveryProfile($userId);
             $isSuppressed = $this->shouldSuppressPush(
                 $userId,
                 (int) $callRoom->conversation_id,
                 (int) $callRoom->created_by,
             );
+            $isBusy = $this->hasAnotherActiveCall($userId, $callRoom->room_uuid);
+            $notificationStatus = $isSuppressed || ! $deliveryProfile['push_enabled'] ? 'suppressed' : 'queued';
+            $failureReason = ! $deliveryProfile['push_enabled']
+                ? 'push_disabled'
+                : ($isSuppressed ? 'muted_or_restricted' : null);
 
             $notification = $this->createOutboxEntry(
                 userId: $userId,
                 type: 'call_invite',
                 provider: $this->resolveProvider($userId),
                 title: 'Incoming '.($callRoom->media_type === 'video' ? 'video' : 'voice').' call',
-                body: 'Join the call in conversation #'.$callRoom->conversation_id.'.',
+                body: $isBusy
+                    ? 'Incoming call while you are already in another live call.'
+                    : 'Join the call in conversation #'.$callRoom->conversation_id.'.',
                 conversationId: (int) $callRoom->conversation_id,
                 payload: [
                     'event_name' => 'call.incoming',
                     'call_room_uuid' => $callRoom->room_uuid,
                     'conversation_id' => (int) $callRoom->conversation_id,
                     'type' => 'call_invite',
+                    'silent' => $deliveryProfile['silent'],
+                    'busy' => $isBusy,
+                    'can_accept' => true,
                 ],
-                status: $isSuppressed ? 'suppressed' : 'queued',
-                failureReason: $isSuppressed ? 'muted_or_restricted' : null,
+                status: $notificationStatus,
+                failureReason: $failureReason,
             );
 
-            if (! $isSuppressed) {
+            Log::info('notifications.call_invite_queued', [
+                'user_id' => $userId,
+                'room_uuid' => $callRoom->room_uuid,
+                'conversation_id' => (int) $callRoom->conversation_id,
+                'silent' => $deliveryProfile['silent'],
+                'busy' => $isBusy,
+                'status' => $notification->status,
+                'failure_reason' => $notification->failure_reason,
+            ]);
+
+            if ($notificationStatus === 'queued') {
                 $this->dispatchQueuedOutbox($notification);
             }
         }
@@ -187,6 +211,12 @@ class NotificationService
             return true;
         }
 
+        $settings = UserSetting::query()->where('user_id', $userId)->first();
+
+        if ($settings && ! $settings->push_enabled) {
+            return true;
+        }
+
         if ($conversationId !== null) {
             $membership = ConversationMember::query()
                 ->where('conversation_id', $conversationId)
@@ -219,6 +249,59 @@ class NotificationService
         return UserBlock::query()
             ->where('blocker_user_id', $userId)
             ->where('blocked_user_id', $senderId)
+            ->exists();
+    }
+
+    /**
+     * @return array{push_enabled: bool, silent: bool}
+     */
+    protected function resolveDeliveryProfile(int $userId): array
+    {
+        $settings = UserSetting::query()->where('user_id', $userId)->first();
+
+        if (! $settings) {
+            return [
+                'push_enabled' => true,
+                'silent' => false,
+            ];
+        }
+
+        return [
+            'push_enabled' => (bool) $settings->push_enabled,
+            'silent' => ! $settings->sound_enabled || $this->isQuietHoursActive($settings),
+        ];
+    }
+
+    protected function isQuietHoursActive(UserSetting $settings): bool
+    {
+        if (! $settings->quiet_hours_enabled || ! $settings->quiet_hours_start || ! $settings->quiet_hours_end) {
+            return false;
+        }
+
+        $timezone = $settings->quiet_hours_timezone ?: config('app.timezone');
+        $now = now($timezone);
+        [$startHour, $startMinute] = array_map('intval', explode(':', (string) $settings->quiet_hours_start));
+        [$endHour, $endMinute] = array_map('intval', explode(':', (string) $settings->quiet_hours_end));
+        $start = $now->copy()->setTime($startHour, $startMinute);
+        $end = $now->copy()->setTime($endHour, $endMinute);
+
+        if ($end->lessThanOrEqualTo($start)) {
+            return $now->greaterThanOrEqualTo($start) || $now->lessThanOrEqualTo($end);
+        }
+
+        return $now->betweenIncluded($start, $end);
+    }
+
+    protected function hasAnotherActiveCall(int $userId, string $currentRoomUuid): bool
+    {
+        return CallRoomParticipant::query()
+            ->where('user_id', $userId)
+            ->where('invite_status', 'accepted')
+            ->whereHas('callRoom', function ($query) use ($currentRoomUuid): void {
+                $query
+                    ->whereIn('status', CallRoom::ACTIVE_STATUSES)
+                    ->where('room_uuid', '!=', $currentRoomUuid);
+            })
             ->exists();
     }
 

@@ -109,6 +109,105 @@ export function useEndCallMutation() {
   });
 }
 
+export function useEndCallForAllMutation() {
+  const queryClient = useQueryClient();
+  const clearActiveCall = useCallStore((state) => state.clearActiveCall);
+
+  return useMutation({
+    mutationFn: async ({ roomUuid, reason }: { roomUuid: string; reason?: string }) =>
+      apiClient
+        .post<CallRoomResponse>(`/api/calls/${roomUuid}/end-for-all`, reason ? { reason } : undefined)
+        .then((response) => response.data),
+    onSuccess: (callRoom) => {
+      clearActiveCall();
+      invalidateCallQueries(queryClient, callRoom.conversation_id);
+    },
+  });
+}
+
+export function useLockCallRoomMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (roomUuid: string) =>
+      apiClient.post<CallRoomResponse>(`/api/calls/${roomUuid}/lock`).then((response) => response.data),
+    onSuccess: (callRoom) => {
+      invalidateCallQueries(queryClient, callRoom.conversation_id);
+    },
+  });
+}
+
+export function useUnlockCallRoomMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (roomUuid: string) =>
+      apiClient.post<CallRoomResponse>(`/api/calls/${roomUuid}/unlock`).then((response) => response.data),
+    onSuccess: (callRoom) => {
+      invalidateCallQueries(queryClient, callRoom.conversation_id);
+    },
+  });
+}
+
+export function useRemoveCallParticipantMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      roomUuid,
+      userId,
+      reason,
+    }: {
+      roomUuid: string;
+      userId: number;
+      reason?: string;
+    }) =>
+      apiClient
+        .post<CallRoomResponse>(
+          `/api/calls/${roomUuid}/participants/${userId}/remove`,
+          reason ? { reason } : undefined,
+        )
+        .then((response) => response.data),
+    onSuccess: (callRoom) => {
+      invalidateCallQueries(queryClient, callRoom.conversation_id);
+    },
+  });
+}
+
+export function useMuteAllCallParticipantsMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (roomUuid: string) =>
+      apiClient.post<CallRoomResponse>(`/api/calls/${roomUuid}/mute-all`).then((response) => response.data),
+    onSuccess: (callRoom) => {
+      invalidateCallQueries(queryClient, callRoom.conversation_id);
+    },
+  });
+}
+
+export function useInviteCallParticipantsMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      roomUuid,
+      userIds,
+    }: {
+      roomUuid: string;
+      userIds: number[];
+    }) =>
+      apiClient
+        .post<CallRoomResponse>(`/api/calls/${roomUuid}/invite`, {
+          user_ids: userIds,
+        })
+        .then((response) => response.data),
+    onSuccess: (callRoom) => {
+      invalidateCallQueries(queryClient, callRoom.conversation_id);
+    },
+  });
+}
+
 export function useJoinCallMutation() {
   const queryClient = useQueryClient();
   const setJoinedCall = useCallStore((state) => state.setJoinedCall);

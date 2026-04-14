@@ -81,4 +81,15 @@ class LiveKitRoomService
             return false;
         }
     }
+
+    public function removeParticipant(string $roomName, string $identity): bool
+    {
+        try {
+            $this->client()->removeParticipant($roomName, $identity);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    }
 }

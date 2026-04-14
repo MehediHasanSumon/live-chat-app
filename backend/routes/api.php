@@ -82,11 +82,13 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/calls/{callRoom}/accept', [CallController::class, 'accept']);
     Route::post('/calls/{callRoom}/decline', [CallController::class, 'decline']);
     Route::post('/calls/{callRoom}/end', [CallController::class, 'end']);
+    Route::post('/calls/{callRoom}/end-for-all', [CallController::class, 'endForAll']);
+    Route::post('/calls/{callRoom}/lock', [CallController::class, 'lock']);
+    Route::post('/calls/{callRoom}/unlock', [CallController::class, 'unlock']);
+    Route::post('/calls/{callRoom}/mute-all', [CallController::class, 'muteAll']);
+    Route::post('/calls/{callRoom}/invite', [CallController::class, 'inviteParticipants']);
+    Route::post('/calls/{callRoom}/participants/{user}/remove', [CallController::class, 'removeParticipant']);
     Route::post('/calls/{callRoom}/join-token', [CallController::class, 'joinToken']);
-
-    Route::post('/livekit/token', [LiveKitController::class, 'token']);
-    Route::post('/livekit/rooms', [LiveKitController::class, 'createRoom']);
-    Route::get('/livekit/rooms', [LiveKitController::class, 'listRooms']);
 
     Route::get('/admin/storage/policy', [AdminStoragePolicyController::class, 'showPolicy']);
     Route::patch('/admin/storage/policy', [AdminStoragePolicyController::class, 'updatePolicy']);

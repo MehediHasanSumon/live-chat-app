@@ -20,6 +20,7 @@ class CallRoomResource extends JsonResource
             'media_type' => $this->media_type,
             'created_by' => $this->created_by,
             'status' => $this->status,
+            'is_locked' => $this->is_locked,
             'max_participants' => $this->max_participants,
             'max_video_publishers' => $this->max_video_publishers,
             'started_at' => $this->started_at,

@@ -1,22 +1,37 @@
 "use client";
 
+import { useState } from "react";
 import {
   LiveKitRoom,
-  ParticipantTile,
   RoomAudioRenderer,
   useLocalParticipant,
   useTracks,
 } from "@livekit/components-react";
-import { Camera, CameraOff, Lock, Mic, MicOff, Minimize2, PhoneOff, Video } from "lucide-react";
+import { Camera, CameraOff, Lock, Mic, MicOff, Minimize2, PhoneOff, Video, X } from "lucide-react";
 import { Track } from "livekit-client";
 import { useShallow } from "zustand/react/shallow";
 
+import { CallParticipantManager } from "@/components/calls/call-participant-manager";
+import { CallLiveKitFeedback, SpeakingParticipantTile } from "@/components/calls/call-livekit-feedback";
+import { CallModeratorMuteListener } from "@/components/calls/call-moderator-mute-listener";
+import { CallInviteManager } from "@/components/calls/call-invite-manager";
 import {
   formatCallStatus,
   getCallLabel,
   type JoinCallApiPayload,
 } from "@/lib/calls-data";
-import { useEndCallMutation } from "@/lib/hooks/use-call-mutations";
+import {
+  useEndCallForAllMutation,
+  useEndCallMutation,
+  useInviteCallParticipantsMutation,
+  useLockCallRoomMutation,
+  useMuteAllCallParticipantsMutation,
+  useRemoveCallParticipantMutation,
+  useUnlockCallRoomMutation,
+} from "@/lib/hooks/use-call-mutations";
+import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
+import { toConversationThread } from "@/lib/messages-data";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useCallStore } from "@/lib/stores/call-store";
 
 function normalizeLiveKitServerUrl(url: string | null | undefined): string | undefined {
@@ -54,7 +69,7 @@ function CallParticipantGrid() {
             key={key}
             className="overflow-hidden rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(18,24,44,0.96)_0%,rgba(14,18,34,0.94)_100%)] shadow-[0_28px_70px_rgba(4,8,20,0.42)]"
           >
-            <ParticipantTile trackRef={trackRef} />
+            <SpeakingParticipantTile trackRef={trackRef} />
           </div>
         );
       })}
@@ -65,11 +80,17 @@ function CallParticipantGrid() {
 function OverlayCallControls({
   showCameraControls,
   onLeave,
+  onEndForAll,
   isLeaving,
+  isEndingForAll,
+  showEndForAll,
 }: {
   showCameraControls: boolean;
   onLeave: () => void;
+  onEndForAll?: () => void;
   isLeaving: boolean;
+  isEndingForAll?: boolean;
+  showEndForAll: boolean;
 }) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
 
@@ -100,6 +121,18 @@ function OverlayCallControls({
           </button>
         ) : null}
 
+        {showEndForAll ? (
+          <button
+            type="button"
+            onClick={onEndForAll}
+            disabled={isEndingForAll}
+            className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/14 px-4 py-2.5 text-sm font-medium text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <X className="h-4 w-4" />
+            End all
+          </button>
+        ) : null}
+
         <button
           type="button"
           onClick={onLeave}
@@ -118,14 +151,44 @@ type LiveKitCallPanelProps = {
   payload: JoinCallApiPayload;
   onMinimize: () => void;
   onLeave: () => void;
+  onEndForAll?: () => void;
+  onToggleLock?: () => void;
+  onMuteAll?: () => void;
+  onRemoveParticipant?: (userId: number) => void;
+  onInviteParticipant?: (userId: number) => void;
   isLeaving: boolean;
+  isEndingForAll?: boolean;
+  isTogglingLock?: boolean;
+  isMutingAll?: boolean;
+  showEndForAll: boolean;
+  showLockControl: boolean;
+  isRoomLocked: boolean;
+  removingUserId?: number | null;
+  invitingUserId?: number | null;
+  authUserId: number | null;
+  conversationMembers?: ReturnType<typeof toConversationThread>["members"];
 };
 
 function LiveKitCallPanel({
   payload,
   onMinimize,
   onLeave,
+  onEndForAll,
+  onToggleLock,
+  onMuteAll,
+  onRemoveParticipant,
+  onInviteParticipant,
   isLeaving,
+  isEndingForAll = false,
+  isTogglingLock = false,
+  isMutingAll = false,
+  showEndForAll,
+  showLockControl,
+  isRoomLocked,
+  removingUserId = null,
+  invitingUserId = null,
+  authUserId,
+  conversationMembers,
 }: LiveKitCallPanelProps) {
   const showCameraControls =
     payload.call_room.media_type === "video" && payload.publish_mode === "video";
@@ -158,6 +221,13 @@ function LiveKitCallPanel({
                   <Lock className="h-3.5 w-3.5" />
                   End-to-end encrypted
                 </span>
+
+                {isRoomLocked ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/18 bg-amber-400/10 px-3 py-1.5 text-xs font-medium text-amber-50">
+                    <Lock className="h-3.5 w-3.5" />
+                    Locked to new joins
+                  </span>
+                ) : null}
               </div>
 
               <p className="text-sm text-white/58">
@@ -166,6 +236,42 @@ function LiveKitCallPanel({
             </div>
 
             <div className="flex items-center gap-2">
+              {showLockControl ? (
+                <button
+                  type="button"
+                  onClick={onMuteAll}
+                  disabled={isMutingAll}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-4 py-2.5 text-sm font-medium text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <MicOff className="h-4 w-4" />
+                  {isMutingAll ? "Muting..." : "Mute all"}
+                </button>
+              ) : null}
+
+              {showLockControl ? (
+                <button
+                  type="button"
+                  onClick={onToggleLock}
+                  disabled={isTogglingLock}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-4 py-2.5 text-sm font-medium text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Lock className="h-4 w-4" />
+                  {isTogglingLock ? "Updating..." : isRoomLocked ? "Unlock room" : "Lock room"}
+                </button>
+              ) : null}
+
+              {showEndForAll ? (
+                <button
+                  type="button"
+                  onClick={onEndForAll}
+                  disabled={isEndingForAll}
+                  className="inline-flex items-center gap-2 rounded-full border border-amber-400/28 bg-amber-500/12 px-4 py-2.5 text-sm font-medium text-amber-50 transition hover:bg-amber-500/18 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <X className="h-4 w-4" />
+                  End for all
+                </button>
+              ) : null}
+
               <button
                 type="button"
                 onClick={onMinimize}
@@ -186,6 +292,27 @@ function LiveKitCallPanel({
               </button>
             </div>
           </div>
+
+          {showLockControl && payload.call_room.scope === "group" && payload.call_room.participants ? (
+            <>
+              <CallParticipantManager
+                participants={payload.call_room.participants}
+                authUserId={authUserId}
+                createdBy={payload.call_room.created_by}
+                removingUserId={removingUserId}
+                onRemoveParticipant={onRemoveParticipant}
+              />
+              {conversationMembers ? (
+                <CallInviteManager
+                  members={conversationMembers}
+                  callRoom={payload.call_room}
+                  authUserId={authUserId}
+                  invitingUserId={invitingUserId}
+                  onInviteUser={onInviteParticipant}
+                />
+              ) : null}
+            </>
+          ) : null}
         </header>
 
         <LiveKitRoom
@@ -201,17 +328,24 @@ function LiveKitCallPanel({
           }}
         >
           <RoomAudioRenderer />
+          <CallModeratorMuteListener roomUuid={payload.call_room.room_uuid} authUserId={authUserId} />
 
           <div className="flex min-h-0 flex-1 py-4">
-            <div className="flex min-h-0 flex-1 overflow-hidden rounded-[34px] border border-white/8 bg-[linear-gradient(180deg,rgba(10,14,29,0.92)_0%,rgba(8,12,22,0.94)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_32px_90px_rgba(0,0,0,0.34)]">
-              <CallParticipantGrid />
+            <div className="flex min-h-0 flex-1 flex-col gap-4">
+              <CallLiveKitFeedback />
+              <div className="flex min-h-0 flex-1 overflow-hidden rounded-[34px] border border-white/8 bg-[linear-gradient(180deg,rgba(10,14,29,0.92)_0%,rgba(8,12,22,0.94)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_32px_90px_rgba(0,0,0,0.34)]">
+                <CallParticipantGrid />
+              </div>
             </div>
           </div>
 
           <OverlayCallControls
             showCameraControls={showCameraControls}
             onLeave={onLeave}
+            onEndForAll={onEndForAll}
             isLeaving={isLeaving}
+            isEndingForAll={isEndingForAll}
+            showEndForAll={showEndForAll}
           />
         </LiveKitRoom>
       </div>
@@ -229,11 +363,33 @@ export function CallRoomOverlay() {
     isRoomOpen: state.isRoomOpen,
     minimizeRoom: state.minimizeRoom,
   })));
+  const authUserId = useAuthStore((state) => state.user?.id ?? null);
+  const { data: conversations = [] } = useConversationsQuery(Boolean(authUserId));
   const endCallMutation = useEndCallMutation();
+  const endCallForAllMutation = useEndCallForAllMutation();
+  const lockRoomMutation = useLockCallRoomMutation();
+  const unlockRoomMutation = useUnlockCallRoomMutation();
+  const muteAllMutation = useMuteAllCallParticipantsMutation();
+  const inviteParticipantsMutation = useInviteCallParticipantsMutation();
+  const removeParticipantMutation = useRemoveCallParticipantMutation();
+  const [removingUserId, setRemovingUserId] = useState<number | null>(null);
+  const [invitingUserId, setInvitingUserId] = useState<number | null>(null);
 
   if (!activeCall?.token || !isRoomOpen) {
     return null;
   }
+
+  const thread = conversations
+    .map((conversation) => toConversationThread(conversation))
+    .find((item) => item.numericId === activeCall.callRoom.conversation_id);
+  const isManager =
+    authUserId !== null &&
+    (activeCall.callRoom.created_by === authUserId ||
+      ["owner", "admin"].includes(thread?.membership?.role ?? ""));
+
+  const showEndForAll =
+    isManager && activeCall.callRoom.scope === "group";
+  const showLockControl = isManager && activeCall.callRoom.scope === "group";
 
   return (
     <LiveKitCallPanel
@@ -249,7 +405,73 @@ export function CallRoomOverlay() {
           reason: "left_from_web_room",
         });
       }}
+      onEndForAll={
+        showEndForAll
+          ? () => {
+              void endCallForAllMutation.mutateAsync({
+                roomUuid: activeCall.callRoom.room_uuid,
+                reason: "ended_from_web_room",
+              });
+            }
+          : undefined
+      }
+      onToggleLock={
+        showLockControl
+          ? () => {
+              const mutation = activeCall.callRoom.is_locked ? unlockRoomMutation : lockRoomMutation;
+              void mutation.mutateAsync(activeCall.callRoom.room_uuid);
+            }
+          : undefined
+      }
+      onMuteAll={
+        showLockControl
+          ? () => {
+              void muteAllMutation.mutateAsync(activeCall.callRoom.room_uuid);
+            }
+          : undefined
+      }
+      onRemoveParticipant={
+        showLockControl
+          ? (userId) => {
+              setRemovingUserId(userId);
+              void removeParticipantMutation
+                .mutateAsync({
+                  roomUuid: activeCall.callRoom.room_uuid,
+                  userId,
+                  reason: "removed_from_overlay",
+                })
+                .finally(() => {
+                  setRemovingUserId((current) => (current === userId ? null : current));
+                });
+            }
+          : undefined
+      }
+      onInviteParticipant={
+        showLockControl
+          ? (userId) => {
+              setInvitingUserId(userId);
+              void inviteParticipantsMutation
+                .mutateAsync({
+                  roomUuid: activeCall.callRoom.room_uuid,
+                  userIds: [userId],
+                })
+                .finally(() => {
+                  setInvitingUserId((current) => (current === userId ? null : current));
+                });
+            }
+          : undefined
+      }
       isLeaving={endCallMutation.isPending}
+      isEndingForAll={endCallForAllMutation.isPending}
+      isTogglingLock={lockRoomMutation.isPending || unlockRoomMutation.isPending}
+      isMutingAll={muteAllMutation.isPending}
+      showEndForAll={showEndForAll}
+      showLockControl={showLockControl}
+      isRoomLocked={activeCall.callRoom.is_locked}
+      removingUserId={removingUserId}
+      invitingUserId={invitingUserId}
+      authUserId={authUserId}
+      conversationMembers={thread?.members}
     />
   );
 }

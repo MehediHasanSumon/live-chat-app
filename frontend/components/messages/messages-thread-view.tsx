@@ -8,11 +8,16 @@ import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
 import { type MessagesImageViewerItem } from "@/components/messages/messages-image-viewer";
 import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
-import { ApiClientError } from "@/lib/api-client";
+import { ApiClientError, apiClient } from "@/lib/api-client";
 import { openCallWindow } from "@/lib/call-window";
-import { getDirectCallTargetUserId } from "@/lib/calls-data";
 import {
-  useAcceptCallMutation,
+  type CallRoomApiItem,
+  getCallParticipant,
+  getDirectCallTargetUserId,
+  isCallParticipantInactive,
+  isCallTerminal,
+} from "@/lib/calls-data";
+import {
   useDeclineCallMutation,
 } from "@/lib/hooks/use-call-mutations";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
@@ -72,13 +77,13 @@ export function MessagesThreadView({
   const acceptRequestMutation = useAcceptMessageRequestMutation();
   const rejectRequestMutation = useRejectMessageRequestMutation();
   const markReadMutation = useMarkConversationReadMutation();
-  const acceptCallMutation = useAcceptCallMutation();
   const declineCallMutation = useDeclineCallMutation();
   const { data: forwardConversations = [] } = useConversationsQuery(true);
   const activeCall = useCallStore((state) => state.activeCall);
   const incomingCall = useCallStore((state) => state.incomingCall);
   const clearIncomingCall = useCallStore((state) => state.clearIncomingCall);
   const clearActiveCall = useCallStore((state) => state.clearActiveCall);
+  const hydrateCallRoom = useCallStore((state) => state.hydrateCallRoom);
   const realtimeTypingUsers = useConversationRealtimeStore(
     (state) => state.typingUsersByConversation[thread.id] ?? EMPTY_TYPING_USERS,
   );
@@ -86,6 +91,7 @@ export function MessagesThreadView({
   const messages = useMemo(() => data?.messages ?? [], [data?.messages]);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
+  const lastHydratedRoomUuidRef = useRef<string | null>(null);
   const previousScrollHeightRef = useRef<number | null>(null);
   const previousScrollTopRef = useRef<number>(0);
   const previousLatestSeqRef = useRef<number | null>(null);
@@ -101,6 +107,7 @@ export function MessagesThreadView({
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([]);
   const [isOpeningVoiceCall, setIsOpeningVoiceCall] = useState(false);
   const [isOpeningVideoCall, setIsOpeningVideoCall] = useState(false);
+  const [isAcceptingIncomingCall, setIsAcceptingIncomingCall] = useState(false);
 
   const serverMessages = useMemo(
     () => messages.map((message) => toChatMessage(message, currentUserId ?? undefined)),
@@ -347,6 +354,64 @@ export function MessagesThreadView({
     }, 220);
   }, [currentUserId, isBlockedConversation, isRequestConversation, thread]);
 
+  const handleRetryCall = useCallback((message: ChatMessage) => {
+    openCallWindow({
+      conversationId: thread.id,
+      action: "start",
+      mediaType: message.call?.mediaType ?? "voice",
+      title: thread.name,
+      avatarUrl: thread.avatarUrl ?? null,
+      targetUserId: thread.isGroup ? null : getDirectCallTargetUserId(thread, currentUserId ?? 0),
+      isGroup: Boolean(thread.isGroup),
+    });
+  }, [currentUserId, thread]);
+
+  useEffect(() => {
+    if (!currentUserId || !thread.activeRoomUuid) {
+      lastHydratedRoomUuidRef.current = null;
+      return;
+    }
+
+    if (
+      currentCallForThread?.callRoom.room_uuid === thread.activeRoomUuid ||
+      incomingCallForThread?.callRoom.room_uuid === thread.activeRoomUuid ||
+      lastHydratedRoomUuidRef.current === thread.activeRoomUuid
+    ) {
+      return;
+    }
+
+    lastHydratedRoomUuidRef.current = thread.activeRoomUuid;
+    let isCancelled = false;
+
+    const hydrateThreadCall = async () => {
+      try {
+        const response = await apiClient.get<{ data: CallRoomApiItem }>(`/api/calls/${thread.activeRoomUuid}`, {
+          skipAuthRedirect: true,
+        });
+
+        if (isCancelled) {
+          return;
+        }
+
+        const participant = getCallParticipant(response.data, currentUserId);
+
+        if (isCallTerminal(response.data) || isCallParticipantInactive(participant)) {
+          return;
+        }
+
+        hydrateCallRoom(response.data, currentUserId);
+      } catch {
+        lastHydratedRoomUuidRef.current = null;
+      }
+    };
+
+    void hydrateThreadCall();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentCallForThread?.callRoom.room_uuid, currentUserId, hydrateCallRoom, incomingCallForThread?.callRoom.room_uuid, thread.activeRoomUuid]);
+
   const cancelEditing = useCallback(() => {
     setEditingMessageId(null);
     setEditingValue("");
@@ -515,20 +580,24 @@ export function MessagesThreadView({
       return;
     }
 
-    const acceptedCallRoom = await acceptCallMutation.mutateAsync(incomingCallForThread.callRoom.room_uuid);
-    openCallWindow({
-      conversationId: thread.id,
-      action: "join",
-      mediaType: acceptedCallRoom.media_type,
-      roomUuid: acceptedCallRoom.room_uuid,
-      title: thread.name,
-      avatarUrl: thread.avatarUrl ?? null,
-      isGroup: Boolean(thread.isGroup),
-    });
-    clearIncomingCall();
-    clearActiveCall();
+    setIsAcceptingIncomingCall(true);
+
+    try {
+      openCallWindow({
+        conversationId: thread.id,
+        action: "accept",
+        mediaType: incomingCallForThread.callRoom.media_type,
+        roomUuid: incomingCallForThread.callRoom.room_uuid,
+        title: thread.name,
+        avatarUrl: thread.avatarUrl ?? null,
+        isGroup: Boolean(thread.isGroup),
+      });
+      clearIncomingCall();
+      clearActiveCall();
+    } finally {
+      setIsAcceptingIncomingCall(false);
+    }
   }, [
-    acceptCallMutation,
     clearActiveCall,
     clearIncomingCall,
     incomingCallForThread,
@@ -651,6 +720,11 @@ export function MessagesThreadView({
                   {currentCallForThread.callRoom.media_type === "video" ? "Video" : "Voice"} session ready in{" "}
                   <span className="font-medium text-[#2f3655]">{currentCallForThread.publishMode}</span> mode.
                 </>
+              ) : currentCallForThread.source === "synced" ? (
+                <>
+                  {currentCallForThread.callRoom.media_type === "video" ? "Video" : "Voice"} call is active on another device.
+                  Move it <span className="font-medium text-[#2f3655]">here</span> to continue.
+                </>
               ) : (
                 <>
                   {currentCallForThread.callRoom.media_type === "video" ? "Video" : "Voice"} call is{" "}
@@ -677,6 +751,24 @@ export function MessagesThreadView({
               >
                 {currentCallForThread.callRoom.media_type === "video" ? "Open video window" : "Open call window"}
               </button>
+            ) : currentCallForThread.source === "synced" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  openCallWindow({
+                    conversationId: thread.id,
+                    action: "join",
+                    mediaType: currentCallForThread.callRoom.media_type,
+                    roomUuid: currentCallForThread.callRoom.room_uuid,
+                    title: thread.name,
+                    avatarUrl: thread.avatarUrl ?? null,
+                    isGroup: Boolean(thread.isGroup),
+                  });
+                }}
+                className="rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.18)] transition hover:brightness-105"
+              >
+                Move call here
+              </button>
             ) : null}
           </div>
         ) : null}
@@ -693,10 +785,10 @@ export function MessagesThreadView({
                 onClick={() => {
                   void handleAcceptIncomingCall();
                 }}
-                disabled={acceptCallMutation.isPending}
+                disabled={isAcceptingIncomingCall}
                 className="rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(96,91,255,0.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {acceptCallMutation.isPending ? "Accepting..." : "Accept"}
+                {isAcceptingIncomingCall ? "Opening..." : "Accept"}
               </button>
               <button
                 type="button"
@@ -762,6 +854,7 @@ export function MessagesThreadView({
               onOpenImage={handleOpenImage}
               onMediaLoad={handleMediaLoad}
               canInteract={canMessageInteract}
+              onRetryCall={canCompose ? handleRetryCall : undefined}
               readLabel={
                 message.isPending
                   ? "Sending..."
