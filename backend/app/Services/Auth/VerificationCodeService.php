@@ -71,7 +71,12 @@ class VerificationCodeService
 
     public function consumePasswordResetCode(string $email, string $code): AuthVerificationCode
     {
-        return $this->consumeCode($email, self::PURPOSE_PASSWORD_RESET, $code);
+        return $this->validateCode($email, self::PURPOSE_PASSWORD_RESET, $code, consume: true);
+    }
+
+    public function verifyPasswordResetCode(string $email, string $code): AuthVerificationCode
+    {
+        return $this->validateCode($email, self::PURPOSE_PASSWORD_RESET, $code);
     }
 
     public function consumeEmailVerificationCode(User $user, string $code): AuthVerificationCode
@@ -80,7 +85,7 @@ class VerificationCodeService
             $this->throwCodeValidationException('email', 'An email address is required before verification.');
         }
 
-        return $this->consumeCode($user->email, self::PURPOSE_EMAIL_VERIFICATION, $code, $user);
+        return $this->validateCode($user->email, self::PURPOSE_EMAIL_VERIFICATION, $code, $user, consume: true);
     }
 
     private function createAndSendCode(string $email, string $purpose, string $subject, User $user): void
@@ -108,7 +113,13 @@ class VerificationCodeService
         });
     }
 
-    private function consumeCode(string $email, string $purpose, string $code, ?User $user = null): AuthVerificationCode
+    private function validateCode(
+        string $email,
+        string $purpose,
+        string $code,
+        ?User $user = null,
+        bool $consume = false
+    ): AuthVerificationCode
     {
         $query = AuthVerificationCode::query()
             ->where('email', $email)
@@ -133,9 +144,11 @@ class VerificationCodeService
             $this->throwCodeValidationException('code', 'The verification code is invalid or expired.');
         }
 
-        $verificationCode->forceFill([
-            'consumed_at' => now(),
-        ])->save();
+        if ($consume) {
+            $verificationCode->forceFill([
+                'consumed_at' => now(),
+            ])->save();
+        }
 
         return $verificationCode;
     }

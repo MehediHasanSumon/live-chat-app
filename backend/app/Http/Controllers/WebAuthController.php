@@ -110,6 +110,30 @@ class WebAuthController extends Controller
         ]);
     }
 
+    public function verifyPasswordResetCode(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:120'],
+            'code' => ['required', 'digits:6'],
+        ]);
+
+        $email = trim((string) $validated['email']);
+        $user = User::query()
+            ->where('email', $email)
+            ->where('status', 'active')
+            ->first();
+
+        if (! $user) {
+            $this->throwJsonValidationException('code', 'The verification code is invalid or expired.');
+        }
+
+        $this->verificationCodes->verifyPasswordResetCode($email, (string) $validated['code']);
+
+        return response()->json([
+            'message' => 'Verification code accepted.',
+        ]);
+    }
+
     public function resetPassword(Request $request): JsonResponse
     {
         $validated = $request->validate([

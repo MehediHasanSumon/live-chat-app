@@ -1,51 +1,88 @@
 "use client";
 
 import { FormEvent, Suspense, useMemo, useState } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { AuthFormShell } from "@/components/auth/auth-form-shell";
 import { Button } from "@/components/ui/button";
 import { FieldLabel } from "@/components/ui/field-label";
 import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
-import { useResetPasswordMutation } from "@/lib/hooks/use-auth-mutations";
+import { useVerifyResetCodeMutation } from "@/lib/hooks/use-auth-mutations";
+
+const RESET_PASSWORD_STORAGE_KEY = "chat-app:password-reset";
+
+type ResetPasswordSession = {
+  email: string;
+  code: string;
+};
+
+type FieldErrors = Partial<Record<"email" | "code", string>>;
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validateForm(email: string, code: string): FieldErrors {
+  const errors: FieldErrors = {};
+
+  if (!email) {
+    errors.email = "Email is required. Please request a reset code again.";
+  } else if (!isValidEmail(email)) {
+    errors.email = "Enter a valid email address.";
+  }
+
+  if (!code) {
+    errors.code = "Verification code is required.";
+  } else if (!/^\d{6}$/.test(code)) {
+    errors.code = "Enter the 6 digit verification code.";
+  }
+
+  return errors;
+}
 
 function ResetPasswordPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const resetPassword = useResetPasswordMutation();
-  const [form, setForm] = useState({
-    email: searchParams.get("email") ?? "",
-    code: "",
-    password: "",
-    password_confirmation: "",
-  });
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const fieldErrors = useMemo(
-    () => (resetPassword.error instanceof ApiClientError ? resetPassword.error.errors ?? {} : {}),
-    [resetPassword.error],
+  const verifyResetCode = useVerifyResetCodeMutation();
+  const [email] = useState(searchParams.get("email")?.trim() ?? "");
+  const [code, setCode] = useState("");
+  const [clientErrors, setClientErrors] = useState<FieldErrors>({});
+  const serverErrors = useMemo(
+    () => (verifyResetCode.error instanceof ApiClientError ? verifyResetCode.error.errors ?? {} : {}),
+    [verifyResetCode.error],
   );
-
-  function updateField<K extends keyof typeof form>(field: K, value: (typeof form)[K]) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSuccessMessage(null);
+
+    const normalizedCode = code.trim();
+    const validationErrors = validateForm(email, normalizedCode);
+    setClientErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
 
     try {
-      const response = await resetPassword.mutateAsync({
-        ...form,
-        email: form.email.trim(),
-        code: form.code.trim(),
+      await verifyResetCode.mutateAsync({
+        email,
+        code: normalizedCode,
       });
-      setSuccessMessage(response.message);
-      setForm((current) => ({ ...current, code: "", password: "", password_confirmation: "" }));
+
+      const resetSession: ResetPasswordSession = {
+        email,
+        code: normalizedCode,
+      };
+      window.sessionStorage.setItem(RESET_PASSWORD_STORAGE_KEY, JSON.stringify(resetSession));
+      router.push("/reset-password/new-password");
     } catch {
       // Mutation state renders validation feedback.
     }
   }
+
+  const emailError = clientErrors.email ?? serverErrors.email?.[0];
+  const codeError = clientErrors.code ?? serverErrors.code?.[0];
 
   return (
     <main className="shell flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
@@ -53,106 +90,52 @@ function ResetPasswordPageContent() {
         <AuthFormShell
           eyebrow="Reset password"
           title="Enter your code"
-          description="Use the 6 digit code from your email and choose a new password."
+          description="Use the 6 digit code from your email to continue."
           footerText="Need another code?"
           footerHref="/forgot-password"
           footerLinkLabel="Send again"
         >
-          <form className="mt-7 space-y-3" onSubmit={handleSubmit}>
-            <AuthTextField
-              label="Email"
-              type="email"
-              value={form.email}
-              error={fieldErrors.email?.[0]}
-              autoComplete="email"
-              placeholder="mehedi@example.com"
-              onChange={(value) => updateField("email", value)}
-            />
-            <AuthTextField
-              label="Verification code"
-              value={form.code}
-              error={fieldErrors.code?.[0]}
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="123456"
-              onChange={(value) => updateField("code", value.replace(/\D/g, "").slice(0, 6))}
-            />
-            <AuthTextField
-              label="New password"
-              type="password"
-              value={form.password}
-              error={fieldErrors.password?.[0]}
-              autoComplete="new-password"
-              placeholder="New password"
-              onChange={(value) => updateField("password", value)}
-            />
-            <AuthTextField
-              label="Confirm password"
-              type="password"
-              value={form.password_confirmation}
-              error={fieldErrors.password_confirmation?.[0]}
-              autoComplete="new-password"
-              placeholder="Confirm password"
-              onChange={(value) => updateField("password_confirmation", value)}
-            />
+          <form className="mt-7 space-y-4" onSubmit={handleSubmit} noValidate>
+            <label className="block">
+              <FieldLabel>Email</FieldLabel>
+              <TextInput
+                type="email"
+                value={email}
+                disabled
+                aria-invalid={emailError ? "true" : "false"}
+                autoComplete="email"
+                placeholder="mehedi@example.com"
+              />
+              {emailError ? <p className="mt-2 text-sm text-[#b42318]">{emailError}</p> : null}
+            </label>
 
-            {successMessage ? (
-              <p className="text-sm text-emerald-700">
-                {successMessage}{" "}
-                <Link href="/login" className="font-semibold text-[var(--accent)]">
-                  Sign in
-                </Link>
-              </p>
-            ) : null}
-            {resetPassword.error instanceof ApiClientError && Object.keys(fieldErrors).length === 0 ? (
-              <p className="text-sm text-[#b42318]">{resetPassword.error.message}</p>
+            <label className="block">
+              <FieldLabel>Verification code</FieldLabel>
+              <TextInput
+                value={code}
+                onChange={(event) => {
+                  setCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                  setClientErrors((current) => ({ ...current, code: undefined }));
+                }}
+                aria-invalid={codeError ? "true" : "false"}
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="123456"
+              />
+              {codeError ? <p className="mt-2 text-sm text-[#b42318]">{codeError}</p> : null}
+            </label>
+
+            {verifyResetCode.error instanceof ApiClientError && Object.keys(serverErrors).length === 0 ? (
+              <p className="text-sm text-[#b42318]">{verifyResetCode.error.message}</p>
             ) : null}
 
-            <Button type="submit" className="w-full" disabled={resetPassword.isPending}>
-              {resetPassword.isPending ? "Resetting..." : "Reset password"}
+            <Button type="submit" className="w-full" disabled={verifyResetCode.isPending}>
+              {verifyResetCode.isPending ? "Verifying..." : "Verify code"}
             </Button>
           </form>
         </AuthFormShell>
       </div>
     </main>
-  );
-}
-
-function AuthTextField({
-  autoComplete,
-  error,
-  inputMode,
-  label,
-  maxLength,
-  onChange,
-  placeholder,
-  type = "text",
-  value,
-}: {
-  autoComplete?: string;
-  error?: string;
-  inputMode?: "numeric";
-  label: string;
-  maxLength?: number;
-  onChange: (value: string) => void;
-  placeholder: string;
-  type?: string;
-  value: string;
-}) {
-  return (
-    <label className="block">
-      <FieldLabel>{label}</FieldLabel>
-      <TextInput
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        inputMode={inputMode}
-        maxLength={maxLength}
-      />
-      {error ? <p className="mt-2 text-sm text-[#b42318]">{error}</p> : null}
-    </label>
   );
 }
 

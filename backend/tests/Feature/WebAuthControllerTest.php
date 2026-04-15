@@ -241,6 +241,31 @@ it('resets a password with a valid six digit code', function () {
         ->and($verificationCode->fresh()->consumed_at)->not->toBeNull();
 });
 
+it('verifies a password reset code without consuming it', function () {
+    $user = User::factory()->create([
+        'email' => 'sumon@example.com',
+        'status' => 'active',
+    ]);
+    $verificationCode = AuthVerificationCode::query()->create([
+        'user_id' => $user->id,
+        'email' => 'sumon@example.com',
+        'purpose' => 'password_reset',
+        'code_hash' => Hash::make('123456'),
+        'expires_at' => now()->addMinutes(10),
+    ]);
+
+    $response = $this->postJson('/reset-password/verify-code', [
+        'email' => 'sumon@example.com',
+        'code' => '123456',
+    ]);
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('message', 'Verification code accepted.');
+
+    expect($verificationCode->fresh()->consumed_at)->toBeNull();
+});
+
 it('rejects invalid reset codes', function () {
     $user = User::factory()->create([
         'email' => 'sumon@example.com',

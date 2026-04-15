@@ -19,6 +19,7 @@ export function TextInput({ className, ...props }: TextInputProps) {
         className={cn(
           "pill-input h-9 w-full px-3 text-sm outline-none transition focus:border-[var(--accent)]",
           isPasswordField && "pr-10",
+          props.disabled && "cursor-not-allowed opacity-75",
           className,
         )}
         {...props}

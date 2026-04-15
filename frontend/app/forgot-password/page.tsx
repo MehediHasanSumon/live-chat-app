@@ -15,6 +15,7 @@ function ForgotPasswordPageContent() {
   const router = useRouter();
   const forgotPassword = useForgotPasswordMutation();
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const fieldErrors = useMemo(
     () => (forgotPassword.error instanceof ApiClientError ? forgotPassword.error.errors ?? {} : {}),
@@ -25,10 +26,23 @@ function ForgotPasswordPageContent() {
     event.preventDefault();
     setNotice(null);
 
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setEmailError("Email is required.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setEmailError("Enter a valid email address.");
+      return;
+    }
+
+    setEmailError(null);
+
     try {
-      const response = await forgotPassword.mutateAsync({ email: email.trim() });
+      const response = await forgotPassword.mutateAsync({ email: normalizedEmail });
       setNotice(response.message);
-      router.push(`/reset-password?email=${encodeURIComponent(email.trim())}`);
+      router.push(`/reset-password?email=${encodeURIComponent(normalizedEmail)}`);
     } catch {
       // Mutation state renders validation feedback.
     }
@@ -45,17 +59,23 @@ function ForgotPasswordPageContent() {
           footerHref="/login"
           footerLinkLabel="Sign in"
         >
-          <form className="mt-7 space-y-4" onSubmit={handleSubmit}>
+          <form className="mt-7 space-y-4" onSubmit={handleSubmit} noValidate>
             <label className="block">
               <FieldLabel>Email</FieldLabel>
               <TextInput
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setEmailError(null);
+                }}
+                aria-invalid={emailError || fieldErrors.email ? "true" : "false"}
                 placeholder="mehedi@example.com"
                 autoComplete="email"
               />
-              {fieldErrors.email ? <p className="mt-2 text-sm text-[#b42318]">{fieldErrors.email[0]}</p> : null}
+              {emailError || fieldErrors.email ? (
+                <p className="mt-2 text-sm text-[#b42318]">{emailError ?? fieldErrors.email?.[0]}</p>
+              ) : null}
             </label>
 
             {notice ? <p className="text-sm text-emerald-700">{notice}</p> : null}

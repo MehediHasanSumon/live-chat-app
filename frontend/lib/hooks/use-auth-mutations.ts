@@ -34,6 +34,11 @@ type ResetPasswordPayload = {
   password_confirmation: string;
 };
 
+type VerifyResetCodePayload = {
+  email: string;
+  code: string;
+};
+
 type VerifyEmailPayload = {
   code: string;
 };
@@ -102,6 +107,13 @@ export function useRegisterMutation() {
 export function useForgotPasswordMutation() {
   return useMutation({
     mutationFn: (payload: ForgotPasswordPayload) => apiClient.post<MessageResponse>("/forgot-password", payload),
+  });
+}
+
+export function useVerifyResetCodeMutation() {
+  return useMutation({
+    mutationFn: (payload: VerifyResetCodePayload) =>
+      apiClient.post<MessageResponse>("/reset-password/verify-code", payload),
   });
 }
 
