@@ -129,7 +129,7 @@ export function DatePicker({
   }
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
+    <div ref={rootRef} className={cn("relative", isOpen && "z-[70]", className)}>
       {name ? <input type="hidden" name={name} value={value} /> : null}
       <button
         type="button"
@@ -153,7 +153,7 @@ export function DatePicker({
 
       <div
         className={cn(
-          "absolute left-0 top-[calc(100%+8px)] z-50 w-[296px] origin-top rounded-lg border border-[var(--line)] bg-white p-3 shadow-[0_22px_55px_rgba(30,34,45,0.18)] transition-all duration-200 ease-out",
+          "absolute left-0 top-[calc(100%+8px)] z-[70] w-[296px] origin-top rounded-lg border border-[var(--line)] bg-white p-3 shadow-[0_22px_55px_rgba(30,34,45,0.18)] transition-all duration-200 ease-out",
           isOpen && !disabled ? "visible translate-y-0 scale-100 opacity-100" : "invisible -translate-y-1 scale-95 opacity-0",
           disabled ? "pointer-events-none" : isOpen ? "pointer-events-auto" : "pointer-events-none",
         )}

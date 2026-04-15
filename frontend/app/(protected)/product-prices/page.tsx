@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Pagination } from "@/components/ui/pagination";
 import { RadioInput } from "@/components/ui/radio-input";
+import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
 import { useAdminProductUnitOptionsQuery } from "@/lib/hooks/use-admin-product-units";
@@ -137,6 +138,20 @@ function ProductPricesPageContent() {
   const isSubmitting = createProductPrice.isPending || updateProductPrice.isPending;
   const isTableBusy = deleteProductPrice.isPending;
   const isFormBusy = isSubmitting || isProductsLoading || isUnitsLoading;
+  const productSelectOptions: SelectInputOption[] = [
+    { value: "", label: isProductsLoading ? "Loading products..." : "Select product" },
+    ...productOptions.map((product) => ({
+      value: String(product.id),
+      label: `${product.product_name}${product.product_code ? ` (${product.product_code})` : ""}`,
+    })),
+  ];
+  const unitSelectOptions: SelectInputOption[] = [
+    { value: "", label: isUnitsLoading ? "Loading units..." : "No unit" },
+    ...unitOptions.map((unit) => ({
+      value: String(unit.id),
+      label: `${unit.unit_name} (${unit.unit_code})`,
+    })),
+  ];
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {
@@ -393,36 +408,24 @@ function ProductPricesPageContent() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#2d3150]">Product</label>
-                  <select
-                    className="pill-input h-9 w-full px-3 text-sm outline-none transition focus:border-[var(--accent)]"
+                  <SelectInput
                     value={form.product_id}
-                    onChange={(event) => updateFormValue("product_id", event.target.value)}
+                    options={productSelectOptions}
+                    dropdownLabel="Products"
+                    onChange={(nextValue) => updateFormValue("product_id", nextValue)}
                     disabled={!isProductPriceSectionOpen || isFormBusy}
-                  >
-                    <option value="">{isProductsLoading ? "Loading products..." : "Select product"}</option>
-                    {productOptions.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.product_name} {product.product_code ? `(${product.product_code})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#2d3150]">Unit</label>
-                  <select
-                    className="pill-input h-9 w-full px-3 text-sm outline-none transition focus:border-[var(--accent)]"
+                  <SelectInput
                     value={form.product_unit_id}
-                    onChange={(event) => updateFormValue("product_unit_id", event.target.value)}
+                    options={unitSelectOptions}
+                    dropdownLabel="Units"
+                    onChange={(nextValue) => updateFormValue("product_unit_id", nextValue)}
                     disabled={!isProductPriceSectionOpen || isFormBusy}
-                  >
-                    <option value="">{isUnitsLoading ? "Loading units..." : "No unit"}</option>
-                    {unitOptions.map((unit) => (
-                      <option key={unit.id} value={unit.id}>
-                        {unit.unit_name} ({unit.unit_code})
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div>

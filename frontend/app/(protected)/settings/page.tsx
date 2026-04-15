@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { CheckboxInput } from "@/components/ui/checkbox-input";
+import { SelectInput } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
@@ -225,25 +226,23 @@ export default function SettingsPage() {
 
                 <label className="block text-sm text-[var(--foreground)]">
                   <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Timezone</span>
-                  <select
+                  <SelectInput
                     value={settings.quiet_hours_timezone}
                     disabled={isSaving}
-                    className="pill-input h-9 w-full px-3 text-sm outline-none transition focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-                    onChange={(event) => {
+                    dropdownLabel="Timezone"
+                    options={timezoneChoices.map((timezone) => ({
+                      value: timezone,
+                      label: timezone,
+                    }))}
+                    onChange={(nextValue) => {
                       updateQuietHoursMutation.mutate({
                         quiet_hours_enabled: settings.quiet_hours_enabled,
                         quiet_hours_start: settings.quiet_hours_start,
                         quiet_hours_end: settings.quiet_hours_end,
-                        quiet_hours_timezone: event.target.value,
+                        quiet_hours_timezone: nextValue,
                       });
                     }}
-                  >
-                    {timezoneChoices.map((timezone) => (
-                      <option key={timezone} value={timezone}>
-                        {timezone}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </label>
               </div>
             </section>

@@ -9,6 +9,7 @@ import { InvoiceSummaryData } from "@/components/admin/invoice-summary";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { RadioInput } from "@/components/ui/radio-input";
+import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
 import { useAdminCustomerOptionsQuery } from "@/lib/hooks/use-admin-customers";
@@ -195,6 +196,15 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
   const priceById = useMemo(() => {
     return new Map(productPriceOptions.map((price) => [String(price.id), price]));
   }, [productPriceOptions]);
+  const productPriceSelectOptions = useMemo<SelectInputOption[]>(() => {
+    return [
+      { value: "", label: isPricesLoading ? "Loading prices..." : "Select product" },
+      ...productPriceOptions.map((productPrice) => ({
+        value: String(productPrice.id),
+        label: getPriceLabel(productPrice),
+      })),
+    ];
+  }, [isPricesLoading, productPriceOptions]);
 
   const invoiceSummary = useMemo<InvoiceSummaryData>(() => {
     const summaryItems = items
@@ -591,19 +601,13 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
                       <div key={item.id} className="grid gap-3 rounded-lg border border-[var(--line)] bg-white p-3 md:grid-cols-[1fr_120px_130px_34px]">
                         <div>
                           <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Product</label>
-                          <select
-                            className="pill-input h-9 w-full px-3 text-sm outline-none transition focus:border-[var(--accent)]"
+                          <SelectInput
                             value={item.product_price_id}
-                            onChange={(event) => updateItemValue(index, "product_price_id", event.target.value)}
+                            options={productPriceSelectOptions}
+                            dropdownLabel="Products"
+                            onChange={(nextValue) => updateItemValue(index, "product_price_id", nextValue)}
                             disabled={isFormBusy}
-                          >
-                            <option value="">{isPricesLoading ? "Loading prices..." : "Select product"}</option>
-                            {productPriceOptions.map((productPrice) => (
-                              <option key={productPrice.id} value={productPrice.id}>
-                                {getPriceLabel(productPrice)}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </div>
 
                         <div>

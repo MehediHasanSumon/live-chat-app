@@ -1,29 +1,28 @@
 <?php
 
-use App\Http\Controllers\CallController;
-use App\Http\Controllers\AdminPermissionController;
 use App\Http\Controllers\AdminCustomerController;
 use App\Http\Controllers\AdminInvoiceController;
+use App\Http\Controllers\AdminOpsController;
+use App\Http\Controllers\AdminPermissionController;
 use App\Http\Controllers\AdminProductController;
 use App\Http\Controllers\AdminProductPriceController;
 use App\Http\Controllers\AdminProductUnitController;
 use App\Http\Controllers\AdminRoleController;
+use App\Http\Controllers\AdminStoragePolicyController;
 use App\Http\Controllers\AdminSystemLogController;
 use App\Http\Controllers\AdminUserController;
+use App\Http\Controllers\CallController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LiveKitController;
-use App\Http\Controllers\AdminStoragePolicyController;
-use App\Http\Controllers\AdminOpsController;
-use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MeController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PrivacyController;
-use App\Http\Controllers\RealtimeController;
 use App\Http\Controllers\ReactionController;
+use App\Http\Controllers\RealtimeController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\UserDirectoryController;
-use App\Http\Controllers\WebAuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -142,6 +141,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::patch('/admin/customers/{customer}', [AdminCustomerController::class, 'update']);
     Route::delete('/admin/customers/{customer}', [AdminCustomerController::class, 'destroy']);
     Route::get('/admin/invoices/next-number', [AdminInvoiceController::class, 'nextNumber']);
+    Route::get('/admin/invoices/statements/daily', [AdminInvoiceController::class, 'dailyStatement']);
+    Route::get('/admin/invoices/statements/monthly', [AdminInvoiceController::class, 'monthlyStatement']);
     Route::get('/admin/invoices', [AdminInvoiceController::class, 'index']);
     Route::post('/admin/invoices', [AdminInvoiceController::class, 'store']);
     Route::get('/admin/invoices/{invoice}', [AdminInvoiceController::class, 'show']);

@@ -25,6 +25,7 @@ type NavItem = {
 type DropdownItem = {
   href: string;
   label: string;
+  excludedActivePrefixes?: string[];
 };
 
 type DropdownOpenState = "auto" | "open" | "closed";
@@ -35,7 +36,14 @@ const mainItems: NavItem[] = [
 ];
 
 const invoiceItems: DropdownItem[] = [
-  { href: "/invoices", label: "Invoices" },
+  {
+    href: "/invoices",
+    label: "Invoices",
+    excludedActivePrefixes: ["/invoices/create", "/invoices/daily-statements", "/invoices/monthly-statements"],
+  },
+  { href: "/invoices/create", label: "Create Invoice" },
+  { href: "/invoices/daily-statements", label: "Daily Statements" },
+  { href: "/invoices/monthly-statements", label: "Monthly Statements" },
 ];
 
 const businessItems: DropdownItem[] = [
@@ -80,6 +88,14 @@ function getInitials(name: string, username: string) {
 
 function isRouteActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function isDropdownItemActive(pathname: string, item: DropdownItem) {
+  if (!isRouteActive(pathname, item.href)) {
+    return false;
+  }
+
+  return !(item.excludedActivePrefixes ?? []).some((prefix) => isRouteActive(pathname, prefix));
 }
 
 function SidebarLink({
@@ -151,7 +167,7 @@ function SidebarDropdown({
   onNavigate: () => void;
   onExpandDesktop: () => void;
 }) {
-  const isActive = items.some((item) => isRouteActive(pathname, item.href));
+  const isActive = items.some((item) => isDropdownItemActive(pathname, item));
 
   return (
     <div
@@ -198,7 +214,7 @@ function SidebarDropdown({
         aria-hidden={!isOpen || isCollapsed}
       >
         {items.map((item) => {
-          const itemIsActive = isRouteActive(pathname, item.href);
+          const itemIsActive = isDropdownItemActive(pathname, item);
 
           return (
             <Link
@@ -222,7 +238,7 @@ function SidebarDropdown({
           <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
           <div className="space-y-1">
             {items.map((item) => {
-              const itemIsActive = isRouteActive(pathname, item.href);
+              const itemIsActive = isDropdownItemActive(pathname, item);
 
               return (
                 <Link
@@ -266,7 +282,7 @@ export function AdminDashboardSidebar({
   const displayName = user?.name?.trim() || user?.username || "Guest User";
   const displayUsername = user?.username ? `@${user.username}` : "@guest";
   const initials = getInitials(displayName, user?.username ?? "GU");
-  const invoiceHasActiveItem = invoiceItems.some((item) => isRouteActive(pathname, item.href));
+  const invoiceHasActiveItem = invoiceItems.some((item) => isDropdownItemActive(pathname, item));
   const businessHasActiveItem = businessItems.some((item) => isRouteActive(pathname, item.href));
   const userManagementHasActiveItem = userManagementItems.some((item) => isRouteActive(pathname, item.href));
   const settingsHasActiveItem = settingsItems.some((item) => isRouteActive(pathname, item.href));

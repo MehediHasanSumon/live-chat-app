@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { SelectInput } from "@/components/ui/select-input";
 import { cn } from "@/lib/utils";
 
 export type PaginationMeta = {
@@ -91,18 +92,17 @@ export function Pagination({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
           Rows
-          <select
-            value={meta.per_page}
+          <SelectInput
+            value={String(meta.per_page)}
             disabled={disabled}
-            onChange={(event) => onPerPageChange(Number(event.target.value))}
-            className="h-9 rounded-md border border-[var(--line)] bg-white px-2 text-sm font-medium text-[#2d3150] outline-none transition focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {perPageOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+            dropdownLabel="Rows"
+            className="w-24"
+            onChange={(nextValue) => onPerPageChange(Number(nextValue))}
+            options={perPageOptions.map((option) => ({
+              value: String(option),
+              label: String(option),
+            }))}
+          />
         </label>
 
         <nav className="flex items-center gap-1" aria-label="Pagination">

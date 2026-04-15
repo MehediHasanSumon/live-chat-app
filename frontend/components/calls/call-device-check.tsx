@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, Camera, CameraOff, CheckCircle2, Headphones, Mic, Video } from "lucide-react";
 
+import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
+
 function getDeviceLabel(device: MediaDeviceInfo, index: number): string {
   if (device.label.trim().length > 0) {
     return device.label;
@@ -61,27 +63,28 @@ function DeviceSelect({
   onChange: (value: string) => void;
   disabled?: boolean;
 }) {
+  const deviceOptions: SelectInputOption[] =
+    devices.length === 0
+      ? [{ value: "", label: "No devices detected" }]
+      : devices.map((device, index) => ({
+          value: device.deviceId,
+          label: getDeviceLabel(device, index),
+        }));
+
   return (
     <label className="block space-y-2">
       <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#334063]">
         {icon}
         {label}
       </span>
-      <select
+      <SelectInput
         value={value}
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
+        options={deviceOptions}
+        dropdownLabel={label}
+        onChange={onChange}
         disabled={disabled || devices.length === 0}
-        className="w-full rounded-2xl border border-[rgba(111,123,176,0.18)] bg-white px-4 py-3 text-sm text-[#2f3655] outline-none transition focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:bg-[#f4f6fc] disabled:text-[#8b93b5]"
-      >
-        {devices.length === 0 ? <option value="">No devices detected</option> : null}
-        {devices.map((device, index) => (
-          <option key={`${device.kind}-${device.deviceId || index}`} value={device.deviceId}>
-            {getDeviceLabel(device, index)}
-          </option>
-        ))}
-      </select>
+        triggerClassName="h-12 rounded-2xl border-[rgba(111,123,176,0.18)] px-4 py-3 text-[#2f3655] disabled:bg-[#f4f6fc] disabled:text-[#8b93b5]"
+      />
     </label>
   );
 }

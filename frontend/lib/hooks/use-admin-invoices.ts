@@ -81,6 +81,102 @@ type InvoiceNumberResponse = {
   };
 };
 
+export type InvoiceStatementFilters = {
+  dateFrom: string;
+  dateTo: string;
+  paymentType: InvoicePaymentType | "";
+  createdBy: string;
+};
+
+export type InvoiceStatementRange = {
+  from: string;
+  to: string;
+};
+
+export type InvoiceStatementSummary = {
+  invoice_count: number;
+  item_count: number;
+  subtotal_amount: string;
+  discount_amount: string;
+  total_amount: string;
+  paid_amount: string;
+  due_amount: string;
+  cash_amount: string;
+  pos_amount: string;
+  due_sales_amount: string;
+};
+
+export type InvoiceStatementProductSummary = {
+  product_name: string;
+  unit_name: string | null;
+  unit_code: string | null;
+  invoice_count: number;
+  item_count: number;
+  quantity: string;
+  line_total: string;
+  average_price: string;
+};
+
+export type DailyStatementInvoice = {
+  id: number;
+  invoice_no: string;
+  invoice_datetime: string | null;
+  customer: AdminInvoiceCustomer | null;
+  payment_type: InvoicePaymentType;
+  payment_status: InvoicePaymentStatus;
+  total_amount: string;
+  paid_amount: string;
+  due_amount: string;
+  item_count: number;
+};
+
+export type DailyInvoiceStatement = {
+  period_type: "daily";
+  date: string;
+  range: InvoiceStatementRange;
+  filters: {
+    payment_type: InvoicePaymentType | null;
+    created_by: number | null;
+  };
+  summary: InvoiceStatementSummary;
+  product_summaries: InvoiceStatementProductSummary[];
+  invoices: DailyStatementInvoice[];
+};
+
+export type MonthlyStatementDaySummary = {
+  statement_date: string;
+  invoice_count: number;
+  subtotal_amount: string;
+  discount_amount: string;
+  total_amount: string;
+  paid_amount: string;
+  due_amount: string;
+  cash_amount: string;
+  pos_amount: string;
+  due_sales_amount: string;
+};
+
+export type MonthlyInvoiceStatement = {
+  period_type: "monthly";
+  month: string;
+  range: InvoiceStatementRange;
+  filters: {
+    payment_type: InvoicePaymentType | null;
+    created_by: number | null;
+  };
+  summary: InvoiceStatementSummary;
+  daily_summaries: MonthlyStatementDaySummary[];
+  product_summaries: InvoiceStatementProductSummary[];
+};
+
+type DailyInvoiceStatementResponse = {
+  data: DailyInvoiceStatement;
+};
+
+type MonthlyInvoiceStatementResponse = {
+  data: MonthlyInvoiceStatement;
+};
+
 export type InvoicePayload = {
   invoice_no: string;
   invoice_datetime: string;
@@ -124,6 +220,49 @@ function buildInvoicesPath({ page, perPage, search }: InvoiceListParams) {
   return `/api/admin/invoices?${params.toString()}`;
 }
 
+function normalizedStatementFilters(filters: InvoiceStatementFilters) {
+  return {
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    paymentType: filters.paymentType,
+    createdBy: filters.createdBy,
+  };
+}
+
+function buildStatementSearchParams(filters: InvoiceStatementFilters) {
+  const params = new URLSearchParams();
+
+  if (filters.dateFrom) {
+    params.set("date_from", filters.dateFrom);
+  }
+
+  if (filters.dateTo) {
+    params.set("date_to", filters.dateTo);
+  }
+
+  if (filters.paymentType) {
+    params.set("payment_type", filters.paymentType);
+  }
+
+  if (filters.createdBy) {
+    params.set("created_by", filters.createdBy);
+  }
+
+  return params;
+}
+
+function buildDailyStatementPath(filters: InvoiceStatementFilters) {
+  const params = buildStatementSearchParams(filters);
+
+  return params.toString() ? `/api/admin/invoices/statements/daily?${params.toString()}` : "/api/admin/invoices/statements/daily";
+}
+
+function buildMonthlyStatementPath(filters: InvoiceStatementFilters) {
+  const params = buildStatementSearchParams(filters);
+
+  return params.toString() ? `/api/admin/invoices/statements/monthly?${params.toString()}` : "/api/admin/invoices/statements/monthly";
+}
+
 export function useAdminInvoicesQuery(params: InvoiceListParams, enabled = true) {
   return useQuery({
     queryKey: queryKeys.admin.invoices.list(params.page, params.perPage, params.search.trim()),
@@ -155,6 +294,30 @@ export function useAdminNextInvoiceNoQuery(date: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.admin.invoices.nextNumber(date),
     queryFn: () => apiClient.get<InvoiceNumberResponse>(path, { skipAuthRedirect: true }),
+    enabled,
+    retry: false,
+    select: (response) => response.data,
+  });
+}
+
+export function useAdminDailyInvoiceStatementQuery(filters: InvoiceStatementFilters, enabled = true) {
+  const normalizedFilters = normalizedStatementFilters(filters);
+
+  return useQuery({
+    queryKey: queryKeys.admin.invoices.dailyStatement(normalizedFilters),
+    queryFn: () => apiClient.get<DailyInvoiceStatementResponse>(buildDailyStatementPath(normalizedFilters), { skipAuthRedirect: true }),
+    enabled,
+    retry: false,
+    select: (response) => response.data,
+  });
+}
+
+export function useAdminMonthlyInvoiceStatementQuery(filters: InvoiceStatementFilters, enabled = true) {
+  const normalizedFilters = normalizedStatementFilters(filters);
+
+  return useQuery({
+    queryKey: queryKeys.admin.invoices.monthlyStatement(normalizedFilters),
+    queryFn: () => apiClient.get<MonthlyInvoiceStatementResponse>(buildMonthlyStatementPath(normalizedFilters), { skipAuthRedirect: true }),
     enabled,
     retry: false,
     select: (response) => response.data,

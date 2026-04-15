@@ -62,6 +62,8 @@ export const queryKeys = {
       list: (page: number, perPage: number, search: string) => ["admin", "invoices", { page, perPage, search }] as const,
       detail: (invoiceId: number | string) => ["admin", "invoices", String(invoiceId)] as const,
       nextNumber: (date: string) => ["admin", "invoices", "next-number", date] as const,
+      dailyStatement: (filters: Record<string, string>) => ["admin", "invoices", "statements", "daily", filters] as const,
+      monthlyStatement: (filters: Record<string, string>) => ["admin", "invoices", "statements", "monthly", filters] as const,
     },
     systemLogs: {
       all: ["admin", "system-logs"] as const,
