@@ -9,13 +9,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['unit_name', 'unit_value', 'unit_code'])]
 class ProductUnit extends Model
 {
-    protected function casts(): array
-    {
-        return [
-            'unit_value' => 'decimal:4',
-        ];
-    }
-
     public function prices(): HasMany
     {
         return $this->hasMany(ProductPrice::class);

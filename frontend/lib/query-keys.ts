@@ -37,6 +37,16 @@ export const queryKeys = {
       all: ["admin", "users"] as const,
       list: (page: number, perPage: number, search: string) => ["admin", "users", { page, perPage, search }] as const,
     },
+    productUnits: {
+      all: ["admin", "product-units"] as const,
+      list: (page: number, perPage: number, search: string) => ["admin", "product-units", { page, perPage, search }] as const,
+      options: ["admin", "product-units", "options"] as const,
+    },
+    products: {
+      all: ["admin", "products"] as const,
+      list: (page: number, perPage: number, search: string) => ["admin", "products", { page, perPage, search }] as const,
+      options: ["admin", "products", "options"] as const,
+    },
     systemLogs: {
       all: ["admin", "system-logs"] as const,
       list: (page: number, perPage: number, search: string) => ["admin", "system-logs", { page, perPage, search }] as const,

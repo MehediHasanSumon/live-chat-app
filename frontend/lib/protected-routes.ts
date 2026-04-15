@@ -7,6 +7,8 @@ export const protectedPrefixes = [
   "/users",
   "/roles",
   "/permissions",
+  "/products",
+  "/product-units",
   "/system-log",
 ] as const;
 

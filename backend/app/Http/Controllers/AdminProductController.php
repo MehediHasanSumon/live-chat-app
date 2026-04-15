@@ -3,12 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Support\ProductCodeHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class AdminProductController extends Controller
 {
+    public function __construct(private readonly ProductCodeHelper $codeHelper)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -58,7 +64,10 @@ class AdminProductController extends Controller
     {
         $validated = $request->validate($this->rules());
 
-        $product = Product::query()->create($validated);
+        $product = DB::transaction(fn (): Product => Product::query()->create([
+            ...$validated,
+            'product_code' => $this->codeHelper->generate(),
+        ]));
 
         return response()->json([
             'data' => $this->serializeProduct($product->fresh('activePrice.unit')),
@@ -87,7 +96,6 @@ class AdminProductController extends Controller
     {
         return [
             'product_name' => ['required', 'string', 'max:120'],
-            'product_code' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9._-]+$/', Rule::unique('products', 'product_code')->ignore($product?->id)],
             'description' => ['nullable', 'string', 'max:1000'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ];

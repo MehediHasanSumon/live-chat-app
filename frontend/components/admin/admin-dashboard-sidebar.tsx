@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, House, MessageSquare, ScrollText, Settings, Users, X } from "lucide-react";
+import { ChevronDown, House, MessageSquare, Package, Ruler, ScrollText, Settings, Users, X } from "lucide-react";
 
 import { useMessagesBadgeCount } from "@/lib/hooks/use-messages-badge-count";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -33,6 +33,8 @@ const mainItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: House },
   { href: "/messages", label: "Messages", icon: MessageSquare },
   { href: "/system-log", label: "System Log", icon: ScrollText },
+  { href: "/products", label: "Products", icon: Package },
+  { href: "/product-units", label: "Product Units", icon: Ruler },
 ];
 
 const userManagementItems: DropdownItem[] = [

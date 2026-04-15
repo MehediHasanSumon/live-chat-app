@@ -19,8 +19,8 @@ it('keeps only one active price per product', function () {
     ]);
     $unit = ProductUnit::query()->create([
         'unit_name' => 'Liter',
-        'unit_value' => 1,
-        'unit_code' => 'L',
+        'unit_value' => 'liter',
+        'unit_code' => 'PU001',
     ]);
 
     $first = $this->actingAs($actor, 'web')
@@ -61,8 +61,8 @@ it('creates an invoice with a new customer and calculated totals', function () {
     ]);
     $unit = ProductUnit::query()->create([
         'unit_name' => 'Liter',
-        'unit_value' => 1,
-        'unit_code' => 'L',
+        'unit_value' => 'liter',
+        'unit_code' => 'PU001',
     ]);
     $price = ProductPrice::query()->create([
         'product_id' => $product->id,
@@ -107,6 +107,51 @@ it('creates an invoice with a new customer and calculated totals', function () {
 
     expect(Customer::query()->where('mobile', '+8801700000011')->exists())->toBeTrue()
         ->and(Invoice::query()->where('invoice_no', 'INV-1001')->exists())->toBeTrue();
+});
+
+it('creates product units with generated codes and slug values', function () {
+    $actor = User::factory()->create();
+
+    $this->actingAs($actor, 'web')
+        ->postJson('/api/admin/product-units', [
+            'unit_name' => 'Liter',
+            'unit_value' => 'Liter',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.unit_name', 'Liter')
+        ->assertJsonPath('data.unit_value', 'liter')
+        ->assertJsonPath('data.unit_code', 'PU001');
+
+    $this->actingAs($actor, 'web')
+        ->postJson('/api/admin/product-units', [
+            'unit_name' => 'Gallon',
+            'unit_value' => 'gallon',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.unit_code', 'PU002');
+});
+
+it('creates products with generated codes', function () {
+    $actor = User::factory()->create();
+
+    $this->actingAs($actor, 'web')
+        ->postJson('/api/admin/products', [
+            'product_name' => 'Petrol',
+            'description' => null,
+            'status' => 'active',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.product_name', 'Petrol')
+        ->assertJsonPath('data.product_code', 'P001');
+
+    $this->actingAs($actor, 'web')
+        ->postJson('/api/admin/products', [
+            'product_name' => 'Octane',
+            'description' => null,
+            'status' => 'active',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.product_code', 'P002');
 });
 
 it('validates invoice totals and items', function () {

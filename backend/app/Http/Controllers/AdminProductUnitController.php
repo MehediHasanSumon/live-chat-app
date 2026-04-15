@@ -3,12 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProductUnit;
+use App\Support\ProductUnitCodeHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 
 class AdminProductUnitController extends Controller
 {
+    public function __construct(private readonly ProductUnitCodeHelper $codeHelper)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -24,6 +29,7 @@ class AdminProductUnitController extends Controller
                 $query->where(function ($query) use ($search): void {
                     $query
                         ->where('unit_name', 'like', "%{$search}%")
+                        ->orWhere('unit_value', 'like', "%{$search}%")
                         ->orWhere('unit_code', 'like', "%{$search}%");
                 });
             })
@@ -52,8 +58,12 @@ class AdminProductUnitController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate($this->rules());
+        $validated['unit_value'] = $this->codeHelper->normalizeSlug($validated['unit_value']);
 
-        $unit = ProductUnit::query()->create($validated);
+        $unit = DB::transaction(fn (): ProductUnit => ProductUnit::query()->create([
+            ...$validated,
+            'unit_code' => $this->codeHelper->generate(),
+        ]));
 
         return response()->json(['data' => $this->serializeUnit($unit)], 201);
     }
@@ -61,6 +71,7 @@ class AdminProductUnitController extends Controller
     public function update(Request $request, ProductUnit $productUnit): JsonResponse
     {
         $validated = $request->validate($this->rules($productUnit));
+        $validated['unit_value'] = $this->codeHelper->normalizeSlug($validated['unit_value']);
 
         $productUnit->forceFill($validated)->save();
 
@@ -78,8 +89,7 @@ class AdminProductUnitController extends Controller
     {
         return [
             'unit_name' => ['required', 'string', 'max:60'],
-            'unit_value' => ['required', 'numeric', 'min:0.0001', 'max:99999999.9999'],
-            'unit_code' => ['required', 'string', 'max:20', 'regex:/^[A-Za-z0-9._-]+$/', Rule::unique('product_units', 'unit_code')->ignore($unit?->id)],
+            'unit_value' => ['required', 'string', 'max:80', 'regex:/^[A-Za-z0-9\s._-]+$/'],
         ];
     }
 
