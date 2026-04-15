@@ -85,7 +85,8 @@ export function CallRealtimeProvider() {
     userChannel.listen(".call.state.changed", handleStateChanged);
 
     return () => {
-      echo.leave(`user.${userId}`);
+      userChannel.stopListening(".call.incoming");
+      userChannel.stopListening(".call.state.changed");
     };
   }, [clearActiveCall, queryClient, receiveIncomingCall, syncCallState, userId]);
 

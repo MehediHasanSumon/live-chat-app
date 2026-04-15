@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { CornerUpLeft, Download, FileText, Forward, PencilLine, PhoneCall, Send, SmilePlus, Trash2, X } from "lucide-react";
+import { CornerUpLeft, Download, FileText, Forward, Mic, PencilLine, PhoneCall, Send, SmilePlus, Trash2, X } from "lucide-react";
 
 import { MessageAvatar } from "@/components/messages/message-avatar";
 import { MessageUserHoverCard } from "@/components/messages/message-user-hover-card";
@@ -31,6 +31,18 @@ function formatCallDuration(seconds: number): string {
   const remainder = safeSeconds % 60;
 
   return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
+function formatVoiceDuration(durationMs: number | null): string {
+  if (!durationMs) {
+    return "00:00";
+  }
+
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 function buildCallHistorySummary(message: ChatMessage): string[] {
@@ -98,18 +110,30 @@ function MessageBubbleComponent({
   );
 
   const imageAttachments = message.attachments?.filter((attachment) => attachment.mediaKind === "image") ?? [];
-  const fileAttachments = message.attachments?.filter((attachment) => attachment.mediaKind !== "image") ?? [];
+  const voiceAttachments =
+    message.attachments?.filter((attachment) => attachment.mediaKind === "voice" || attachment.mediaKind === "audio") ?? [];
+  const fileAttachments =
+    message.attachments?.filter((attachment) => !["image", "voice", "audio"].includes(attachment.mediaKind)) ?? [];
   const isCallMessage = message.type === "call" && message.call;
   const callSummaryLines = useMemo(() => buildCallHistorySummary(message), [message]);
   const isImageOnlyMessage =
     imageAttachments.length > 0 &&
     fileAttachments.length === 0 &&
+    voiceAttachments.length === 0 &&
     !message.gifUrl &&
     !message.quote &&
     (!message.body.trim() || /^shared (photo|image)$/i.test(message.body.trim()));
   const isFileOnlyMessage =
     fileAttachments.length > 0 &&
     imageAttachments.length === 0 &&
+    voiceAttachments.length === 0 &&
+    !message.gifUrl &&
+    !message.quote &&
+    !message.body.trim();
+  const isVoiceOnlyMessage =
+    voiceAttachments.length > 0 &&
+    imageAttachments.length === 0 &&
+    fileAttachments.length === 0 &&
     !message.gifUrl &&
     !message.quote &&
     !message.body.trim();
@@ -401,7 +425,7 @@ function MessageBubbleComponent({
               </a>
             ) : null}
 
-            {!isCallMessage && !isImageOnlyMessage && !isFileOnlyMessage ? (
+            {!isCallMessage && !isImageOnlyMessage && !isFileOnlyMessage && !isVoiceOnlyMessage ? (
               message.quote ? <p className="break-words text-[14px] leading-snug">{message.body}</p> : <p className="leading-5">{message.body}</p>
             ) : null}
 
@@ -493,6 +517,53 @@ function MessageBubbleComponent({
                         </a>
                       ) : null}
                     </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {voiceAttachments.length > 0 ? (
+              <div className={`${isVoiceOnlyMessage ? "" : "mt-3"} space-y-2`}>
+                {voiceAttachments.map((attachment) => (
+                  <div
+                    key={attachment.id}
+                    className={`min-w-[250px] rounded-2xl border px-3 py-3 ${
+                      message.sender === "me"
+                        ? "border-white/18 bg-white/10 text-white"
+                        : "border-[rgba(111,123,176,0.14)] bg-[rgba(246,248,255,0.94)] text-[var(--foreground)]"
+                    }`}
+                  >
+                    {attachment.isExpired || !attachment.downloadUrl ? (
+                      <div className={message.sender === "me" ? "text-xs text-white/75" : "text-xs text-[var(--muted)]"}>
+                        {attachment.placeholderText ?? "Voice clip expired / removed by storage policy"}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                              message.sender === "me" ? "bg-white/14 text-white" : "bg-white text-[var(--accent)]"
+                            }`}
+                          >
+                            <Mic className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold">Voice message</p>
+                            <p className={message.sender === "me" ? "text-[11px] text-white/72" : "text-[11px] text-[var(--muted)]"}>
+                              {formatVoiceDuration(attachment.durationMs)}
+                            </p>
+                          </div>
+                        </div>
+                        <audio
+                          controls
+                          preload="metadata"
+                          src={attachment.downloadUrl}
+                          onLoadedMetadata={onMediaLoad}
+                          onError={onMediaLoad}
+                          className="h-9 w-full min-w-[220px] accent-[var(--accent)]"
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

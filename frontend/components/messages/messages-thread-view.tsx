@@ -36,7 +36,7 @@ import {
 import { useUnblockUserMutation } from "@/lib/hooks/use-conversation-actions";
 import { useTypingUsersQuery } from "@/lib/hooks/use-typing-users-query";
 import { toChatMessage, toConversationThread, type MessageThread } from "@/lib/messages-data";
-import { type ChatMessage, type ComposerAttachmentInput } from "@/lib/messages-data";
+import { type ChatMessage, type ComposerAttachmentInput, type ComposerVoiceInput } from "@/lib/messages-data";
 import { useCallStore } from "@/lib/stores/call-store";
 import { useConversationRealtimeStore } from "@/lib/stores/conversation-realtime-store";
 
@@ -133,6 +133,7 @@ export function MessagesThreadView({
   const composerErrorMessage =
     activeComposerError instanceof ApiClientError
       ? activeComposerError.errors?.file?.[0] ??
+        activeComposerError.errors?.storage_object_id?.[0] ??
         activeComposerError.errors?.text?.[0] ??
         activeComposerError.errors?.message_id?.[0] ??
         activeComposerError.message
@@ -510,13 +511,16 @@ export function MessagesThreadView({
   const buildPendingMessage = useCallback(({
     text,
     attachments,
+    voice,
     replyToMessageId,
   }: {
     text: string;
     attachments: ComposerAttachmentInput[];
+    voice: ComposerVoiceInput | null;
     replyToMessageId?: number | null;
   }): ChatMessage => {
     const nextSeq = (mappedMessages.at(-1)?.seq ?? latestMessage?.seq ?? 0) + 1;
+    const voiceUrl = voice ? URL.createObjectURL(voice.file) : null;
     const quotedMessage =
       replyToMessageId !== undefined && replyToMessageId !== null
         ? mappedMessages.find((message) => message.numericId === replyToMessageId) ?? null
@@ -526,10 +530,10 @@ export function MessagesThreadView({
       id: `pending-${crypto.randomUUID()}`,
       numericId: -Date.now(),
       seq: nextSeq,
-      type: "text",
+      type: voice ? "voice" : "text",
       sender: "me",
       senderId: currentUserId ?? 0,
-      body: text.trim() || (attachments.some((item) => item.kind === "image") ? "Photo" : "File"),
+      body: text.trim() || (voice ? "" : attachments.some((item) => item.kind === "image") ? "Photo" : "File"),
       time: "Now",
       senderName: currentUserName,
       canEdit: false,
@@ -550,12 +554,40 @@ export function MessagesThreadView({
         sizeBytes: attachment.file.size,
         width: null,
         height: null,
+        durationMs: null,
         downloadUrl: attachment.previewUrl ?? null,
         isExpired: false,
         placeholderText: null,
       })),
+      ...(voice
+        ? {
+            attachments: [
+              {
+                id: voice.id,
+                name: voice.file.name,
+                mimeType: voice.file.type || "audio/webm",
+                mediaKind: "voice" as const,
+                sizeBytes: voice.file.size,
+                width: null,
+                height: null,
+                durationMs: voice.durationMs,
+                downloadUrl: voiceUrl,
+                isExpired: false,
+                placeholderText: null,
+              },
+            ],
+          }
+        : {}),
     };
   }, [currentUserId, currentUserName, latestMessage?.seq, mappedMessages]);
+
+  const revokePendingMessageUrls = useCallback((message: ChatMessage) => {
+    message.attachments?.forEach((attachment) => {
+      if (attachment.downloadUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(attachment.downloadUrl);
+      }
+    });
+  }, []);
 
   const replyPreview = useMemo(
     () =>
@@ -640,7 +672,7 @@ export function MessagesThreadView({
   }: {
     text: string;
     attachments: ComposerAttachmentInput[];
-    voice: null;
+    voice: ComposerVoiceInput | null;
     gif: null;
   }) => {
     if (editingMessageId) {
@@ -651,6 +683,7 @@ export function MessagesThreadView({
     const optimisticMessage = buildPendingMessage({
       text,
       attachments,
+      voice,
       replyToMessageId: replyingMessageId,
     });
 
@@ -667,10 +700,12 @@ export function MessagesThreadView({
       });
     } catch (error) {
       setPendingMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
+      revokePendingMessageUrls(optimisticMessage);
       throw error;
     }
 
     setPendingMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
+    revokePendingMessageUrls(optimisticMessage);
     cancelReplying();
   }, [
     buildPendingMessage,
@@ -678,6 +713,7 @@ export function MessagesThreadView({
     editingMessageId,
     handleSaveEdit,
     replyingMessageId,
+    revokePendingMessageUrls,
     sendMessageMutation,
     thread.id,
   ]);
@@ -908,7 +944,7 @@ export function MessagesThreadView({
             onEditingValueChange={setEditingValue}
             onCancelEditing={cancelEditing}
             onCancelReply={cancelReplying}
-            isSending={editMessageMutation.isPending}
+            isSending={editMessageMutation.isPending || sendMessageMutation.isPending}
             errorMessage={composerErrorMessage}
             onSend={handleSendMessage}
           />

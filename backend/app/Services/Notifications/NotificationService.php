@@ -167,6 +167,8 @@ class NotificationService
 
         $payload = array_merge($notification->payload_json ?? [], [
             'notification_id' => $notification->getKey(),
+            'title' => $notification->title,
+            'body' => $notification->body,
             'badge_count' => $badgeCount,
             'provider' => $notification->provider,
         ]);

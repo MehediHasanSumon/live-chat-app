@@ -52,10 +52,13 @@ type ForwardMessagePayload = {
   messageId: number;
 };
 
-async function uploadAttachment(file: File) {
+async function uploadAttachment(file: File, mediaKindHint?: "voice") {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("purpose", "message_attachment");
+  if (mediaKindHint) {
+    formData.append("media_kind_hint", mediaKindHint);
+  }
 
   return apiClient.post<StorageObjectResponse>("/api/uploads", formData, {
     requiresCsrf: true,
@@ -98,7 +101,7 @@ export function useSendMessageMutation() {
       }
 
       if (voice) {
-        const uploadResponse = await uploadAttachment(voice.file);
+        const uploadResponse = await uploadAttachment(voice.file, "voice");
         const response = await apiClient.post<MessageResponse>(
           `/api/conversations/${conversationId}/messages/voice`,
           {

@@ -92,6 +92,27 @@ it('blocks uploads that exceed the configured storage cap', function () {
         ->assertJsonPath('errors.file.0', 'The upload would exceed the global storage cap.');
 });
 
+it('stores browser voice recorder uploads as voice media', function () {
+    Storage::fake(config('uploads.disk'));
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $file = UploadedFile::fake()->create('voice.webm', 12, 'audio/webm;codecs=opus');
+
+    $response = $this->actingAs($user, 'web')
+        ->postJson('/api/uploads', [
+            'file' => $file,
+            'purpose' => 'message_attachment',
+            'media_kind_hint' => 'voice',
+        ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('data.media_kind', 'voice');
+
+    Queue::assertPushed(ExtractStorageObjectMetadataJob::class);
+});
+
 it('returns a signed private download response for uploaded files', function () {
     Storage::fake(config('uploads.disk'));
 

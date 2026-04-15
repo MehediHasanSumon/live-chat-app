@@ -239,6 +239,7 @@ export type ChatMessage = {
     sizeBytes: number;
     width: number | null;
     height: number | null;
+    durationMs: number | null;
     downloadUrl: string | null;
     isExpired: boolean;
     placeholderText: string | null;
@@ -263,6 +264,7 @@ const attachmentPlaceholderBodies = new Set([
   "Shared attachment",
   "Photo",
   "File",
+  "Voice message",
 ]);
 
 export type ThreadMediaItem = {
@@ -481,6 +483,11 @@ export function toChatMessage(message: MessageApiItem, authUserId?: number | nul
         sizeBytes: attachment.storage_object?.size_bytes ?? 0,
         width: attachment.storage_object?.width ?? null,
         height: attachment.storage_object?.height ?? null,
+        durationMs:
+          attachment.storage_object?.duration_ms ??
+          (message.type === "voice" && typeof message.metadata_json?.duration_ms === "number"
+            ? message.metadata_json.duration_ms
+            : null),
         downloadUrl: attachment.storage_object?.download_url ?? null,
         isExpired: Boolean(attachment.storage_object?.deleted_at),
         placeholderText: attachment.storage_object?.placeholder_text ?? null,

@@ -30,6 +30,7 @@ class UploadController extends Controller
                 $request->file('file'),
                 $request->user()->getKey(),
                 $request->input('purpose', 'message_attachment'),
+                $request->input('media_kind_hint'),
             );
         } catch (InvalidArgumentException $exception) {
             return response()->json([

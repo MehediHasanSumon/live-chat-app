@@ -1,4 +1,6 @@
 import { getSocketId } from "@/lib/reverb";
+import { pushToast } from "@/lib/stores/toast-store";
+import { getCrudToastConfig, getToastErrorMessage } from "@/lib/toast-config";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const AUTH_SESSION_HINT_KEY = "chat-app:has-session";
@@ -14,9 +16,10 @@ type ApiClientOptions = Omit<RequestInit, "body" | "headers"> & {
   requiresCsrf?: boolean;
   skipAuthRedirect?: boolean;
   retryOnCsrfFailure?: boolean;
+  toast?: false;
 };
 
-type ApiErrorPayload = {
+export type ApiErrorPayload = {
   message?: string;
   errors?: Record<string, string[]>;
   email_verification_required?: boolean;
@@ -180,6 +183,8 @@ async function request<T>(path: string, options: ApiClientOptions = {}, hasRetri
     await ensureCsrfCookie();
   }
 
+  const method = options.method?.toUpperCase() ?? "GET";
+  const crudToastConfig = options.toast === false ? null : getCrudToastConfig(path, method);
   const response = await fetch(buildUrl(path), {
     ...options,
     credentials: "include",
@@ -200,8 +205,25 @@ async function request<T>(path: string, options: ApiClientOptions = {}, hasRetri
   if (!response.ok) {
     const errorPayload = await parseErrorPayload(response);
     dispatchEmailVerificationRequired(errorPayload);
+    if (crudToastConfig) {
+      pushToast({
+        kind: "crud",
+        tone: "error",
+        title: crudToastConfig.errorTitle,
+        message: getToastErrorMessage(errorPayload, crudToastConfig.fallbackErrorMessage),
+      });
+    }
 
     throw new ApiClientError(response.status, errorPayload);
+  }
+
+  if (crudToastConfig) {
+    pushToast({
+      kind: "crud",
+      tone: "success",
+      title: crudToastConfig.successTitle,
+      message: crudToastConfig.successMessage,
+    });
   }
 
   if (response.status === 204) {

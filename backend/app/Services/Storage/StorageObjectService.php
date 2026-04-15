@@ -22,14 +22,19 @@ class StorageObjectService
         protected ConversationMemberService $conversationMemberService,
     ) {}
 
-    public function storeUpload(UploadedFile $file, int $userId, string $purpose = 'message_attachment'): StorageObject
+    public function storeUpload(UploadedFile $file, int $userId, string $purpose = 'message_attachment', ?string $mediaKindHint = null): StorageObject
     {
         $this->storageQuotaService->ensureUploadAllowed((int) $file->getSize());
 
         $detectedMimeType = $this->detectMimeType($file);
         $this->validateMimeType($detectedMimeType, $file);
 
-        $mediaKind = $this->resolveMediaKind($detectedMimeType);
+        $mediaKind = $this->resolveUploadMediaKind(
+            $detectedMimeType,
+            $file->getClientMimeType(),
+            $file->getClientOriginalExtension() ?: $file->extension(),
+            $mediaKindHint,
+        );
         $objectUuid = (string) Str::uuid();
         $diskPath = $file->storeAs(
             sprintf('uploads/%s/%s', now()->format('Y/m'), $userId),
@@ -190,14 +195,15 @@ class StorageObjectService
     protected function validateMimeType(string $detectedMimeType, UploadedFile $file): void
     {
         $allowUnlistedFileTypes = (bool) config('uploads.allow_unlisted_file_types', true);
-        $detectedKind = $this->resolveMediaKind($detectedMimeType);
+        $normalizedDetectedMimeType = $this->normalizeMimeType($detectedMimeType);
+        $detectedKind = $this->resolveMediaKind($normalizedDetectedMimeType);
         $allowedMimeTypes = config('uploads.allowed_mime_types', []);
 
-        if (! in_array($detectedMimeType, $allowedMimeTypes, true) && ! ($allowUnlistedFileTypes && $detectedKind === 'file')) {
+        if (! in_array($normalizedDetectedMimeType, $allowedMimeTypes, true) && ! ($allowUnlistedFileTypes && $detectedKind === 'file')) {
             throw new InvalidArgumentException('This file type is not allowed.');
         }
 
-        $clientMimeType = $file->getClientMimeType();
+        $clientMimeType = $file->getClientMimeType() ? $this->normalizeMimeType($file->getClientMimeType()) : null;
         $clientKind = $clientMimeType ? $this->resolveMediaKind($clientMimeType) : null;
 
         if (
@@ -213,8 +219,38 @@ class StorageObjectService
         }
     }
 
+    protected function normalizeMimeType(string $mimeType): string
+    {
+        return strtolower(trim(explode(';', $mimeType, 2)[0]));
+    }
+
+    protected function resolveUploadMediaKind(string $detectedMimeType, ?string $clientMimeType, ?string $fileExtension, ?string $mediaKindHint): string
+    {
+        $normalizedDetectedMimeType = $this->normalizeMimeType($detectedMimeType);
+        $normalizedClientMimeType = $clientMimeType ? $this->normalizeMimeType($clientMimeType) : null;
+        $normalizedFileExtension = $fileExtension ? strtolower(ltrim($fileExtension, '.')) : null;
+        $detectedKind = $this->resolveMediaKind($normalizedDetectedMimeType);
+        $clientKind = $normalizedClientMimeType ? $this->resolveMediaKind($normalizedClientMimeType) : null;
+
+        if (
+            $mediaKindHint === 'voice'
+            && (
+                $detectedKind === 'audio'
+                || $clientKind === 'audio'
+                || $normalizedDetectedMimeType === 'video/webm'
+                || in_array($normalizedFileExtension, ['webm', 'ogg', 'oga', 'm4a', 'mp4', 'wav', 'mp3'], true)
+            )
+        ) {
+            return 'voice';
+        }
+
+        return $detectedKind;
+    }
+
     protected function resolveMediaKind(string $mimeType): string
     {
+        $mimeType = $this->normalizeMimeType($mimeType);
+
         if ($mimeType === 'image/gif') {
             return 'gif';
         }

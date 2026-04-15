@@ -9,11 +9,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { ImageIcon, Paperclip, SendHorizonal, Smile } from "lucide-react";
+import { ImageIcon, Mic, Paperclip, SendHorizonal, Smile, Square, X } from "lucide-react";
 
 import { MessageComposerEmojiPicker } from "@/components/messages/message-composer-emoji-picker";
 import { MessageComposerPreview } from "@/components/messages/message-composer-preview";
-import { type ComposerAttachmentInput } from "@/lib/messages-data";
+import { type ComposerAttachmentInput, type ComposerVoiceInput } from "@/lib/messages-data";
 import { useStartTypingMutation, useStopTypingMutation } from "@/lib/hooks/use-typing-mutation";
 
 type MessageComposerProps = {
@@ -32,7 +32,7 @@ type MessageComposerProps = {
   onSend: (payload: {
     text: string;
     attachments: ComposerAttachmentInput[];
-    voice: null;
+    voice: ComposerVoiceInput | null;
     gif: null;
   }) => Promise<void>;
   isSending?: boolean;
@@ -56,10 +56,18 @@ function MessageComposerComponent({
   const [value, setValue] = useState("");
   const [attachments, setAttachments] = useState<ComposerAttachmentInput[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [recordingMs, setRecordingMs] = useState(0);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const recordingStartedAtRef = useRef(0);
+  const recordingTimerRef = useRef<number | null>(null);
   const attachmentsRef = useRef<ComposerAttachmentInput[]>([]);
   const stopTypingRef = useRef<() => void>(() => {});
   const typingTimerRef = useRef<number | null>(null);
@@ -74,11 +82,35 @@ function MessageComposerComponent({
   const isComposerLocked = isEditing && isSending;
   const hasText = composerValue.trim().length > 0;
   const hasMessagePayload = hasText || attachments.length > 0;
+  const shouldShowSendButton = isEditing || hasMessagePayload;
+  const canRecordVoice = !isEditing && !isReplying && !isComposerLocked && !isSending && attachments.length === 0 && !hasText;
 
   const resizeTextarea = (ta: HTMLTextAreaElement) => {
     ta.style.height = "auto";
     ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
   };
+
+  const clearRecordingTimer = useCallback(() => {
+    if (recordingTimerRef.current) {
+      window.clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  }, []);
+
+  const stopRecordingStream = useCallback(() => {
+    recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recordingStreamRef.current = null;
+  }, []);
+
+  const resetRecordingState = useCallback(() => {
+    clearRecordingTimer();
+    stopRecordingStream();
+    mediaRecorderRef.current = null;
+    recordingChunksRef.current = [];
+    recordingStartedAtRef.current = 0;
+    setIsRecordingVoice(false);
+    setRecordingMs(0);
+  }, [clearRecordingTimer, stopRecordingStream]);
 
   const stopTyping = useCallback(() => {
     if (typingTimerRef.current) {
@@ -111,8 +143,9 @@ function MessageComposerComponent({
       });
 
       stopTypingRef.current();
+      resetRecordingState();
     };
-  }, []);
+  }, [resetRecordingState]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -176,6 +209,121 @@ function MessageComposerComponent({
     typingTimerRef.current = window.setTimeout(() => {
       stopTyping();
     }, 1800);
+  };
+
+  const getVoiceMimeType = () => {
+    if (typeof MediaRecorder === "undefined") {
+      return "";
+    }
+
+    return [
+      "audio/webm",
+      "audio/webm;codecs=opus",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+    ].find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? "";
+  };
+
+  const getVoiceExtension = (mimeType: string) => {
+    if (mimeType.includes("ogg")) {
+      return "ogg";
+    }
+
+    if (mimeType.includes("mp4")) {
+      return "m4a";
+    }
+
+    return "webm";
+  };
+
+  const formatRecordingTime = (durationMs: number) => {
+    const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  };
+
+  const startVoiceRecording = async () => {
+    if (!canRecordVoice || isRecordingVoice) {
+      return;
+    }
+
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setRecordingError("Voice recording is not supported in this browser.");
+      return;
+    }
+
+    try {
+      setRecordingError(null);
+      stopTyping();
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = getVoiceMimeType();
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+      recordingStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+      recordingChunksRef.current = [];
+      recordingStartedAtRef.current = Date.now();
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordingChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.start();
+      setIsRecordingVoice(true);
+      setRecordingMs(0);
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingMs(Date.now() - recordingStartedAtRef.current);
+      }, 250);
+    } catch {
+      resetRecordingState();
+      setRecordingError("Microphone permission is needed to send a voice clip.");
+    }
+  };
+
+  const stopVoiceRecording = (shouldSend: boolean) => {
+    const recorder = mediaRecorderRef.current;
+
+    if (!recorder || recorder.state === "inactive") {
+      resetRecordingState();
+      return;
+    }
+
+    const startedAt = recordingStartedAtRef.current;
+    const mimeType = recorder.mimeType || getVoiceMimeType() || "audio/webm";
+
+    recorder.onstop = () => {
+      const chunks = [...recordingChunksRef.current];
+      const durationMs = Math.max(1, Date.now() - startedAt);
+      resetRecordingState();
+
+      if (!shouldSend || chunks.length === 0 || durationMs < 300) {
+        return;
+      }
+
+      const blob = new Blob(chunks, { type: mimeType });
+      const file = new File([blob], `voice-${Date.now()}.${getVoiceExtension(mimeType)}`, {
+        type: mimeType,
+      });
+
+      void onSend({
+        text: "",
+        attachments: [],
+        voice: {
+          id: crypto.randomUUID(),
+          file,
+          durationMs,
+        },
+        gif: null,
+      }).catch(() => undefined);
+    };
+
+    clearRecordingTimer();
+    recorder.stop();
   };
 
   const addFiles = (
@@ -386,6 +534,33 @@ function MessageComposerComponent({
           />
         ) : null}
 
+        {isRecordingVoice ? (
+          <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl border border-[rgba(96,91,255,0.14)] bg-white/82 px-3 py-2 text-[#4b5274]">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-rose-500" />
+              <span className="text-sm font-semibold tabular-nums">{formatRecordingTime(recordingMs)}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => stopVoiceRecording(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-[rgba(111,123,176,0.14)] bg-white text-[#8a92b3] transition hover:text-rose-500"
+                aria-label="Cancel voice recording"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => stopVoiceRecording(true)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent)] text-white shadow-[0_10px_20px_rgba(96,91,255,0.22)] transition hover:brightness-105"
+                aria-label="Send voice recording"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="relative rounded-[18px] bg-white/88 px-3 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_22px_rgba(96,109,160,0.05)] transition-all duration-200 ease-out">
           <textarea
             ref={textareaRef}
@@ -396,7 +571,7 @@ function MessageComposerComponent({
             }}
             placeholder="Write a message..."
             rows={1}
-            disabled={isComposerLocked}
+            disabled={isComposerLocked || isRecordingVoice}
             className="min-h-[36px] w-full resize-none border-none bg-transparent py-1.5 pr-12 text-[14px] leading-6 text-[#3b4260] outline-none ring-0 transition-[height] duration-200 ease-out focus:border-none focus:outline-none focus:ring-0 placeholder:text-[#a2aacd] disabled:cursor-not-allowed disabled:opacity-70"
             style={{ boxShadow: "none" }}
           />
@@ -409,22 +584,23 @@ function MessageComposerComponent({
           <button
             type="button"
             onClick={() => {
-              if (!hasText && attachments.length === 0) {
+              if (!shouldShowSendButton) {
+                void startVoiceRecording();
                 return;
               }
 
               void handleSend();
             }}
-            aria-label={isEditing ? "Save message" : "Send message"}
-            disabled={isComposerLocked}
+            aria-label={shouldShowSendButton ? (isEditing ? "Save message" : "Send message") : "Record voice clip"}
+            disabled={isComposerLocked || isRecordingVoice || isSending || (!shouldShowSendButton && !canRecordVoice)}
             className="absolute bottom-1.5 right-1.5 flex h-9 w-9 items-center justify-center rounded-[13px] bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] text-white shadow-[0_12px_24px_rgba(96,91,255,0.24)] transition-all duration-200 ease-out hover:brightness-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <SendHorizonal className="h-3.5 w-3.5" />
+            {shouldShowSendButton ? <SendHorizonal className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
           </button>
         </div>
 
-        {errorMessage ? (
-          <p className="px-2.5 pt-2 text-[12px] text-rose-500">{errorMessage}</p>
+        {errorMessage || recordingError ? (
+          <p className="px-2.5 pt-2 text-[12px] text-rose-500">{recordingError ?? errorMessage}</p>
         ) : null}
 
         <div className="flex items-center justify-between px-2.5 pt-1.5">

@@ -9,6 +9,8 @@ import { getEchoInstance } from "@/lib/reverb";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 import { useConversationRealtimeStore } from "@/lib/stores/conversation-realtime-store";
+import { pushToast } from "@/lib/stores/toast-store";
+import { type MessageApiItem } from "@/lib/messages-data";
 
 type TypingEventPayload = {
   conversation_id: number;
@@ -16,6 +18,10 @@ type TypingEventPayload = {
     id: number;
     name: string;
   };
+};
+
+type MessageCreatedPayload = {
+  message: MessageApiItem;
 };
 
 export function ConversationRealtimeProvider() {
@@ -53,10 +59,28 @@ export function ConversationRealtimeProvider() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
     };
 
+    const handleMessageCreated = (payload: MessageCreatedPayload) => {
+      invalidateConversationState();
+
+      if (!payload.message || payload.message.sender_id === authUserId) {
+        return;
+      }
+
+      pushToast({
+        id: `message-${payload.message.id}`,
+        kind: "message",
+        tone: "message",
+        title: payload.message.sender?.name ?? "New message",
+        senderName: payload.message.sender?.name ?? "Someone",
+        message: payload.message.display_text ?? payload.message.text_body ?? "Sent you a message.",
+        conversationId: String(payload.message.conversation_id),
+      });
+    };
+
     const channel = echo.private(`conversation.${activeThreadId}`);
     const presenceChannel = echo.join(`conversation.${activeThreadId}`);
 
-    channel.listen(".message.created", invalidateConversationState);
+    channel.listen(".message.created", handleMessageCreated);
     channel.listen(".message.updated", invalidateConversationState);
     channel.listen(".message.deleted", invalidateConversationState);
     channel.listen(".reaction.changed", invalidateConversationState);

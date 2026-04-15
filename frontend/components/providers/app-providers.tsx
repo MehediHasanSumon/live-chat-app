@@ -10,8 +10,10 @@ import { CallDock } from "@/components/providers/call-dock";
 import { CallRealtimeProvider } from "@/components/providers/call-realtime-provider";
 import { ConversationRealtimeProvider } from "@/components/providers/conversation-realtime-provider";
 import { EmailVerificationGate } from "@/components/providers/email-verification-gate";
+import { MessengerToastProvider } from "@/components/providers/messenger-toast-provider";
 import { PresenceHeartbeatProvider } from "@/components/providers/presence-heartbeat-provider";
 import { ReverbProvider } from "@/components/providers/reverb-provider";
+import { ToastViewport } from "@/components/providers/toast-viewport";
 
 type AppProvidersProps = {
   children: ReactNode;
@@ -41,10 +43,12 @@ export function AppProviders({ children }: AppProvidersProps) {
       <ReverbProvider />
       <CallRealtimeProvider />
       <ConversationRealtimeProvider />
+      <MessengerToastProvider />
       {!isStandaloneAudioCallRoute ? <CallDock /> : null}
       <Suspense fallback={null}>
         <EmailVerificationGate>{children}</EmailVerificationGate>
       </Suspense>
+      <ToastViewport />
     </QueryClientProvider>
   );
 }
