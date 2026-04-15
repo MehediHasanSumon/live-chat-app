@@ -148,6 +148,7 @@ class AdminProductPriceController extends Controller
             ->when($exceptId, fn ($query) => $query->whereKeyNot($exceptId))
             ->update([
                 'is_active' => false,
+                'active_product_id' => null,
                 'deactivated_at' => now(),
             ]);
     }

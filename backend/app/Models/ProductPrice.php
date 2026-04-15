@@ -10,6 +10,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['product_id', 'product_unit_id', 'original_price', 'sell_price', 'date_time', 'is_active', 'created_by', 'deactivated_at', 'note'])]
 class ProductPrice extends Model
 {
+    protected static function booted(): void
+    {
+        static::saving(function (ProductPrice $price): void {
+            $price->active_product_id = $price->is_active ? $price->product_id : null;
+        });
+    }
+
     protected function casts(): array
     {
         return [

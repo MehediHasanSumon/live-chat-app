@@ -43,7 +43,7 @@ return new class extends Migration
             $table->decimal('sell_price', 12, 2);
             $table->dateTime('date_time');
             $table->boolean('is_active')->default(false);
-            $table->unsignedBigInteger('active_product_id')->nullable()->storedAs('case when `is_active` = 1 then `product_id` else null end');
+            $table->unsignedBigInteger('active_product_id')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('deactivated_at')->nullable();
             $table->text('note')->nullable();
