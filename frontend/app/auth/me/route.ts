@@ -24,6 +24,8 @@ export async function GET(request: NextRequest) {
           data: {
             user: null,
             settings: null,
+            email_verification_required: false,
+            must_verify_email: false,
           },
         },
         { status: 200 },
@@ -51,6 +53,8 @@ export async function GET(request: NextRequest) {
         data: {
           user: null,
           settings: null,
+          email_verification_required: false,
+          must_verify_email: false,
         },
       },
       { status: 200 },

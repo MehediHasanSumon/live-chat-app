@@ -357,3 +357,19 @@ it('blocks protected api routes until email is verified', function () {
         ->assertForbidden()
         ->assertJsonPath('email_verification_required', true);
 });
+
+it('forces verification for any authenticated user whose email is marked unverified', function () {
+    $user = User::factory()->unverified()->create([
+        'email' => 'sumon@example.com',
+    ]);
+
+    $this->actingAs($user, 'web')
+        ->getJson('/api/me')
+        ->assertOk()
+        ->assertJsonPath('data.must_verify_email', true);
+
+    $this->actingAs($user, 'web')
+        ->getJson('/api/conversations')
+        ->assertForbidden()
+        ->assertJsonPath('email_verification_required', true);
+});

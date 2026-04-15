@@ -61,5 +61,6 @@ export function useAuthMeQuery(enabled = false) {
     retry: false,
     refetchOnMount: "always",
     refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
   });
 }

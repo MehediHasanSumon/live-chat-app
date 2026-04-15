@@ -30,8 +30,7 @@ class VerificationCodeService
 
     public function userMustVerifyEmail(?User $user): bool
     {
-        return $this->emailVerificationRequired()
-            && $user !== null
+        return $user !== null
             && filled($user->email)
             && $user->email_verified_at === null;
     }

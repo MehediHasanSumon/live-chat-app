@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\Auth\VerificationCodeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -12,6 +13,8 @@ use Spatie\Permission\PermissionRegistrar;
 
 class AdminUserController extends Controller
 {
+    public function __construct(private readonly VerificationCodeService $verificationCodes) {}
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -74,6 +77,10 @@ class AdminUserController extends Controller
 
         $user->syncRoles($validated['roles'] ?? []);
 
+        if ($this->verificationCodes->userMustVerifyEmail($user)) {
+            $this->verificationCodes->sendEmailVerificationCode($user);
+        }
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         return response()->json([
@@ -84,6 +91,8 @@ class AdminUserController extends Controller
     public function update(Request $request, User $user): JsonResponse
     {
         $validated = $request->validate($this->rules($user));
+        $wasVerified = $user->email_verified_at !== null;
+        $emailChanged = $user->email !== $validated['email'];
 
         $attributes = [
             'name' => $validated['name'],
@@ -99,6 +108,10 @@ class AdminUserController extends Controller
 
         $user->forceFill($attributes)->save();
         $user->syncRoles($validated['roles'] ?? []);
+
+        if ($this->verificationCodes->userMustVerifyEmail($user) && ($wasVerified || $emailChanged)) {
+            $this->verificationCodes->sendEmailVerificationCode($user);
+        }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 

@@ -7,6 +7,11 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 const guestOnlyRoutes = new Set(["/", "/login", "/register"]);
 const authCookieNames = ["laravel-session", "XSRF-TOKEN"];
 
+type ProxyAuthState = {
+  authenticated: boolean;
+  mustVerifyEmail: boolean;
+};
+
 function hasCookies(request: NextRequest): boolean {
   const cookieHeader = request.headers.get("cookie");
   return typeof cookieHeader === "string" && cookieHeader.trim().length > 0;
@@ -16,7 +21,7 @@ function isProtectedPath(pathname: string): boolean {
   return matchesProtectedPrefix(pathname, protectedPrefixes);
 }
 
-async function isAuthenticated(request: NextRequest): Promise<boolean> {
+async function resolveAuthState(request: NextRequest): Promise<ProxyAuthState> {
   const authUrl = `${API_BASE_URL}/api/me`;
 
   try {
@@ -32,9 +37,24 @@ async function isAuthenticated(request: NextRequest): Promise<boolean> {
       },
     });
 
-    return response.ok;
+    if (!response.ok) {
+      return {
+        authenticated: false,
+        mustVerifyEmail: false,
+      };
+    }
+
+    const payload = await response.json();
+
+    return {
+      authenticated: true,
+      mustVerifyEmail: Boolean(payload?.data?.must_verify_email),
+    };
   } catch {
-    return false;
+    return {
+      authenticated: false,
+      mustVerifyEmail: false,
+    };
   }
 }
 
@@ -59,6 +79,17 @@ function createLoginRedirect(request: NextRequest, pathname: string, search: str
   return response;
 }
 
+function createEmailVerificationRedirect(request: NextRequest, pathname: string, search: string) {
+  const verificationUrl = new URL("/email-verification", request.url);
+  const redirectTarget = `${pathname}${search}`;
+
+  if (redirectTarget !== "/email-verification") {
+    verificationUrl.searchParams.set("redirect", redirectTarget);
+  }
+
+  return NextResponse.redirect(verificationUrl);
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isProtectedRoute = isProtectedPath(pathname);
@@ -76,13 +107,17 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const authenticated = await isAuthenticated(request);
+  const authState = await resolveAuthState(request);
 
-  if (isProtectedRoute && !authenticated) {
+  if (isProtectedRoute && !authState.authenticated) {
     return createLoginRedirect(request, pathname, search);
   }
 
-  if (isGuestOnlyRoute && authenticated) {
+  if (authState.authenticated && authState.mustVerifyEmail) {
+    return createEmailVerificationRedirect(request, pathname, search);
+  }
+
+  if (isGuestOnlyRoute && authState.authenticated) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

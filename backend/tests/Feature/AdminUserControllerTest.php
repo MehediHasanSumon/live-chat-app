@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuthVerificationCode;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -109,6 +110,38 @@ it('updates a user and syncs roles', function () {
     expect(Hash::check('secret-456', $user->password_hash))->toBeTrue()
         ->and($user->hasRole('support-agent'))->toBeTrue()
         ->and($user->hasRole('admin'))->toBeFalse();
+});
+
+it('creates a verification code when admin marks a user unverified', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
+    $actor = User::factory()->create();
+    $user = User::factory()->create([
+        'name' => 'Verified User',
+        'email' => 'verified@example.test',
+        'email_verified_at' => now(),
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($actor, 'web')
+        ->patchJson("/api/admin/users/{$user->id}", [
+            'name' => 'Verified User',
+            'email' => 'verified@example.test',
+            'phone' => null,
+            'email_verified' => false,
+            'password' => '',
+            'password_confirmation' => '',
+            'status' => 'active',
+            'roles' => [],
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.email_verified_at', null);
+
+    expect(AuthVerificationCode::query()
+        ->where('user_id', $user->id)
+        ->where('email', 'verified@example.test')
+        ->where('purpose', 'email_verification')
+        ->whereNull('consumed_at')
+        ->exists())->toBeTrue();
 });
 
 it('validates user payloads', function () {

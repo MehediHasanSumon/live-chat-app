@@ -6,9 +6,9 @@ type AuthFormShellProps = {
   title: string;
   description: string;
   children: ReactNode;
-  footerText: string;
-  footerHref: string;
-  footerLinkLabel: string;
+  footerText?: string;
+  footerHref?: string;
+  footerLinkLabel?: string;
 };
 
 export function AuthFormShell({
@@ -31,12 +31,14 @@ export function AuthFormShell({
 
         {children}
 
-        <p className="mt-6 text-sm text-[var(--muted)]">
-          {footerText}{" "}
-          <Link href={footerHref} className="font-semibold text-[var(--accent)]">
-            {footerLinkLabel}
-          </Link>
-        </p>
+        {footerText && footerHref && footerLinkLabel ? (
+          <p className="mt-6 text-sm text-[var(--muted)]">
+            {footerText}{" "}
+            <Link href={footerHref} className="font-semibold text-[var(--accent)]">
+              {footerLinkLabel}
+            </Link>
+          </p>
+        ) : null}
       </div>
     </section>
   );

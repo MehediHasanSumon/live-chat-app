@@ -19,6 +19,7 @@ type ApiClientOptions = Omit<RequestInit, "body" | "headers"> & {
 type ApiErrorPayload = {
   message?: string;
   errors?: Record<string, string[]>;
+  email_verification_required?: boolean;
 };
 
 export class ApiClientError extends Error {
@@ -143,6 +144,14 @@ async function parseErrorPayload(response: Response): Promise<ApiErrorPayload | 
   return response.json().catch(() => undefined) as Promise<ApiErrorPayload | undefined>;
 }
 
+function dispatchEmailVerificationRequired(payload?: ApiErrorPayload): void {
+  if (typeof window === "undefined" || payload?.email_verification_required !== true) {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent("chat-app:email-verification-required"));
+}
+
 export async function ensureCsrfCookie(): Promise<void> {
   if (typeof window === "undefined") {
     return;
@@ -189,7 +198,10 @@ async function request<T>(path: string, options: ApiClientOptions = {}, hasRetri
   }
 
   if (!response.ok) {
-    throw new ApiClientError(response.status, await parseErrorPayload(response));
+    const errorPayload = await parseErrorPayload(response);
+    dispatchEmailVerificationRequired(errorPayload);
+
+    throw new ApiClientError(response.status, errorPayload);
   }
 
   if (response.status === 204) {

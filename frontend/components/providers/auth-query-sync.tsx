@@ -36,13 +36,20 @@ export function AuthQuerySync() {
       router.refresh();
     }
 
+    function handleEmailVerificationRequired() {
+      refetchAuthState();
+      router.refresh();
+    }
+
     window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("popstate", handlePopState);
+    window.addEventListener("chat-app:email-verification-required", handleEmailVerificationRequired);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("chat-app:email-verification-required", handleEmailVerificationRequired);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [queryClient, router]);
