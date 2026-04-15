@@ -16,6 +16,7 @@ type SelectInputProps = {
   onChange: (value: string) => void;
   placeholder?: string;
   dropdownLabel?: string;
+  dropdownPlacement?: "bottom" | "top";
   disabled?: boolean;
   className?: string;
   triggerClassName?: string;
@@ -27,6 +28,7 @@ export function SelectInput({
   onChange,
   placeholder = "Select option",
   dropdownLabel,
+  dropdownPlacement = "bottom",
   disabled = false,
   className,
   triggerClassName,
@@ -100,8 +102,11 @@ export function SelectInput({
       <div
         role="listbox"
         className={cn(
-          "absolute left-0 top-[calc(100%+8px)] z-[80] min-w-full overflow-hidden rounded-lg border border-[rgba(99,109,152,0.16)] bg-white p-2 shadow-[0_22px_54px_rgba(40,45,78,0.16)] transition-all duration-150 ease-out",
-          isOpen && !disabled ? "visible translate-y-0 scale-100 opacity-100" : "invisible -translate-y-1 scale-95 opacity-0",
+          "absolute left-0 z-[80] min-w-full overflow-hidden rounded-lg border border-[rgba(99,109,152,0.16)] bg-white p-2 shadow-[0_22px_54px_rgba(40,45,78,0.16)] transition-all duration-150 ease-out",
+          dropdownPlacement === "top" ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+8px)]",
+          isOpen && !disabled
+            ? "visible translate-y-0 scale-100 opacity-100"
+            : cn("invisible scale-95 opacity-0", dropdownPlacement === "top" ? "translate-y-1" : "-translate-y-1"),
           disabled ? "pointer-events-none" : isOpen ? "pointer-events-auto" : "pointer-events-none",
         )}
       >

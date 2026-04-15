@@ -96,6 +96,7 @@ export function Pagination({
             value={String(meta.per_page)}
             disabled={disabled}
             dropdownLabel="Rows"
+            dropdownPlacement="top"
             className="w-24"
             onChange={(nextValue) => onPerPageChange(Number(nextValue))}
             options={perPageOptions.map((option) => ({

@@ -652,7 +652,8 @@ function CompanySettingsTable({
           {search ? "No company settings matched your search." : "No company settings found yet."}
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+          <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead>
               <tr className="border-b border-[var(--line)] text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -675,6 +676,7 @@ function CompanySettingsTable({
               ))}
             </tbody>
           </table>
+          </div>
           {paginationMeta ? (
             <Pagination
               meta={paginationMeta}
@@ -684,7 +686,7 @@ function CompanySettingsTable({
               onPerPageChange={onPerPageChange}
             />
           ) : null}
-        </div>
+        </>
       )}
     </section>
   );

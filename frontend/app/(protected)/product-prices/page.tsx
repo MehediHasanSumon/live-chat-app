@@ -563,7 +563,8 @@ function ProductPricesPageContent() {
               {search ? "No product prices matched your search." : "No product prices found yet."}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b border-[var(--line)] text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -631,6 +632,7 @@ function ProductPricesPageContent() {
                   ))}
                 </tbody>
               </table>
+              </div>
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
@@ -640,7 +642,7 @@ function ProductPricesPageContent() {
                   onPerPageChange={(nextPerPage) => updatePaginationUrl(DEFAULT_PAGE, nextPerPage)}
                 />
               ) : null}
-            </div>
+            </>
           )}
         </section>
       ) : null}

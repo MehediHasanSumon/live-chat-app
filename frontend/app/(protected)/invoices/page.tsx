@@ -203,7 +203,8 @@ function InvoicesPageContent() {
               {search ? "No invoices matched your search." : "No invoices found yet."}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b border-[var(--line)] text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -283,6 +284,7 @@ function InvoicesPageContent() {
                   ))}
                 </tbody>
               </table>
+              </div>
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
@@ -291,7 +293,7 @@ function InvoicesPageContent() {
                   onPerPageChange={(nextPerPage) => updatePaginationUrl(DEFAULT_PAGE, nextPerPage)}
                 />
               ) : null}
-            </div>
+            </>
           )}
         </section>
       ) : null}

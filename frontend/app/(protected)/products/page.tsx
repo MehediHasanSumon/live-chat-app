@@ -430,7 +430,8 @@ function ProductsPageContent() {
               {search ? "No products matched your search." : "No products found yet."}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b border-[var(--line)] text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -508,6 +509,7 @@ function ProductsPageContent() {
                   ))}
                 </tbody>
               </table>
+              </div>
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
@@ -517,7 +519,7 @@ function ProductsPageContent() {
                   onPerPageChange={(nextPerPage) => updatePaginationUrl(DEFAULT_PAGE, nextPerPage)}
                 />
               ) : null}
-            </div>
+            </>
           )}
         </section>
       ) : null}

@@ -319,7 +319,8 @@ function PermissionsPageContent() {
               {search ? "No permissions matched your search." : "No permissions found yet."}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b border-[var(--line)] text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -372,6 +373,7 @@ function PermissionsPageContent() {
                   ))}
                 </tbody>
               </table>
+              </div>
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
@@ -381,7 +383,7 @@ function PermissionsPageContent() {
                   onPerPageChange={(nextPerPage) => updatePaginationUrl(DEFAULT_PAGE, nextPerPage)}
                 />
               ) : null}
-            </div>
+            </>
           )}
         </section>
       ) : null}

@@ -186,7 +186,8 @@ function SystemLogPageContent() {
               {search ? "No system logs matched your search." : "No system logs found yet."}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b border-[var(--line)] text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -231,6 +232,7 @@ function SystemLogPageContent() {
                   ))}
                 </tbody>
               </table>
+              </div>
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
@@ -239,7 +241,7 @@ function SystemLogPageContent() {
                   onPerPageChange={(nextPerPage) => updatePaginationUrl(DEFAULT_PAGE, nextPerPage)}
                 />
               ) : null}
-            </div>
+            </>
           )}
         </section>
       ) : null}
