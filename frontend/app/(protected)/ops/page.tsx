@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 import { useAdminOpsHealthQuery, useAdminOpsStatusQuery } from "@/lib/hooks/use-admin-ops";
 
 function formatBytes(bytes: number) {
@@ -28,24 +26,10 @@ export default function AdminOpsPage() {
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto w-full max-w-6xl rounded-[1.5rem] px-5 py-5 sm:px-6">
-        <div className="flex items-center justify-between gap-4">
+        <div>
           <div>
             <p className="text-lg font-semibold text-[#2d3150]">Admin ops</p>
             <p className="text-sm text-[var(--muted)]">Quick health checks for queue, notifications, storage, Reverb, LiveKit, and Horizon.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/storage"
-              className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
-            >
-              Storage admin
-            </Link>
-            <Link
-              href="/messages"
-              className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
-            >
-              Back to messages
-            </Link>
           </div>
         </div>
 

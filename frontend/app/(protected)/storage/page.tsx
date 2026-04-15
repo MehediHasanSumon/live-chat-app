@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -58,6 +57,8 @@ export default function AdminStoragePage() {
 
     return "";
   };
+  const largeDeleteAfterDays = Number(resolvedField("large_file_delete_after_days") || 7);
+  const smallDeleteAfterDays = Number(resolvedField("small_file_delete_after_days") || 30);
 
   const preview = previewCleanupMutation.data?.data;
   const latestRun = runCleanupMutation.data?.data;
@@ -71,19 +72,10 @@ export default function AdminStoragePage() {
       <section className="glass-card mx-auto w-full max-w-6xl rounded-[1.5rem] px-5 py-5 sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-lg font-semibold text-[#2d3150]">Storage Admin</p>
+            <p className="text-lg font-semibold text-[#2d3150]">Storage Configuration</p>
             <p className="text-sm text-[var(--muted)]">
               Manage retention, preview cleanup, and review live attachment usage.
             </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/messages"
-              className="rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--foreground)]"
-            >
-              Back to messages
-            </Link>
           </div>
         </div>
 
@@ -236,15 +228,15 @@ export default function AdminStoragePage() {
               ) : usage ? (
                 <dl className="mt-4 grid gap-3">
                   <div>
-                    <dt className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Live objects</dt>
+                    <dt className="text-sm text-[var(--muted)]">Live objects</dt>
                     <dd className="mt-1 text-sm font-medium text-[var(--foreground)]">{usage.live_object_count}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Live bytes</dt>
+                    <dt className="text-sm text-[var(--muted)]">Live bytes</dt>
                     <dd className="mt-1 text-sm font-medium text-[var(--foreground)]">{formatBytes(usage.live_bytes)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">Deleted bytes total</dt>
+                    <dt className="text-sm text-[var(--muted)]">Deleted bytes total</dt>
                     <dd className="mt-1 text-sm font-medium text-[var(--foreground)]">
                       {formatBytes(usage.deleted_bytes_total)}
                     </dd>
@@ -261,18 +253,17 @@ export default function AdminStoragePage() {
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {[
-                  { key: "large_after_7d", label: "Large > 7 days" },
-                  { key: "small_after_30d", label: "Small <= 30 days" },
+                  { key: "large_after_7d", label: `Large > ${largeDeleteAfterDays} days` },
+                  { key: "small_after_30d", label: `Small > ${smallDeleteAfterDays} days` },
                 ].map((option) => (
                   <button
                     key={option.key}
                     type="button"
                     onClick={() => setSelectedRuleKey(option.key as "large_after_7d" | "small_after_30d")}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                      selectedRuleKey === option.key
-                        ? "bg-[var(--accent)] text-white"
-                        : "bg-[var(--accent-soft)] text-[var(--foreground)]"
-                    }`}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${selectedRuleKey === option.key
+                      ? "bg-[var(--accent)] text-white"
+                      : "bg-[var(--accent-soft)] text-[var(--foreground)]"
+                      }`}
                   >
                     {option.label}
                   </button>

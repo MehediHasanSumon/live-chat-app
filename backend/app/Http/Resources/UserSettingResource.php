@@ -20,9 +20,18 @@ class UserSettingResource extends JsonResource
             'sound_enabled' => $this->sound_enabled,
             'vibrate_enabled' => $this->vibrate_enabled,
             'quiet_hours_enabled' => $this->quiet_hours_enabled,
-            'quiet_hours_start' => $this->quiet_hours_start,
-            'quiet_hours_end' => $this->quiet_hours_end,
+            'quiet_hours_start' => $this->timeValue($this->quiet_hours_start),
+            'quiet_hours_end' => $this->timeValue($this->quiet_hours_end),
             'quiet_hours_timezone' => $this->quiet_hours_timezone,
         ];
+    }
+
+    protected function timeValue(mixed $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        return substr((string) $value, 0, 5);
     }
 }

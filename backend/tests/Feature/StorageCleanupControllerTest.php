@@ -23,6 +23,26 @@ it('shows and updates storage policy while writing an audit log', function () {
         ->assertOk()
         ->assertJsonPath('data.global_cap_bytes', 21474836480);
 
+    $createdAt = now()->subDays(5)->startOfSecond();
+    $storageObject = StorageObject::query()->create([
+        'object_uuid' => (string) str()->uuid(),
+        'owner_user_id' => $admin->id,
+        'purpose' => 'message_attachment',
+        'media_kind' => 'file',
+        'storage_driver' => 'local',
+        'disk_path' => 'uploads/2026/04/policy-refresh.txt',
+        'original_name' => 'policy-refresh.txt',
+        'mime_type' => 'text/plain',
+        'file_ext' => 'txt',
+        'size_bytes' => 512,
+        'virus_scan_status' => 'clean',
+        'transcode_status' => 'ready',
+        'retention_mode' => 'default',
+        'delete_eligible_at' => now()->addDays(30),
+        'created_at' => $createdAt,
+        'updated_at' => $createdAt,
+    ]);
+
     $updateResponse = $this->actingAs($admin, 'web')
         ->patchJson('/api/admin/storage/policy', [
             'global_cap_bytes' => 1024 * 1024 * 1024,
@@ -37,6 +57,7 @@ it('shows and updates storage policy while writing an audit log', function () {
         ->assertJsonPath('data.small_file_delete_after_days', 45);
 
     expect(StoragePolicy::query()->firstOrFail()->global_cap_bytes)->toBe(1024 * 1024 * 1024)
+        ->and($storageObject->fresh()->delete_eligible_at?->toDateTimeString())->toBe($createdAt->copy()->addDays(45)->toDateTimeString())
         ->and(AuditLog::query()->where('action', 'policy_updated')->count())->toBe(1);
 });
 

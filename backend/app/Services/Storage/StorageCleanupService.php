@@ -43,16 +43,21 @@ class StorageCleanupService
             'updated_at' => now(),
         ])->save();
 
+        $policy = $policy->fresh();
+        $recalculatedObjects = $this->recalculateDefaultObjectEligibility($policy);
+
         $this->storageAuditService->log(
             $actorId,
             'storage_policy',
             $policy->id,
             'policy_updated',
             $before,
-            $policy->fresh()->toArray(),
+            array_merge($policy->toArray(), [
+                'recalculated_storage_objects' => $recalculatedObjects,
+            ]),
         );
 
-        return $policy->fresh();
+        return $policy;
     }
 
     /**
@@ -247,6 +252,46 @@ class StorageCleanupService
 
         if ($sizeBytes <= (int) $policy->small_file_threshold_bytes && $policy->small_file_rule_enabled) {
             return now()->addDays((int) $policy->small_file_delete_after_days);
+        }
+
+        return null;
+    }
+
+    protected function recalculateDefaultObjectEligibility(StoragePolicy $policy): int
+    {
+        $updatedCount = 0;
+
+        StorageObject::query()
+            ->whereNull('deleted_at')
+            ->where('retention_mode', 'default')
+            ->orderBy('id')
+            ->chunkById(200, function ($storageObjects) use ($policy, &$updatedCount): void {
+                foreach ($storageObjects as $storageObject) {
+                    $storageObject->forceFill([
+                        'delete_eligible_at' => $this->deleteEligibleAtForObject($storageObject, $policy),
+                    ])->save();
+
+                    $updatedCount++;
+                }
+            });
+
+        return $updatedCount;
+    }
+
+    protected function deleteEligibleAtForObject(StorageObject $storageObject, StoragePolicy $policy): ?\Illuminate\Support\Carbon
+    {
+        if (! $policy->auto_cleanup_enabled) {
+            return null;
+        }
+
+        $baseTime = $storageObject->created_at ?? now();
+
+        if ((int) $storageObject->size_bytes > (int) $policy->large_file_threshold_bytes && $policy->large_file_rule_enabled) {
+            return $baseTime->copy()->addDays((int) $policy->large_file_delete_after_days);
+        }
+
+        if ((int) $storageObject->size_bytes <= (int) $policy->small_file_threshold_bytes && $policy->small_file_rule_enabled) {
+            return $baseTime->copy()->addDays((int) $policy->small_file_delete_after_days);
         }
 
         return null;

@@ -11,4 +11,6 @@ Artisan::command('inspire', function () {
 
 Schedule::job(new DispatchScheduledNotificationDigestsJob())->everyMinute();
 Schedule::command('calls:cleanup-stale')->everyMinute();
+Schedule::command('chat:cleanup-large-files')->dailyAt('02:00')->withoutOverlapping();
+Schedule::command('chat:cleanup-small-files')->dailyAt('02:15')->withoutOverlapping();
 Schedule::command('activitylog:clean --force')->daily();

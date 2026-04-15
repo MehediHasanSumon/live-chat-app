@@ -56,9 +56,9 @@ const userManagementItems: DropdownItem[] = [
 ];
 
 const settingsItems: DropdownItem[] = [
-  { href: "/settings", label: "General" },
-  { href: "/settings", label: "Security" },
-  { href: "/settings", label: "Notifications" },
+  { href: "/settings", label: "User Settings" },
+  { href: "/ops", label: "System Configuration" },
+  { href: "/storage", label: "Storage Configuration" },
 ];
 
 function getInitials(name: string, username: string) {
