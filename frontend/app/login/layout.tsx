@@ -1,7 +1,10 @@
+import { type ReactNode } from "react";
 import type { Metadata } from "next";
 
 import { pageMetadata } from "@/lib/page-metadata";
 
 export const metadata: Metadata = pageMetadata("Login");
 
-export { default } from "@/app/login/page";
+export default function LoginLayout({ children }: Readonly<{ children: ReactNode }>) {
+  return children;
+}

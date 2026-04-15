@@ -3,6 +3,7 @@ import { Poppins } from "next/font/google";
 
 import { AppProviders } from "@/components/providers/app-providers";
 import { PerformanceInitializer } from "@/components/providers/performance-initializer";
+import { APP_NAME } from "@/lib/page-metadata";
 
 import "@livekit/components-styles";
 import "./globals.css";
@@ -14,7 +15,10 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Live Chat App",
+  title: {
+    default: APP_NAME,
+    template: `%s | ${APP_NAME}`,
+  },
   description: "Auth and messenger interface for a realtime chat platform.",
 };
 
