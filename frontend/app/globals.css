@@ -128,6 +128,10 @@ button:disabled {
   box-shadow: var(--shadow);
 }
 
+.glass-card > .overflow-x-auto {
+  overflow-y: hidden;
+}
+
 .surface {
   background: var(--card-strong);
   border: 1px solid var(--line);

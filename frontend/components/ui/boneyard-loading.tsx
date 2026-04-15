@@ -1,7 +1,6 @@
 "use client";
 
 import { ReactNode } from "react";
-import { Skeleton } from "boneyard-js/react";
 
 import { cn } from "@/lib/utils";
 
@@ -18,28 +17,12 @@ function Bone({ className }: { className?: string }) {
   return <span className={cn("block animate-pulse rounded-md bg-[rgba(96,91,255,0.11)]", className)} />;
 }
 
-export function BoneyardSkeleton({ name, loading, children, fallback, className, fixture }: BoneyardSkeletonProps) {
-  const shouldFlatten = className?.split(" ").includes("contents");
-
-  if (shouldFlatten && !loading) {
+export function BoneyardSkeleton({ loading, children, fallback, className }: BoneyardSkeletonProps) {
+  if (!loading) {
     return <>{children}</>;
   }
 
-  return (
-    <Skeleton
-      name={name}
-      loading={loading}
-      animate="shimmer"
-      transition
-      color="rgba(96,91,255,0.12)"
-      darkColor="rgba(255,255,255,0.08)"
-      fallback={fallback}
-      fixture={fixture}
-      className={className}
-    >
-      {children}
-    </Skeleton>
-  );
+  return <div className={className}>{fallback}</div>;
 }
 
 export function TableSkeleton({ columns = 5, rows = 6 }: { columns?: number; rows?: number }) {
