@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { BoneyardSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
 import { CheckboxInput } from "@/components/ui/checkbox-input";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
@@ -67,8 +68,10 @@ export default function SettingsPage() {
         </div>
 
         {isLoading || !settings ? (
-          <div className="mt-6 rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-4 text-sm text-[var(--muted)]">
-            Loading settings...
+          <div className="mt-6 rounded-2xl border border-[var(--line)] bg-white/80">
+            <BoneyardSkeleton name="settings-panel" loading={isLoading || !settings} fallback={<PanelSkeleton lines={8} />}>
+              <PanelSkeleton lines={8} />
+            </BoneyardSkeleton>
           </div>
         ) : (
           <div className="mt-6 grid gap-5 lg:grid-cols-2">

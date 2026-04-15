@@ -5,6 +5,7 @@ import { ArrowLeft, PencilLine, Printer, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 
 import { InvoiceSummary, InvoiceSummaryData, printInvoiceSummary } from "@/components/admin/invoice-summary";
+import { BoneyardSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
 import { Button } from "@/components/ui/button";
 import { AdminInvoiceRecord, useAdminInvoiceQuery, useDeleteAdminInvoiceMutation } from "@/lib/hooks/use-admin-invoices";
 
@@ -104,8 +105,10 @@ export default function InvoiceDetailsPage() {
       </section>
 
       {isLoading ? (
-        <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] rounded-[1.5rem] px-6 py-8 text-sm text-[var(--muted)] sm:px-8">
-          Loading invoice...
+        <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] rounded-[1.5rem]">
+          <BoneyardSkeleton name="invoice-detail-panel" loading={isLoading} fallback={<PanelSkeleton lines={8} />}>
+            <PanelSkeleton lines={8} />
+          </BoneyardSkeleton>
         </section>
       ) : null}
 

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ArrowLeft, FileText } from "lucide-react";
 
 import { type MessagesImageViewerItem } from "@/components/messages/messages-image-viewer";
+import { BoneyardSkeleton, ListSkeleton } from "@/components/ui/boneyard-loading";
 import { useSharedFilesQuery, useSharedMediaQuery } from "@/lib/hooks/use-shared-attachments-query";
 import { toThreadMediaItems, type MessageThread } from "@/lib/messages-data";
 
@@ -70,9 +71,9 @@ export function MessagesMediaSidebar({
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
           {isLoading ? (
-            <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
-              Loading {activeTab}...
-            </div>
+            <BoneyardSkeleton name="messages-media-sidebar" loading={isLoading} fallback={<ListSkeleton rows={4} />}>
+              <ListSkeleton rows={4} />
+            </BoneyardSkeleton>
           ) : null}
 
           {!isLoading && items.length === 0 ? (

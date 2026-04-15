@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Check, Search, X } from "lucide-react";
 
 import { MessageAvatar } from "@/components/messages/message-avatar";
+import { BoneyardSkeleton, ListSkeleton } from "@/components/ui/boneyard-loading";
 import { apiClient } from "@/lib/api-client";
 import { useUserSearchQuery } from "@/lib/hooks/use-user-search-query";
 import { type ConversationApiItem } from "@/lib/messages-data";
@@ -172,9 +173,9 @@ export function MessagesNewMessageModal({
 
           <div className="mt-4 max-h-[320px] space-y-2 overflow-y-auto pr-1">
             {isLoading ? (
-              <div className="rounded-[1.25rem] border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
-                Loading conversations...
-              </div>
+              <BoneyardSkeleton name="new-message-user-search" loading={isLoading} fallback={<ListSkeleton rows={4} />}>
+                <ListSkeleton rows={4} />
+              </BoneyardSkeleton>
             ) : null}
 
             {!isLoading && contacts.length === 0 ? (

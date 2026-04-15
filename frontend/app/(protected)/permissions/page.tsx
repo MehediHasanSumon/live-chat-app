@@ -5,6 +5,7 @@ import { PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { Pagination } from "@/components/ui/pagination";
 import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
@@ -310,7 +311,9 @@ function PermissionsPageContent() {
       {!error ? (
         <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] overflow-hidden rounded-[1.5rem]">
           {isLoading ? (
-            <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">Loading permissions...</div>
+            <BoneyardSkeleton name="permissions-table" loading={isLoading} fallback={<TableSkeleton columns={5} rows={6} />}>
+              <TableSkeleton columns={5} rows={6} />
+            </BoneyardSkeleton>
           ) : permissions.length === 0 ? (
             <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">
               {search ? "No permissions matched your search." : "No permissions found yet."}

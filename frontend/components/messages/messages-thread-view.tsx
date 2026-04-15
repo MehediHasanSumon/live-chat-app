@@ -8,6 +8,7 @@ import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
 import { type MessagesImageViewerItem } from "@/components/messages/messages-image-viewer";
 import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
+import { BoneyardSkeleton } from "@/components/ui/boneyard-loading";
 import { ApiClientError, apiClient } from "@/lib/api-client";
 import { openCallWindow } from "@/lib/call-window";
 import {
@@ -701,9 +702,9 @@ export function MessagesThreadView({
         <div className="-mx-1 flex justify-center pb-2 pt-1">
           {hasNextPage ? (
             isFetchingNextPage ? (
-              <div className="rounded-full border border-[rgba(111,123,176,0.16)] bg-white/90 px-4 py-2 text-xs font-semibold text-[#5a6388] shadow-[0_10px_24px_rgba(96,109,160,0.08)]">
-                Loading older messages...
-              </div>
+              <BoneyardSkeleton name="messages-older-page" loading={isFetchingNextPage} fallback={<div className="h-8 w-44 animate-pulse rounded-full bg-white/90" />}>
+                <div className="h-8 w-44 rounded-full bg-white/90" />
+              </BoneyardSkeleton>
             ) : null
           ) : mappedMessages.length > 0 ? (
             <div className="rounded-full border border-[rgba(111,123,176,0.12)] bg-white/80 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-[#99a1c2]">
@@ -805,16 +806,33 @@ export function MessagesThreadView({
         ) : null}
 
         {isLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div
-                key={`message-skeleton-${index}`}
-                className={`h-20 animate-pulse rounded-[26px] border border-[var(--line)] ${
-                  index % 2 === 0 ? "mr-auto max-w-[72%]" : "ml-auto max-w-[58%]"
-                } bg-white/70`}
-              />
-            ))}
-          </div>
+          <BoneyardSkeleton
+            name="messages-thread-timeline"
+            loading={isLoading}
+            fallback={
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={`message-skeleton-${index}`}
+                    className={`h-20 animate-pulse rounded-[26px] border border-[var(--line)] ${
+                      index % 2 === 0 ? "mr-auto max-w-[72%]" : "ml-auto max-w-[58%]"
+                    } bg-white/70`}
+                  />
+                ))}
+              </div>
+            }
+          >
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={`message-fixture-${index}`}
+                  className={`h-20 rounded-[26px] border border-[var(--line)] ${
+                    index % 2 === 0 ? "mr-auto max-w-[72%]" : "ml-auto max-w-[58%]"
+                  } bg-white/70`}
+                />
+              ))}
+            </div>
+          </BoneyardSkeleton>
         ) : null}
 
         {isError ? (

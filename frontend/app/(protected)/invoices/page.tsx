@@ -6,6 +6,7 @@ import { Eye, PencilLine, Plus, Trash2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { Pagination } from "@/components/ui/pagination";
 import { TextInput } from "@/components/ui/text-input";
 import { AdminInvoiceRecord, useAdminInvoicesQuery, useDeleteAdminInvoiceMutation } from "@/lib/hooks/use-admin-invoices";
@@ -194,7 +195,9 @@ function InvoicesPageContent() {
       {!error ? (
         <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] overflow-hidden rounded-[1.5rem]">
           {isLoading ? (
-            <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">Loading invoices...</div>
+            <BoneyardSkeleton name="invoices-table" loading={isLoading} fallback={<TableSkeleton columns={8} rows={6} />}>
+              <TableSkeleton columns={8} rows={6} />
+            </BoneyardSkeleton>
           ) : invoices.length === 0 ? (
             <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">
               {search ? "No invoices matched your search." : "No invoices found yet."}

@@ -5,6 +5,7 @@ import { PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { BoneyardSkeleton, PanelSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { CheckboxInput } from "@/components/ui/checkbox-input";
 import { Pagination } from "@/components/ui/pagination";
 import { RadioInput } from "@/components/ui/radio-input";
@@ -509,7 +510,9 @@ function UsersPageContent() {
 
                 <div className="max-h-56 overflow-y-auto rounded-lg border border-[var(--line)] bg-white/70 p-4">
                   {isRoleOptionsLoading ? (
-                    <p className="text-sm text-[var(--muted)]">Loading roles...</p>
+                    <BoneyardSkeleton name="user-role-options" loading={isRoleOptionsLoading} fallback={<PanelSkeleton lines={3} />}>
+                      <PanelSkeleton lines={3} />
+                    </BoneyardSkeleton>
                   ) : roleOptions.length === 0 ? (
                     <p className="text-sm text-[var(--muted)]">No roles found yet.</p>
                   ) : (
@@ -582,7 +585,9 @@ function UsersPageContent() {
       {!error ? (
         <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] overflow-hidden rounded-[1.5rem]">
           {isLoading ? (
-            <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">Loading users...</div>
+            <BoneyardSkeleton name="users-table" loading={isLoading} fallback={<TableSkeleton columns={7} rows={6} />}>
+              <TableSkeleton columns={7} rows={6} />
+            </BoneyardSkeleton>
           ) : users.length === 0 ? (
             <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">
               {search ? "No users matched your search." : "No users found yet."}

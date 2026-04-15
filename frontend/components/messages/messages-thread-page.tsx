@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { MessagesShell } from "@/components/messages/messages-shell";
 import { MessagesSidebar, type SidebarListView } from "@/components/messages/messages-sidebar";
 import { MessagesThreadLayout } from "@/components/messages/messages-thread-layout";
+import { BoneyardSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
 import { useConversationQuery } from "@/lib/hooks/use-conversation-query";
 import { toConversationThread } from "@/lib/messages-data";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
@@ -41,10 +42,9 @@ export function MessagesThreadPage({ threadId, sidebarView = "messages" }: Messa
         content={
           <section className="h-full w-full px-6">
             <div className="flex h-full w-full items-center justify-center">
-              <div className="flex flex-col items-center justify-center text-center">
-                <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]" />
-                <p className="mt-4 text-sm text-[var(--muted)]">Loading conversation...</p>
-              </div>
+              <BoneyardSkeleton name="conversation-thread-page" loading={isLoading} fallback={<PanelSkeleton lines={6} />}>
+                <PanelSkeleton lines={6} />
+              </BoneyardSkeleton>
             </div>
           </section>
         }
@@ -67,10 +67,9 @@ export function MessagesThreadPage({ threadId, sidebarView = "messages" }: Messa
         content={
           <section className="h-full w-full px-6">
             <div className="flex h-full w-full items-center justify-center">
-              <div className="flex flex-col items-center justify-center text-center">
-                <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]" />
-                <p className="mt-4 text-sm text-[var(--muted)]">Loading conversation...</p>
-              </div>
+              <BoneyardSkeleton name="conversation-thread-refetch" loading={isLoading || isFetching} fallback={<PanelSkeleton lines={6} />}>
+                <PanelSkeleton lines={6} />
+              </BoneyardSkeleton>
             </div>
           </section>
         }

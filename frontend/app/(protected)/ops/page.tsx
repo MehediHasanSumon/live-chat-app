@@ -1,5 +1,6 @@
 "use client";
 
+import { BoneyardSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
 import { useAdminOpsHealthQuery, useAdminOpsStatusQuery } from "@/lib/hooks/use-admin-ops";
 
 function formatBytes(bytes: number) {
@@ -37,7 +38,9 @@ export default function AdminOpsPage() {
           <section className="rounded-[1.25rem] border border-[var(--line)] bg-white/75 p-5">
             <h2 className="text-base font-semibold text-[#2d3150]">Health</h2>
             {isHealthLoading || !health ? (
-              <p className="mt-4 text-sm text-[var(--muted)]">Loading health status...</p>
+              <BoneyardSkeleton name="ops-health-panel" loading={isHealthLoading || !health} fallback={<PanelSkeleton lines={4} />}>
+                <PanelSkeleton lines={4} />
+              </BoneyardSkeleton>
             ) : (
               <div className="mt-4 space-y-2 text-sm text-[var(--foreground)]">
                 <p>Overall status: {health.overall_status}</p>
@@ -53,7 +56,9 @@ export default function AdminOpsPage() {
           <section className="rounded-[1.25rem] border border-[var(--line)] bg-white/75 p-5">
             <h2 className="text-base font-semibold text-[#2d3150]">Queue</h2>
             {isStatusLoading || !status ? (
-              <p className="mt-4 text-sm text-[var(--muted)]">Loading queue metrics...</p>
+              <BoneyardSkeleton name="ops-queue-panel" loading={isStatusLoading || !status} fallback={<PanelSkeleton lines={4} />}>
+                <PanelSkeleton lines={4} />
+              </BoneyardSkeleton>
             ) : (
               <div className="mt-4 space-y-2 text-sm text-[var(--foreground)]">
                 <p>Connection: {status.queues.connection}</p>
@@ -70,7 +75,9 @@ export default function AdminOpsPage() {
           <section className="rounded-[1.25rem] border border-[var(--line)] bg-white/75 p-5">
             <h2 className="text-base font-semibold text-[#2d3150]">Realtime & calls</h2>
             {isStatusLoading || !status ? (
-              <p className="mt-4 text-sm text-[var(--muted)]">Loading realtime status...</p>
+              <BoneyardSkeleton name="ops-realtime-panel" loading={isStatusLoading || !status} fallback={<PanelSkeleton lines={4} />}>
+                <PanelSkeleton lines={4} />
+              </BoneyardSkeleton>
             ) : (
               <div className="mt-4 space-y-2 text-sm text-[var(--foreground)]">
                 <p>Reverb configured: {status.reverb.configured ? "Yes" : "No"}</p>
@@ -84,7 +91,9 @@ export default function AdminOpsPage() {
           <section className="rounded-[1.25rem] border border-[var(--line)] bg-white/75 p-5">
             <h2 className="text-base font-semibold text-[#2d3150]">Storage & Horizon</h2>
             {isStatusLoading || !status ? (
-              <p className="mt-4 text-sm text-[var(--muted)]">Loading storage metrics...</p>
+              <BoneyardSkeleton name="ops-storage-panel" loading={isStatusLoading || !status} fallback={<PanelSkeleton lines={5} />}>
+                <PanelSkeleton lines={5} />
+              </BoneyardSkeleton>
             ) : (
               <div className="mt-4 space-y-2 text-sm text-[var(--foreground)]">
                 <p>Live objects: {status.storage.usage.live_object_count}</p>

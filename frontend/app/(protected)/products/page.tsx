@@ -5,6 +5,7 @@ import { PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { Pagination } from "@/components/ui/pagination";
 import { RadioInput } from "@/components/ui/radio-input";
 import { TextInput } from "@/components/ui/text-input";
@@ -421,7 +422,9 @@ function ProductsPageContent() {
       {!error ? (
         <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] overflow-hidden rounded-[1.5rem]">
           {isLoading ? (
-            <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">Loading products...</div>
+            <BoneyardSkeleton name="products-table" loading={isLoading} fallback={<TableSkeleton columns={7} rows={6} />}>
+              <TableSkeleton columns={7} rows={6} />
+            </BoneyardSkeleton>
           ) : products.length === 0 ? (
             <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">
               {search ? "No products matched your search." : "No products found yet."}

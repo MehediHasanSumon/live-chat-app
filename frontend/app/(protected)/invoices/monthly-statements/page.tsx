@@ -6,6 +6,7 @@ import { CalendarDays, FileText, Plus, ReceiptText, Wallet } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { BoneyardSkeleton, CardGridSkeleton, PanelSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { DatePicker } from "@/components/ui/date-picker";
 import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 import { InvoicePaymentType, InvoiceStatementFilters, useAdminMonthlyInvoiceStatementQuery } from "@/lib/hooks/use-admin-invoices";
@@ -277,7 +278,9 @@ function MonthlyStatementsPageContent() {
       {!error ? (
         <>
           <section className="relative z-10 mx-auto mt-5 grid w-full max-w-[1328px] gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="glass-card rounded-[1.25rem] px-5 py-5">
+            <BoneyardSkeleton name="monthly-statement-summary-cards" loading={isLoading} fallback={<CardGridSkeleton cards={4} />} className="contents">
+              <>
+                <div className="glass-card rounded-[1.25rem] px-5 py-5">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-[#ea580c]">
                   <ReceiptText className="h-5 w-5" />
@@ -287,9 +290,9 @@ function MonthlyStatementsPageContent() {
                   <p className="mt-1 text-2xl font-semibold text-[#1f2440]">{isLoading ? "-" : (summary?.invoice_count ?? 0)}</p>
                 </div>
               </div>
-            </div>
+                </div>
 
-            <div className="glass-card rounded-[1.25rem] px-5 py-5">
+                <div className="glass-card rounded-[1.25rem] px-5 py-5">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
                   <Wallet className="h-5 w-5" />
@@ -299,9 +302,9 @@ function MonthlyStatementsPageContent() {
                   <p className="mt-1 text-2xl font-semibold text-[#1f2440]">BDT {isLoading ? "-" : formatMoney(summary?.total_amount ?? "0")}</p>
                 </div>
               </div>
-            </div>
+                </div>
 
-            <div className="glass-card rounded-[1.25rem] px-5 py-5">
+                <div className="glass-card rounded-[1.25rem] px-5 py-5">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
                   <CalendarDays className="h-5 w-5" />
@@ -311,9 +314,9 @@ function MonthlyStatementsPageContent() {
                   <p className="mt-1 text-2xl font-semibold text-[#1f2440]">BDT {isLoading ? "-" : formatMoney(summary?.paid_amount ?? "0")}</p>
                 </div>
               </div>
-            </div>
+                </div>
 
-            <div className="glass-card rounded-[1.25rem] px-5 py-5">
+                <div className="glass-card rounded-[1.25rem] px-5 py-5">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 text-rose-700">
                   <FileText className="h-5 w-5" />
@@ -323,7 +326,9 @@ function MonthlyStatementsPageContent() {
                   <p className="mt-1 text-2xl font-semibold text-[#1f2440]">BDT {isLoading ? "-" : formatMoney(summary?.due_amount ?? "0")}</p>
                 </div>
               </div>
-            </div>
+                </div>
+              </>
+            </BoneyardSkeleton>
           </section>
 
           <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] overflow-hidden rounded-[1.5rem]">
@@ -331,7 +336,9 @@ function MonthlyStatementsPageContent() {
               <h2 className="text-xl font-semibold text-[#1f2440]">Daily Totals</h2>
             </div>
             {isLoading ? (
-              <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">Loading daily totals...</div>
+              <BoneyardSkeleton name="monthly-statement-daily-table" loading={isLoading} fallback={<TableSkeleton columns={7} rows={5} />}>
+                <TableSkeleton columns={7} rows={5} />
+              </BoneyardSkeleton>
             ) : dailySummaries.length === 0 ? (
               <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">No submitted invoices found for this month.</div>
             ) : (
@@ -371,7 +378,9 @@ function MonthlyStatementsPageContent() {
               <h2 className="text-xl font-semibold text-[#1f2440]">Product Summary</h2>
             </div>
             {isLoading ? (
-              <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">Loading products...</div>
+              <BoneyardSkeleton name="monthly-statement-products-table" loading={isLoading} fallback={<TableSkeleton columns={5} rows={4} />}>
+                <TableSkeleton columns={5} rows={4} />
+              </BoneyardSkeleton>
             ) : productSummaries.length === 0 ? (
               <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">No submitted invoice items found for this month.</div>
             ) : (
@@ -410,11 +419,10 @@ function MonthlyStatementsPageContent() {
 function MonthlyStatementsPageFallback() {
   return (
     <main className="shell px-4 py-6 sm:px-6">
-      <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-[#1f2440]">Monthly Statements</h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">Loading statement details.</p>
-        </div>
+      <section className="glass-card mx-auto w-full max-w-[1328px] rounded-[1.5rem]">
+        <BoneyardSkeleton name="monthly-statement-page-fallback" loading fallback={<PanelSkeleton lines={5} />}>
+          <PanelSkeleton lines={5} />
+        </BoneyardSkeleton>
       </section>
     </main>
   );

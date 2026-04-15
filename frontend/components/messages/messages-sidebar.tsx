@@ -23,6 +23,7 @@ import { MessagesSearchBar } from "@/components/messages/messages-search-bar";
 import { MessagesSidebarHeader } from "@/components/messages/messages-sidebar-header";
 import { MessagesThreadMenu } from "@/components/messages/messages-thread-menu";
 import { MessageThreadItem } from "@/components/messages/message-thread-item";
+import { BoneyardSkeleton, ListSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
 import { openCallWindow } from "@/lib/call-window";
 import { getDirectCallTargetUserId } from "@/lib/calls-data";
 import {
@@ -348,33 +349,22 @@ export function MessagesSidebar({
       ) : null}
 
       <div className="mt-4 space-y-2">
-        {(sidebarView === "messages" || sidebarView === "archived") && isLoading
-          ? Array.from({ length: 5 }).map((_, index) => (
-              <div
-                key={`thread-skeleton-${index}`}
-                className="animate-pulse rounded-xl border border-transparent bg-white/70 px-3 py-3"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="h-11 w-11 rounded-full bg-[var(--accent-soft)]" />
-                  <div className="min-w-0 flex-1">
-                    <div className="h-4 w-1/2 rounded bg-[var(--accent-soft)]" />
-                    <div className="mt-2 h-3 w-5/6 rounded bg-[var(--accent-soft)]/80" />
-                  </div>
-                </div>
-              </div>
-            ))
-          : null}
+        {(sidebarView === "messages" || sidebarView === "archived") && isLoading ? (
+          <BoneyardSkeleton name="messages-sidebar-threads" loading={isLoading} fallback={<ListSkeleton rows={5} />}>
+            <ListSkeleton rows={5} />
+          </BoneyardSkeleton>
+        ) : null}
 
         {sidebarView === "requests" && isRequestsLoading ? (
-          <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
-            Loading requests...
-          </div>
+          <BoneyardSkeleton name="messages-sidebar-requests" loading={isRequestsLoading} fallback={<PanelSkeleton lines={3} />}>
+            <PanelSkeleton lines={3} />
+          </BoneyardSkeleton>
         ) : null}
 
         {sidebarView === "blocked" && isBlockedLoading ? (
-          <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-4 text-sm text-[var(--muted)]">
-            Loading blocked accounts...
-          </div>
+          <BoneyardSkeleton name="messages-sidebar-blocked" loading={isBlockedLoading} fallback={<ListSkeleton rows={4} />}>
+            <ListSkeleton rows={4} />
+          </BoneyardSkeleton>
         ) : null}
 
         {(sidebarView === "messages" || sidebarView === "archived") && !isLoading && isError ? (

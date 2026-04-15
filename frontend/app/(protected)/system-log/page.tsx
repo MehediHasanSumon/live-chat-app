@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { Pagination } from "@/components/ui/pagination";
 import { TextInput } from "@/components/ui/text-input";
 import { useAdminSystemLogsQuery } from "@/lib/hooks/use-admin-system-logs";
@@ -177,7 +178,9 @@ function SystemLogPageContent() {
       {!error ? (
         <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] overflow-hidden rounded-[1.5rem]">
           {isLoading ? (
-            <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">Loading system logs...</div>
+            <BoneyardSkeleton name="system-logs-table" loading={isLoading} fallback={<TableSkeleton columns={6} rows={6} />}>
+              <TableSkeleton columns={6} rows={6} />
+            </BoneyardSkeleton>
           ) : logs.length === 0 ? (
             <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">
               {search ? "No system logs matched your search." : "No system logs found yet."}

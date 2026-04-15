@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { BoneyardSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
 import { CheckboxInput } from "@/components/ui/checkbox-input";
 import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
@@ -89,7 +90,9 @@ export default function AdminStoragePage() {
             </div>
 
             {isPolicyLoading ? (
-              <p className="mt-4 text-sm text-[var(--muted)]">Loading storage policy...</p>
+              <BoneyardSkeleton name="storage-policy-panel" loading={isPolicyLoading} fallback={<PanelSkeleton lines={6} />}>
+                <PanelSkeleton lines={6} />
+              </BoneyardSkeleton>
             ) : null}
 
             {policy ? (
@@ -224,7 +227,9 @@ export default function AdminStoragePage() {
               <h2 className="text-base font-semibold text-[#2d3150]">Usage</h2>
 
               {isUsageLoading ? (
-                <p className="mt-4 text-sm text-[var(--muted)]">Loading usage...</p>
+                <BoneyardSkeleton name="storage-usage-panel" loading={isUsageLoading} fallback={<PanelSkeleton lines={5} />}>
+                  <PanelSkeleton lines={5} />
+                </BoneyardSkeleton>
               ) : usage ? (
                 <dl className="mt-4 grid gap-3">
                   <div>

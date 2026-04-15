@@ -1,6 +1,8 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef, useCallback } from "react";
 
+import { BoneyardSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
+
 export interface Message {
   id: number;
   content: string;
@@ -96,7 +98,9 @@ export function VirtualMessageList({
     >
       {isLoadingMore ? (
         <div className="flex items-center justify-center py-2">
-          <div className="text-xs text-gray-400">Loading earlier messages...</div>
+          <BoneyardSkeleton name="virtual-message-list-more" loading={isLoadingMore} fallback={<PanelSkeleton lines={1} />}>
+            <PanelSkeleton lines={1} />
+          </BoneyardSkeleton>
         </div>
       ) : null}
 
