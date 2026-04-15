@@ -40,6 +40,10 @@ type ProductUnitResponse = {
   data: AdminProductUnitRecord;
 };
 
+type ProductUnitOptionsResponse = {
+  data: AdminProductUnitRecord[];
+};
+
 export type ProductUnitPayload = {
   unit_name: string;
   unit_value: string;
@@ -71,6 +75,16 @@ export function useAdminProductUnitsQuery(params: ProductUnitListParams, enabled
     queryFn: () => apiClient.get<ProductUnitsResponse>(buildProductUnitsPath(params), { skipAuthRedirect: true }),
     enabled,
     retry: false,
+  });
+}
+
+export function useAdminProductUnitOptionsQuery(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.admin.productUnits.options,
+    queryFn: () => apiClient.get<ProductUnitOptionsResponse>("/api/admin/product-units/options", { skipAuthRedirect: true }),
+    enabled,
+    retry: false,
+    select: (response) => response.data,
   });
 }
 

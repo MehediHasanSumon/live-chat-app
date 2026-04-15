@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ProductPrice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class AdminProductPriceController extends Controller
@@ -77,7 +78,7 @@ class AdminProductPriceController extends Controller
                 'product_unit_id' => $validated['product_unit_id'] ?? null,
                 'original_price' => $validated['original_price'],
                 'sell_price' => $validated['sell_price'],
-                'date_time' => $validated['date_time'],
+                'date_time' => $this->normalizeDateTime($validated['date_time']),
                 'is_active' => (bool) $validated['is_active'],
                 'created_by' => $request->user()?->id,
                 'deactivated_at' => (bool) $validated['is_active'] ? null : ($validated['deactivated_at'] ?? null),
@@ -104,7 +105,7 @@ class AdminProductPriceController extends Controller
                 'product_unit_id' => $validated['product_unit_id'] ?? null,
                 'original_price' => $validated['original_price'],
                 'sell_price' => $validated['sell_price'],
-                'date_time' => $validated['date_time'],
+                'date_time' => $this->normalizeDateTime($validated['date_time']),
                 'is_active' => (bool) $validated['is_active'],
                 'deactivated_at' => (bool) $validated['is_active'] ? null : ($validated['deactivated_at'] ?? now()),
                 'note' => $validated['note'] ?? null,
@@ -149,6 +150,19 @@ class AdminProductPriceController extends Controller
                 'is_active' => false,
                 'deactivated_at' => now(),
             ]);
+    }
+
+    protected function normalizeDateTime(string $value): Carbon
+    {
+        $dateTime = Carbon::parse($value);
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            $now = now();
+
+            return $dateTime->setTime((int) $now->format('H'), (int) $now->format('i'), (int) $now->format('s'));
+        }
+
+        return $dateTime;
     }
 
     protected function serializePrice(ProductPrice $price): array

@@ -59,6 +59,10 @@ type ProductResponse = {
   data: AdminProductRecord;
 };
 
+type ProductOptionsResponse = {
+  data: AdminProductRecord[];
+};
+
 export type ProductPayload = {
   product_name: string;
   description: string | null;
@@ -91,6 +95,16 @@ export function useAdminProductsQuery(params: ProductListParams, enabled = true)
     queryFn: () => apiClient.get<ProductsResponse>(buildProductsPath(params), { skipAuthRedirect: true }),
     enabled,
     retry: false,
+  });
+}
+
+export function useAdminProductOptionsQuery(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.admin.products.options,
+    queryFn: () => apiClient.get<ProductOptionsResponse>("/api/admin/products/options", { skipAuthRedirect: true }),
+    enabled,
+    retry: false,
+    select: (response) => response.data,
   });
 }
 

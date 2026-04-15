@@ -47,6 +47,16 @@ export const queryKeys = {
       list: (page: number, perPage: number, search: string) => ["admin", "products", { page, perPage, search }] as const,
       options: ["admin", "products", "options"] as const,
     },
+    productPrices: {
+      all: ["admin", "product-prices"] as const,
+      list: (page: number, perPage: number, search: string) => ["admin", "product-prices", { page, perPage, search }] as const,
+      activeOptions: ["admin", "product-prices", "active-options"] as const,
+    },
+    customers: {
+      all: ["admin", "customers"] as const,
+      list: (page: number, perPage: number, search: string) => ["admin", "customers", { page, perPage, search }] as const,
+      options: ["admin", "customers", "options"] as const,
+    },
     systemLogs: {
       all: ["admin", "system-logs"] as const,
       list: (page: number, perPage: number, search: string) => ["admin", "system-logs", { page, perPage, search }] as const,

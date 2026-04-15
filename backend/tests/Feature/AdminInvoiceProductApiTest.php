@@ -7,6 +7,7 @@ use App\Models\ProductPrice;
 use App\Models\ProductUnit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 
 uses(RefreshDatabase::class);
 
@@ -152,6 +153,32 @@ it('creates products with generated codes', function () {
         ])
         ->assertCreated()
         ->assertJsonPath('data.product_code', 'P002');
+});
+
+it('uses the current backend time when product price receives a date only value', function () {
+    Carbon::setTestNow(Carbon::parse('2026-05-04 15:45:12'));
+    $actor = User::factory()->create();
+    $product = Product::query()->create([
+        'product_name' => 'Diesel',
+        'product_code' => 'P001',
+        'status' => 'active',
+    ]);
+
+    $response = $this->actingAs($actor, 'web')
+        ->postJson('/api/admin/product-prices', [
+            'product_id' => $product->id,
+            'product_unit_id' => null,
+            'original_price' => 50,
+            'sell_price' => 60,
+            'date_time' => '2026-05-04',
+            'is_active' => true,
+        ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('data.date_time', '2026-05-04T15:45:12+00:00');
+
+    Carbon::setTestNow();
 });
 
 it('validates invoice totals and items', function () {

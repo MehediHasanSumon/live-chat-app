@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, House, MessageSquare, Package, Ruler, ScrollText, Settings, Users, X } from "lucide-react";
+import { BriefcaseBusiness, ChevronDown, House, MessageSquare, ScrollText, Settings, Users, X } from "lucide-react";
 
 import { useMessagesBadgeCount } from "@/lib/hooks/use-messages-badge-count";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -32,9 +32,17 @@ type DropdownOpenState = "auto" | "open" | "closed";
 const mainItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: House },
   { href: "/messages", label: "Messages", icon: MessageSquare },
+];
+
+const businessItems: DropdownItem[] = [
+  { href: "/customers", label: "Customers" },
+  { href: "/products", label: "Products" },
+  { href: "/product-units", label: "Product Units" },
+  { href: "/product-prices", label: "Product Prices" },
+];
+
+const utilityItems: NavItem[] = [
   { href: "/system-log", label: "System Log", icon: ScrollText },
-  { href: "/products", label: "Products", icon: Package },
-  { href: "/product-units", label: "Product Units", icon: Ruler },
 ];
 
 const userManagementItems: DropdownItem[] = [
@@ -243,6 +251,8 @@ export function AdminDashboardSidebar({
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
   const { badgeCount } = useMessagesBadgeCount(true);
+  const [businessOpenState, setBusinessOpenState] = useState<DropdownOpenState>("auto");
+  const [isBusinessHoverOpen, setIsBusinessHoverOpen] = useState(false);
   const [userManagementOpenState, setUserManagementOpenState] = useState<DropdownOpenState>("auto");
   const [isUserManagementHoverOpen, setIsUserManagementHoverOpen] = useState(false);
   const [settingsOpenState, setSettingsOpenState] = useState<DropdownOpenState>("auto");
@@ -250,8 +260,10 @@ export function AdminDashboardSidebar({
   const displayName = user?.name?.trim() || user?.username || "Guest User";
   const displayUsername = user?.username ? `@${user.username}` : "@guest";
   const initials = getInitials(displayName, user?.username ?? "GU");
+  const businessHasActiveItem = businessItems.some((item) => isRouteActive(pathname, item.href));
   const userManagementHasActiveItem = userManagementItems.some((item) => isRouteActive(pathname, item.href));
   const settingsHasActiveItem = settingsItems.some((item) => isRouteActive(pathname, item.href));
+  const businessOpen = businessOpenState === "open" || (businessOpenState === "auto" && businessHasActiveItem);
   const userManagementOpen = userManagementOpenState === "open" || (userManagementOpenState === "auto" && userManagementHasActiveItem);
   const settingsOpen = settingsOpenState === "open" || (settingsOpenState === "auto" && settingsHasActiveItem);
 
@@ -303,6 +315,20 @@ export function AdminDashboardSidebar({
           </div>
 
           <SidebarDropdown
+            label="Products Management"
+            icon={BriefcaseBusiness}
+            items={businessItems}
+            pathname={pathname}
+            isCollapsed={isCollapsed}
+            isOpen={businessOpen}
+            isHoverOpen={isBusinessHoverOpen}
+            onToggle={() => setBusinessOpenState(businessOpen ? "closed" : "open")}
+            onHoverChange={setIsBusinessHoverOpen}
+            onNavigate={onCloseMobile}
+            onExpandDesktop={onExpandDesktop}
+          />
+
+          <SidebarDropdown
             label="User Management"
             icon={Users}
             items={userManagementItems}
@@ -315,6 +341,12 @@ export function AdminDashboardSidebar({
             onNavigate={onCloseMobile}
             onExpandDesktop={onExpandDesktop}
           />
+
+          <div className="space-y-0">
+            {utilityItems.map((item) => (
+              <SidebarLink key={item.label} item={item} pathname={pathname} isCollapsed={isCollapsed} onNavigate={onCloseMobile} />
+            ))}
+          </div>
 
           <SidebarDropdown
             label="Settings"

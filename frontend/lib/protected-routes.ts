@@ -2,6 +2,7 @@ export const protectedPrefixes = [
   "/messages",
   "/settings",
   "/dashboard",
+  "/customers",
   "/ops",
   "/storage",
   "/users",
@@ -9,6 +10,7 @@ export const protectedPrefixes = [
   "/permissions",
   "/products",
   "/product-units",
+  "/product-prices",
   "/system-log",
 ] as const;
 
