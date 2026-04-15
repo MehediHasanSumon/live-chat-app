@@ -6,14 +6,20 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\ProductPrice;
+use App\Support\InvoiceNumberHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AdminInvoiceController extends Controller
 {
+    public function __construct(private readonly InvoiceNumberHelper $invoiceNumberHelper)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -67,6 +73,19 @@ class AdminInvoiceController extends Controller
         ]);
     }
 
+    public function nextNumber(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'date' => ['sometimes', 'nullable', 'date'],
+        ]);
+
+        return response()->json([
+            'data' => [
+                'invoice_no' => $this->invoiceNumberHelper->generate($validated['date'] ?? null),
+            ],
+        ]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate($this->rules());
@@ -75,9 +94,10 @@ class AdminInvoiceController extends Controller
             $customer = $this->resolveCustomer($validated);
             $preparedItems = $this->prepareItems($validated['items']);
             $amounts = $this->calculateAmounts($preparedItems, $validated);
+            $invoiceNo = $this->resolveInvoiceNo($validated);
 
             $invoice = Invoice::query()->create([
-                'invoice_no' => $validated['invoice_no'],
+                'invoice_no' => $invoiceNo,
                 'invoice_datetime' => $validated['invoice_datetime'],
                 'customer_id' => $customer->id,
                 'payment_type' => $validated['payment_type'],
@@ -149,7 +169,13 @@ class AdminInvoiceController extends Controller
     protected function rules(?Invoice $invoice = null): array
     {
         return [
-            'invoice_no' => ['required', 'string', 'max:50', Rule::unique('invoices', 'invoice_no')->ignore($invoice?->id)],
+            'invoice_no' => [
+                $invoice ? 'required' : 'nullable',
+                'string',
+                'max:50',
+                'regex:' . $this->invoiceNumberHelper->pattern(),
+                Rule::unique('invoices', 'invoice_no')->ignore($invoice?->id),
+            ],
             'invoice_datetime' => ['required', 'date'],
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'customer.name' => ['required_without:customer_id', 'string', 'max:120'],
@@ -169,6 +195,15 @@ class AdminInvoiceController extends Controller
         ];
     }
 
+    protected function resolveInvoiceNo(array $validated): string
+    {
+        if (! empty($validated['invoice_no'])) {
+            return $this->invoiceNumberHelper->normalize($validated['invoice_no']);
+        }
+
+        return $this->invoiceNumberHelper->generate(Carbon::parse($validated['invoice_datetime']));
+    }
+
     protected function resolveCustomer(array $validated): Customer
     {
         if (! empty($validated['customer_id'])) {
@@ -177,12 +212,23 @@ class AdminInvoiceController extends Controller
 
         $customerPayload = $validated['customer'];
         $mobile = trim((string) ($customerPayload['mobile'] ?? ''));
+        $vehicleNo = trim((string) ($customerPayload['vehicle_no'] ?? ''));
 
         if ($mobile !== '') {
             $customer = Customer::query()->firstOrNew(['mobile' => $mobile]);
             $customer->forceFill([
                 'name' => $customerPayload['name'],
-                'vehicle_no' => $customerPayload['vehicle_no'] ?? $customer->vehicle_no,
+                'vehicle_no' => $vehicleNo !== '' ? $vehicleNo : $customer->vehicle_no,
+            ])->save();
+
+            return $customer;
+        }
+
+        if ($vehicleNo !== '') {
+            $customer = Customer::query()->firstOrNew(['vehicle_no' => $vehicleNo]);
+            $customer->forceFill([
+                'name' => $customerPayload['name'],
+                'mobile' => $mobile !== '' ? $mobile : $customer->mobile,
             ])->save();
 
             return $customer;
@@ -191,7 +237,7 @@ class AdminInvoiceController extends Controller
         return Customer::query()->create([
             'name' => $customerPayload['name'],
             'mobile' => null,
-            'vehicle_no' => $customerPayload['vehicle_no'] ?? null,
+            'vehicle_no' => null,
         ]);
     }
 

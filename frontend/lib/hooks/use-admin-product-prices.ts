@@ -62,6 +62,10 @@ type ProductPriceResponse = {
   data: AdminProductPriceRecord;
 };
 
+type ProductPriceOptionsResponse = {
+  data: AdminProductPriceRecord[];
+};
+
 export type ProductPricePayload = {
   product_id: number;
   product_unit_id: number | null;
@@ -99,6 +103,16 @@ export function useAdminProductPricesQuery(params: ProductPriceListParams, enabl
     queryFn: () => apiClient.get<ProductPricesResponse>(buildProductPricesPath(params), { skipAuthRedirect: true }),
     enabled,
     retry: false,
+  });
+}
+
+export function useAdminActiveProductPriceOptionsQuery(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.admin.productPrices.activeOptions,
+    queryFn: () => apiClient.get<ProductPriceOptionsResponse>("/api/admin/product-prices/active-options", { skipAuthRedirect: true }),
+    enabled,
+    retry: false,
+    select: (response) => response.data,
   });
 }
 

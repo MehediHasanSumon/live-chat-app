@@ -76,7 +76,6 @@ it('creates an invoice with a new customer and calculated totals', function () {
 
     $response = $this->actingAs($actor, 'web')
         ->postJson('/api/admin/invoices', [
-            'invoice_no' => 'INV-1001',
             'invoice_datetime' => '2026-05-04 11:00:00',
             'customer' => [
                 'name' => 'Rahim Uddin',
@@ -98,7 +97,7 @@ it('creates an invoice with a new customer and calculated totals', function () {
 
     $response
         ->assertCreated()
-        ->assertJsonPath('data.invoice_no', 'INV-1001')
+        ->assertJsonPath('data.invoice_no', 'INV-202605-00001')
         ->assertJsonPath('data.customer.name', 'Rahim Uddin')
         ->assertJsonPath('data.subtotal_amount', '120.00')
         ->assertJsonPath('data.discount_amount', '10.00')
@@ -107,7 +106,97 @@ it('creates an invoice with a new customer and calculated totals', function () {
         ->assertJsonPath('data.items.0.product_name', 'Octane');
 
     expect(Customer::query()->where('mobile', '+8801700000011')->exists())->toBeTrue()
-        ->and(Invoice::query()->where('invoice_no', 'INV-1001')->exists())->toBeTrue();
+        ->and(Invoice::query()->where('invoice_no', 'INV-202605-00001')->exists())->toBeTrue();
+});
+
+it('reuses an existing customer by vehicle number when creating an invoice', function () {
+    $actor = User::factory()->create();
+    $customer = Customer::query()->create([
+        'name' => 'Karim Uddin',
+        'mobile' => null,
+        'vehicle_no' => 'DHAKA-999',
+    ]);
+    $product = Product::query()->create([
+        'product_name' => 'Diesel',
+        'product_code' => 'DIESEL',
+        'status' => 'active',
+    ]);
+    $unit = ProductUnit::query()->create([
+        'unit_name' => 'Liter',
+        'unit_value' => 'liter',
+        'unit_code' => 'PU001',
+    ]);
+    $price = ProductPrice::query()->create([
+        'product_id' => $product->id,
+        'product_unit_id' => $unit->id,
+        'original_price' => 50,
+        'sell_price' => 60,
+        'date_time' => '2026-05-04 10:00:00',
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($actor, 'web')
+        ->postJson('/api/admin/invoices', [
+            'invoice_no' => 'INV-202605-00002',
+            'invoice_datetime' => '2026-05-04 11:00:00',
+            'customer' => [
+                'name' => 'Karim Uddin',
+                'mobile' => null,
+                'vehicle_no' => 'DHAKA-999',
+            ],
+            'payment_type' => 'due',
+            'discount_amount' => 0,
+            'sms_enabled' => false,
+            'status' => 'submitted',
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'product_price_id' => $price->id,
+                    'quantity' => 1,
+                ],
+            ],
+        ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('data.customer.id', $customer->id)
+        ->assertJsonPath('data.customer.vehicle_no', 'DHAKA-999');
+
+    expect(Customer::query()->where('vehicle_no', 'DHAKA-999')->count())->toBe(1);
+});
+
+it('generates the next invoice number by year and month', function () {
+    $actor = User::factory()->create();
+    $customer = Customer::query()->create([
+        'name' => 'Rahim Uddin',
+        'mobile' => '+8801700000011',
+        'vehicle_no' => 'DHAKA-123',
+    ]);
+
+    Invoice::query()->create([
+        'invoice_no' => 'INV-202605-00001',
+        'invoice_datetime' => '2026-05-04 11:00:00',
+        'customer_id' => $customer->id,
+        'payment_type' => 'cash',
+        'payment_status' => 'paid',
+        'subtotal_amount' => 100,
+        'discount_amount' => 0,
+        'total_amount' => 100,
+        'paid_amount' => 100,
+        'due_amount' => 0,
+        'sms_enabled' => false,
+        'status' => 'submitted',
+    ]);
+
+    $this->actingAs($actor, 'web')
+        ->getJson('/api/admin/invoices/next-number?date=2026-05-15')
+        ->assertOk()
+        ->assertJsonPath('data.invoice_no', 'INV-202605-00002');
+
+    $this->actingAs($actor, 'web')
+        ->getJson('/api/admin/invoices/next-number?date=2026-06-01')
+        ->assertOk()
+        ->assertJsonPath('data.invoice_no', 'INV-202606-00001');
 });
 
 it('creates product units with generated codes and slug values', function () {
@@ -186,7 +275,7 @@ it('validates invoice totals and items', function () {
 
     $this->actingAs($actor, 'web')
         ->postJson('/api/admin/invoices', [
-            'invoice_no' => 'INV-BAD',
+            'invoice_no' => 'INV-202605-99999',
             'invoice_datetime' => '2026-05-04 11:00:00',
             'customer' => ['name' => 'Invalid Customer'],
             'payment_type' => 'cash',

@@ -141,6 +141,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/admin/customers', [AdminCustomerController::class, 'store']);
     Route::patch('/admin/customers/{customer}', [AdminCustomerController::class, 'update']);
     Route::delete('/admin/customers/{customer}', [AdminCustomerController::class, 'destroy']);
+    Route::get('/admin/invoices/next-number', [AdminInvoiceController::class, 'nextNumber']);
     Route::get('/admin/invoices', [AdminInvoiceController::class, 'index']);
     Route::post('/admin/invoices', [AdminInvoiceController::class, 'store']);
     Route::get('/admin/invoices/{invoice}', [AdminInvoiceController::class, 'show']);

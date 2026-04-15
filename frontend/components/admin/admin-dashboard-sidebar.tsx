@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BriefcaseBusiness, ChevronDown, House, MessageSquare, ScrollText, Settings, Users, X } from "lucide-react";
+import { BriefcaseBusiness, ChevronDown, House, MessageSquare, ReceiptText, ScrollText, Settings, Users, X } from "lucide-react";
 
 import { useMessagesBadgeCount } from "@/lib/hooks/use-messages-badge-count";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -32,6 +32,10 @@ type DropdownOpenState = "auto" | "open" | "closed";
 const mainItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: House },
   { href: "/messages", label: "Messages", icon: MessageSquare },
+];
+
+const invoiceItems: DropdownItem[] = [
+  { href: "/invoices", label: "Invoices" },
 ];
 
 const businessItems: DropdownItem[] = [
@@ -189,7 +193,7 @@ function SidebarDropdown({
       <div
         className={cn(
           "overflow-hidden pl-5 transition-[max-height,opacity] duration-300 ease-in-out",
-          isCollapsed ? "max-h-0 opacity-0" : isOpen ? "max-h-40 opacity-100" : "max-h-0 opacity-0",
+          isCollapsed ? "max-h-0 opacity-0" : isOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0",
         )}
         aria-hidden={!isOpen || isCollapsed}
       >
@@ -251,6 +255,8 @@ export function AdminDashboardSidebar({
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
   const { badgeCount } = useMessagesBadgeCount(true);
+  const [invoiceOpenState, setInvoiceOpenState] = useState<DropdownOpenState>("auto");
+  const [isInvoiceHoverOpen, setIsInvoiceHoverOpen] = useState(false);
   const [businessOpenState, setBusinessOpenState] = useState<DropdownOpenState>("auto");
   const [isBusinessHoverOpen, setIsBusinessHoverOpen] = useState(false);
   const [userManagementOpenState, setUserManagementOpenState] = useState<DropdownOpenState>("auto");
@@ -260,9 +266,11 @@ export function AdminDashboardSidebar({
   const displayName = user?.name?.trim() || user?.username || "Guest User";
   const displayUsername = user?.username ? `@${user.username}` : "@guest";
   const initials = getInitials(displayName, user?.username ?? "GU");
+  const invoiceHasActiveItem = invoiceItems.some((item) => isRouteActive(pathname, item.href));
   const businessHasActiveItem = businessItems.some((item) => isRouteActive(pathname, item.href));
   const userManagementHasActiveItem = userManagementItems.some((item) => isRouteActive(pathname, item.href));
   const settingsHasActiveItem = settingsItems.some((item) => isRouteActive(pathname, item.href));
+  const invoiceOpen = invoiceOpenState === "open" || (invoiceOpenState === "auto" && invoiceHasActiveItem);
   const businessOpen = businessOpenState === "open" || (businessOpenState === "auto" && businessHasActiveItem);
   const userManagementOpen = userManagementOpenState === "open" || (userManagementOpenState === "auto" && userManagementHasActiveItem);
   const settingsOpen = settingsOpenState === "open" || (settingsOpenState === "auto" && settingsHasActiveItem);
@@ -313,6 +321,20 @@ export function AdminDashboardSidebar({
               />
             ))}
           </div>
+
+          <SidebarDropdown
+            label="Invoice Management"
+            icon={ReceiptText}
+            items={invoiceItems}
+            pathname={pathname}
+            isCollapsed={isCollapsed}
+            isOpen={invoiceOpen}
+            isHoverOpen={isInvoiceHoverOpen}
+            onToggle={() => setInvoiceOpenState(invoiceOpen ? "closed" : "open")}
+            onHoverChange={setIsInvoiceHoverOpen}
+            onNavigate={onCloseMobile}
+            onExpandDesktop={onExpandDesktop}
+          />
 
           <SidebarDropdown
             label="Products Management"

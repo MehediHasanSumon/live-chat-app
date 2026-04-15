@@ -96,6 +96,7 @@ export const config = {
     "/messages/:path*",
     "/settings/:path*",
     "/dashboard/:path*",
+    "/invoices/:path*",
     "/customers/:path*",
     "/ops/:path*",
     "/storage/:path*",

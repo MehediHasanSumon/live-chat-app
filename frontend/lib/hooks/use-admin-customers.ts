@@ -40,6 +40,10 @@ type CustomerResponse = {
   data: AdminCustomerRecord;
 };
 
+type CustomerOptionsResponse = {
+  data: AdminCustomerRecord[];
+};
+
 export type CustomerPayload = {
   name: string;
   mobile: string | null;
@@ -72,6 +76,25 @@ export function useAdminCustomersQuery(params: CustomerListParams, enabled = tru
     queryFn: () => apiClient.get<CustomersResponse>(buildCustomersPath(params), { skipAuthRedirect: true }),
     enabled,
     retry: false,
+  });
+}
+
+export function useAdminCustomerOptionsQuery(search = "", enabled = true) {
+  const normalizedSearch = search.trim();
+  const params = new URLSearchParams();
+
+  if (normalizedSearch) {
+    params.set("search", normalizedSearch);
+  }
+
+  const path = params.toString() ? `/api/admin/customers/options?${params.toString()}` : "/api/admin/customers/options";
+
+  return useQuery({
+    queryKey: [...queryKeys.admin.customers.options, normalizedSearch] as const,
+    queryFn: () => apiClient.get<CustomerOptionsResponse>(path, { skipAuthRedirect: true }),
+    enabled,
+    retry: false,
+    select: (response) => response.data,
   });
 }
 
