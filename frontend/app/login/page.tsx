@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, Suspense, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 
 import { AuthFormShell } from "@/components/auth/auth-form-shell";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,6 @@ import { ApiClientError } from "@/lib/api-client";
 import { useLoginMutation } from "@/lib/hooks/use-auth-mutations";
 
 function LoginPageContent() {
-  const searchParams = useSearchParams();
   const loginMutation = useLoginMutation();
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
@@ -33,7 +31,7 @@ function LoginPageContent() {
         remember,
       });
 
-      window.location.assign(searchParams.get("redirect") || "/messages");
+      window.location.assign("/dashboard");
     } catch {
       // Errors are surfaced through mutation state for inline form feedback.
     }

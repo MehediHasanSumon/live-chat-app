@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronDown, LogOut, Menu, PanelLeftOpen, Search, Settings, User } from "lucide-react";
 
@@ -72,9 +71,8 @@ export function AdminDashboardTopbar({
   onOpenSidebar,
   onToggleSidebar,
 }: AdminDashboardTopbarProps) {
-  const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const logoutMutation = useLogoutMutation();
+  const logoutMutation = useLogoutMutation({ clearAuthenticatedOnSuccess: false });
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -109,7 +107,7 @@ export function AdminDashboardTopbar({
   async function handleLogout() {
     await logoutMutation.mutateAsync();
     setIsProfileOpen(false);
-    router.replace("/login");
+    window.location.replace("/login");
   }
 
   return (

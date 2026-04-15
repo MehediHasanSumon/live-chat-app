@@ -84,7 +84,11 @@ export function useRegisterMutation() {
   });
 }
 
-export function useLogoutMutation() {
+type LogoutMutationOptions = {
+  clearAuthenticatedOnSuccess?: boolean;
+};
+
+export function useLogoutMutation({ clearAuthenticatedOnSuccess = true }: LogoutMutationOptions = {}) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -94,14 +98,18 @@ export function useLogoutMutation() {
     },
     onSuccess: () => {
       clearSessionHint();
-      queryClient.removeQueries({ queryKey: queryKeys.auth.me });
-      useAuthStore.getState().clearAuthenticated();
+      if (clearAuthenticatedOnSuccess) {
+        queryClient.removeQueries({ queryKey: queryKeys.auth.me });
+        useAuthStore.getState().clearAuthenticated();
+      }
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.status === 401) {
         clearSessionHint();
-        queryClient.removeQueries({ queryKey: queryKeys.auth.me });
-        useAuthStore.getState().clearAuthenticated();
+        if (clearAuthenticatedOnSuccess) {
+          queryClient.removeQueries({ queryKey: queryKeys.auth.me });
+          useAuthStore.getState().clearAuthenticated();
+        }
       }
     },
   });

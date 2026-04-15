@@ -4,7 +4,7 @@ import { matchesProtectedPrefix, protectedPrefixes } from "@/lib/protected-route
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-const guestOnlyRoutes = new Set(["/login", "/register"]);
+const guestOnlyRoutes = new Set(["/", "/login", "/register"]);
 const authCookieNames = ["laravel-session", "XSRF-TOKEN"];
 
 function hasCookies(request: NextRequest): boolean {
@@ -83,7 +83,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isGuestOnlyRoute && authenticated) {
-    return NextResponse.redirect(new URL("/messages", request.url));
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   return NextResponse.next();
@@ -92,6 +92,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/login",
+    "/",
     "/register",
     "/messages/:path*",
     "/settings/:path*",
