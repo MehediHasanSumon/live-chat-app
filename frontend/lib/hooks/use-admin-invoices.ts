@@ -172,3 +172,28 @@ export function useCreateAdminInvoiceMutation() {
     },
   });
 }
+
+export function useUpdateAdminInvoiceMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ invoiceId, payload }: { invoiceId: number | string; payload: InvoicePayload }) =>
+      apiClient.patch<InvoiceResponse>(`/api/admin/invoices/${invoiceId}`, payload, { skipAuthRedirect: true }),
+    onSuccess: async (response) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.admin.invoices.all });
+      queryClient.setQueryData(queryKeys.admin.invoices.detail(response.data.id), response.data);
+    },
+  });
+}
+
+export function useDeleteAdminInvoiceMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (invoiceId: number | string) => apiClient.delete<void>(`/api/admin/invoices/${invoiceId}`, { skipAuthRedirect: true }),
+    onSuccess: async (_response, invoiceId) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.admin.invoices.all });
+      queryClient.removeQueries({ queryKey: queryKeys.admin.invoices.detail(invoiceId) });
+    },
+  });
+}

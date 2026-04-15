@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
-import { Eye, Plus } from "lucide-react";
+import { Eye, PencilLine, Plus, Trash2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
 import { TextInput } from "@/components/ui/text-input";
-import { useAdminInvoicesQuery } from "@/lib/hooks/use-admin-invoices";
+import { AdminInvoiceRecord, useAdminInvoicesQuery, useDeleteAdminInvoiceMutation } from "@/lib/hooks/use-admin-invoices";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE = 1;
@@ -66,9 +66,11 @@ function InvoicesPageContent() {
   const perPage = parsePerPageParam(searchParams.get("per_page"));
   const search = parseSearchParam(searchParams.get("search"));
   const { data: invoicesResponse, isLoading, error } = useAdminInvoicesQuery({ page, perPage, search }, true);
+  const deleteInvoice = useDeleteAdminInvoiceMutation();
   const invoices = invoicesResponse?.data ?? [];
   const paginationMeta = invoicesResponse?.meta;
   const [searchDraft, setSearchDraft] = useState(search);
+  const isTableBusy = isLoading || deleteInvoice.isPending;
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {
@@ -132,6 +134,14 @@ function InvoicesPageContent() {
   function handleClearSearch() {
     setSearchDraft("");
     updateSearchUrl("");
+  }
+
+  async function handleDelete(invoice: AdminInvoiceRecord) {
+    if (!window.confirm(`Delete invoice "${invoice.invoice_no}"?`)) {
+      return;
+    }
+
+    await deleteInvoice.mutateAsync(invoice.id);
   }
 
   return (
@@ -237,16 +247,33 @@ function InvoicesPageContent() {
                       </td>
                       <td className="px-6 py-4 text-[var(--muted)]">{formatDateTime(invoice.invoice_datetime)}</td>
                       <td className="px-6 py-4 sm:px-8">
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-2">
                           <Link href={`/invoices/${invoice.id}`}>
                             <Button
-                              variant="ghost"
-                              className="h-8 gap-1.5 rounded-full border border-[var(--line)] bg-white px-3 text-xs text-[var(--foreground)] hover:bg-white"
+                              as="span"
+                              variant="outline"
+                              size="xs"
                             >
                               <Eye className="h-3.5 w-3.5" />
                               Details
                             </Button>
                           </Link>
+                          <Link href={`/invoices/${invoice.id}/edit`}>
+                            <Button as="span" variant="outline" size="xs">
+                              <PencilLine className="h-3.5 w-3.5" />
+                              Edit
+                            </Button>
+                          </Link>
+                          <Button
+                            as="span"
+                            variant="danger-soft"
+                            size="xs"
+                            disabled={isTableBusy}
+                            onClick={() => void handleDelete(invoice)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </Button>
                         </div>
                       </td>
                     </tr>

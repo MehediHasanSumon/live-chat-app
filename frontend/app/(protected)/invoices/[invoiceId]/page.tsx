@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Printer } from "lucide-react";
-import { useParams } from "next/navigation";
+import { ArrowLeft, PencilLine, Printer, Trash2 } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
 
 import { InvoiceSummary, InvoiceSummaryData, printInvoiceSummary } from "@/components/admin/invoice-summary";
 import { Button } from "@/components/ui/button";
-import { AdminInvoiceRecord, useAdminInvoiceQuery } from "@/lib/hooks/use-admin-invoices";
+import { AdminInvoiceRecord, useAdminInvoiceQuery, useDeleteAdminInvoiceMutation } from "@/lib/hooks/use-admin-invoices";
 
 function toNumber(value: string | number | null | undefined) {
   const numericValue = Number(value ?? 0);
@@ -40,10 +40,21 @@ function toInvoiceSummary(invoice: AdminInvoiceRecord): InvoiceSummaryData {
 }
 
 export default function InvoiceDetailsPage() {
+  const router = useRouter();
   const params = useParams<{ invoiceId: string }>();
   const invoiceId = params.invoiceId;
   const { data: invoice, isLoading, error } = useAdminInvoiceQuery(invoiceId, Boolean(invoiceId));
+  const deleteInvoice = useDeleteAdminInvoiceMutation();
   const invoiceSummary = invoice ? toInvoiceSummary(invoice) : null;
+
+  async function handleDelete() {
+    if (!invoice || !window.confirm(`Delete invoice "${invoice.invoice_no}"?`)) {
+      return;
+    }
+
+    await deleteInvoice.mutateAsync(invoice.id);
+    router.push("/invoices");
+  }
 
   return (
     <main className="shell px-4 py-6 sm:px-6">
@@ -64,6 +75,29 @@ export default function InvoiceDetailsPage() {
             <Button className="gap-2 rounded-full px-5" disabled={!invoiceSummary} onClick={() => invoiceSummary && printInvoiceSummary(invoiceSummary)}>
               <Printer className="h-4 w-4" />
               Print
+            </Button>
+            <Link href={`/invoices/${invoiceId}/edit`}>
+              <Button
+                as="span"
+                variant="outline"
+                size="xs"
+                className="h-9 px-4 text-sm"
+                aria-disabled={!invoice}
+              >
+                <PencilLine className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            </Link>
+            <Button
+              as="span"
+              variant="danger-soft"
+              size="xs"
+              className="h-9 px-4 text-sm"
+              disabled={!invoice || deleteInvoice.isPending}
+              onClick={() => void handleDelete()}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
             </Button>
           </div>
         </div>

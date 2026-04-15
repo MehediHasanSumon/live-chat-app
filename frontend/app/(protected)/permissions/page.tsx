@@ -339,8 +339,9 @@ function PermissionsPageContent() {
                       <td className="px-6 py-4 sm:px-8">
                         <div className="flex justify-end gap-2">
                           <Button
-                            variant="ghost"
-                            className="h-8 gap-1.5 rounded-full border border-[var(--line)] bg-white px-3 text-xs text-[var(--foreground)] hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+                            as="span"
+                            variant="outline"
+                            size="xs"
                             disabled={isTableBusy}
                             onClick={() => {
                               setEditingPermission(permission);
@@ -353,8 +354,9 @@ function PermissionsPageContent() {
                             Edit
                           </Button>
                           <Button
-                            variant="ghost"
-                            className="h-8 gap-1.5 rounded-full border border-rose-100 bg-rose-50 px-3 text-xs text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-45"
+                            as="span"
+                            variant="danger-soft"
+                            size="xs"
                             disabled={isTableBusy}
                             onClick={() => void handleDelete(permission)}
                           >

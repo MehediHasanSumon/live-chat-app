@@ -2,18 +2,24 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Eye, Plus, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { InvoiceSummary, InvoiceSummaryData, printInvoiceSummary } from "@/components/admin/invoice-summary";
+import { InvoiceSummaryData } from "@/components/admin/invoice-summary";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
-import { IconButton } from "@/components/ui/icon-button";
 import { RadioInput } from "@/components/ui/radio-input";
 import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
 import { useAdminCustomerOptionsQuery } from "@/lib/hooks/use-admin-customers";
-import { InvoicePaymentType, InvoicePayload, useAdminNextInvoiceNoQuery, useCreateAdminInvoiceMutation } from "@/lib/hooks/use-admin-invoices";
+import {
+  AdminInvoiceRecord,
+  InvoicePaymentType,
+  InvoicePayload,
+  useAdminNextInvoiceNoQuery,
+  useCreateAdminInvoiceMutation,
+  useUpdateAdminInvoiceMutation,
+} from "@/lib/hooks/use-admin-invoices";
 import { AdminProductPriceRecord, useAdminActiveProductPriceOptionsQuery } from "@/lib/hooks/use-admin-product-prices";
 
 type InvoiceFormState = {
@@ -67,10 +73,37 @@ function createEmptyItem(): InvoiceItemFormState {
   };
 }
 
-function buildInvoiceDateTime(date: string) {
-  const now = new Date();
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
+function createFormFromInvoice(invoice: AdminInvoiceRecord): InvoiceFormState {
+  const invoiceDate = invoice.invoice_datetime ? new Date(invoice.invoice_datetime).toISOString().slice(0, 10) : getCurrentDateLocal();
+
+  return {
+    invoice_no: invoice.invoice_no,
+    invoice_date: invoiceDate,
+    customer_id: invoice.customer ? String(invoice.customer.id) : "",
+    customer_name: invoice.customer?.name ?? "",
+    customer_mobile: invoice.customer?.mobile ?? "",
+    vehicle_no: invoice.customer?.vehicle_no ?? "",
+    payment_type: invoice.payment_type,
+    discount_amount: invoice.discount_amount ?? "0",
+  };
+}
+
+function createItemsFromInvoice(invoice: AdminInvoiceRecord): InvoiceItemFormState[] {
+  const invoiceItems = invoice.items
+    .filter((item) => item.product_id && item.product_price_id)
+    .map((item) => ({
+      id: `invoice-item-${item.id}`,
+      product_price_id: String(item.product_price_id),
+      quantity: item.quantity,
+    }));
+
+  return invoiceItems.length > 0 ? invoiceItems : [createEmptyItem()];
+}
+
+function buildInvoiceDateTime(date: string, fallbackDateTime?: string | null) {
+  const sourceDate = fallbackDateTime ? new Date(fallbackDateTime) : new Date();
+  const hours = String(sourceDate.getHours()).padStart(2, "0");
+  const minutes = String(sourceDate.getMinutes()).padStart(2, "0");
 
   return `${date}T${hours}:${minutes}`;
 }
@@ -93,26 +126,75 @@ function getPriceLabel(price: AdminProductPriceRecord) {
   return `${productName}${productCode}${unitName} - BDT ${price.sell_price}`;
 }
 
-function CreateInvoicePage() {
+type InvoiceFormPageProps = {
+  invoice?: AdminInvoiceRecord;
+};
+
+export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
   const router = useRouter();
   const { data: productPrices = [], isLoading: isPricesLoading } = useAdminActiveProductPriceOptionsQuery(true);
   const createInvoice = useCreateAdminInvoiceMutation();
-  const [form, setForm] = useState<InvoiceFormState>(() => createEmptyForm());
-  const [items, setItems] = useState<InvoiceItemFormState[]>(() => [createEmptyItem()]);
+  const updateInvoice = useUpdateAdminInvoiceMutation();
+  const isEditing = Boolean(invoice);
+  const [form, setForm] = useState<InvoiceFormState>(() => (invoice ? createFormFromInvoice(invoice) : createEmptyForm()));
+  const [items, setItems] = useState<InvoiceItemFormState[]>(() => (invoice ? createItemsFromInvoice(invoice) : [createEmptyItem()]));
   const [formError, setFormError] = useState<string | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
   const [isDiscountInputOpen, setIsDiscountInputOpen] = useState(false);
   const [discountDraft, setDiscountDraft] = useState("0");
-  const isSubmitting = createInvoice.isPending;
+  const isSubmitting = createInvoice.isPending || updateInvoice.isPending;
   const customerLookupTerm = useMemo(() => form.customer_mobile.trim() || form.vehicle_no.trim(), [form.customer_mobile, form.vehicle_no]);
   const { data: customerMatches = [] } = useAdminCustomerOptionsQuery(customerLookupTerm, customerLookupTerm.length >= 2);
-  const { data: nextInvoiceNo, isLoading: isInvoiceNoLoading } = useAdminNextInvoiceNoQuery(form.invoice_date, Boolean(form.invoice_date));
-  const invoiceNo = nextInvoiceNo?.invoice_no ?? form.invoice_no;
+  const { data: nextInvoiceNo, isLoading: isInvoiceNoLoading } = useAdminNextInvoiceNoQuery(form.invoice_date, !isEditing && Boolean(form.invoice_date));
+  const invoiceNo = isEditing ? form.invoice_no : (nextInvoiceNo?.invoice_no ?? form.invoice_no);
   const isFormBusy = isSubmitting || isPricesLoading || isInvoiceNoLoading;
 
+  const productPriceOptions = useMemo(() => {
+    const options = [...productPrices];
+    const existingIds = new Set(options.map((price) => String(price.id)));
+
+    invoice?.items.forEach((item) => {
+      if (!item.product_id || !item.product_price_id || existingIds.has(String(item.product_price_id))) {
+        return;
+      }
+
+      options.push({
+        id: item.product_price_id,
+        product_id: item.product_id,
+        product: {
+          id: item.product_id,
+          product_name: item.product_name,
+          product_code: null,
+          status: "active",
+        },
+        product_unit_id: item.product_unit_id,
+        unit: item.product_unit_id
+          ? {
+              id: item.product_unit_id,
+              unit_name: item.unit_name ?? "Unit",
+              unit_value: item.unit_value ?? "1",
+              unit_code: item.unit_code ?? "",
+            }
+          : null,
+        original_price: item.price,
+        sell_price: item.price,
+        date_time: invoice.invoice_datetime,
+        is_active: true,
+        created_by: null,
+        creator: null,
+        deactivated_at: null,
+        note: null,
+        created_at: null,
+        updated_at: null,
+      });
+      existingIds.add(String(item.product_price_id));
+    });
+
+    return options;
+  }, [invoice, productPrices]);
+
   const priceById = useMemo(() => {
-    return new Map(productPrices.map((price) => [String(price.id), price]));
-  }, [productPrices]);
+    return new Map(productPriceOptions.map((price) => [String(price.id), price]));
+  }, [productPriceOptions]);
 
   const invoiceSummary = useMemo<InvoiceSummaryData>(() => {
     const summaryItems = items
@@ -141,7 +223,7 @@ function CreateInvoicePage() {
 
     return {
       invoiceNo: invoiceNo || "Generating...",
-      invoiceDatetime: form.invoice_date ? buildInvoiceDateTime(form.invoice_date) : null,
+      invoiceDatetime: form.invoice_date ? buildInvoiceDateTime(form.invoice_date, invoice?.invoice_datetime) : null,
       customerName: form.customer_name.trim() || "-",
       customerMobile: form.customer_mobile.trim() || null,
       vehicleNo: form.vehicle_no.trim() || null,
@@ -155,7 +237,7 @@ function CreateInvoicePage() {
       dueAmount: totalAmount - paidAmount,
       items: summaryItems,
     };
-  }, [form, invoiceNo, items, priceById]);
+  }, [form, invoice?.invoice_datetime, invoiceNo, items, priceById]);
 
   useEffect(() => {
     if (customerLookupTerm.length < 2 || customerMatches.length === 0) {
@@ -228,7 +310,12 @@ function CreateInvoicePage() {
     setItems((current) => (current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index)));
   }
 
-  function openDiscountInput() {
+  function toggleDiscountInput() {
+    if (isDiscountInputOpen) {
+      setIsDiscountInputOpen(false);
+      return;
+    }
+
     setDiscountDraft(form.discount_amount || "0");
     setIsDiscountInputOpen(true);
   }
@@ -332,7 +419,7 @@ function CreateInvoicePage() {
     });
     const payload: InvoicePayload = {
       invoice_no: invoiceNo,
-      invoice_datetime: buildInvoiceDateTime(form.invoice_date),
+      invoice_datetime: buildInvoiceDateTime(form.invoice_date, invoice?.invoice_datetime),
       payment_type: form.payment_type,
       paid_amount: form.payment_type === "due" ? 0 : null,
       discount_amount: invoiceSummary.discountAmount,
@@ -354,19 +441,6 @@ function CreateInvoicePage() {
     return payload;
   }
 
-  function handlePreview() {
-    const clientError = validateForm();
-
-    if (clientError) {
-      setFormError(clientError);
-      setShowPreview(false);
-      return;
-    }
-
-    setFormError(null);
-    setShowPreview(true);
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
@@ -379,7 +453,10 @@ function CreateInvoicePage() {
     }
 
     try {
-      const response = await createInvoice.mutateAsync(buildPayload());
+      const payload = buildPayload();
+      const response = invoice
+        ? await updateInvoice.mutateAsync({ invoiceId: invoice.id, payload })
+        : await createInvoice.mutateAsync(payload);
       router.push(`/invoices/${response.data.id}`);
     } catch (submissionError) {
       if (submissionError instanceof ApiClientError) {
@@ -398,7 +475,7 @@ function CreateInvoicePage() {
         return;
       }
 
-      setFormError("Unable to submit the invoice right now.");
+      setFormError(`Unable to ${isEditing ? "update" : "submit"} the invoice right now.`);
     }
   }
 
@@ -407,8 +484,10 @@ function CreateInvoicePage() {
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-[#1f2440]">Create Invoice</h1>
-            <p className="mt-2 text-sm text-[var(--muted)]">Create a cash memo with customer, vehicle, product, and payment details.</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-[#1f2440]">{isEditing ? "Edit Invoice" : "Create Invoice"}</h1>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              {isEditing ? "Update customer, product, and payment details." : "Create a cash memo with customer, vehicle, product, and payment details."}
+            </p>
           </div>
 
           <Link href="/invoices">
@@ -430,12 +509,7 @@ function CreateInvoicePage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-[#2d3150]">Invoice No</label>
-                <TextInput
-                  value={isInvoiceNoLoading ? "Generating..." : invoiceNo}
-                  autoComplete="off"
-                  readOnly
-                  disabled={isSubmitting}
-                />
+                <TextInput value={isInvoiceNoLoading ? "Generating..." : invoiceNo} autoComplete="off" readOnly disabled={isSubmitting} />
               </div>
 
               <div>
@@ -524,7 +598,7 @@ function CreateInvoicePage() {
                             disabled={isFormBusy}
                           >
                             <option value="">{isPricesLoading ? "Loading prices..." : "Select product"}</option>
-                            {productPrices.map((productPrice) => (
+                            {productPriceOptions.map((productPrice) => (
                               <option key={productPrice.id} value={productPrice.id}>
                                 {getPriceLabel(productPrice)}
                               </option>
@@ -552,13 +626,16 @@ function CreateInvoicePage() {
                         </div>
 
                         <div className="flex items-end justify-end">
-                          <IconButton
-                            variant="danger"
+                          <Button
+                            as="span"
+                            variant="danger-soft"
+                            size="icon-sm"
                             disabled={isSubmitting || items.length === 1}
                             aria-label="Remove product"
                             onClick={() => removeItem(index)}
-                            icon={<Trash2 aria-hidden="true" strokeWidth={2} className="h-4 w-4" />}
-                          />
+                          >
+                            <Trash2 aria-hidden="true" strokeWidth={2} className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     );
@@ -584,15 +661,30 @@ function CreateInvoicePage() {
                         <span>Discount</span>
                         <div className="flex items-center gap-2">
                           <span>BDT {invoiceSummary.discountAmount.toFixed(2)}</span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="h-7 rounded-full border border-[var(--line)] bg-white px-3 text-xs text-[var(--foreground)] hover:bg-white"
-                            disabled={isSubmitting}
-                            onClick={openDiscountInput}
+                          <span
+                            role="button"
+                            tabIndex={isSubmitting ? -1 : 0}
+                            aria-disabled={isSubmitting}
+                            aria-label={isDiscountInputOpen ? "Hide discount input" : "Show discount input"}
+                            className={`inline-flex h-5 w-5 select-none items-center justify-center text-sm font-semibold leading-none transition ${
+                              isSubmitting ? "cursor-not-allowed text-[var(--muted)] opacity-45" : "cursor-pointer text-[var(--muted)] hover:text-[var(--accent)]"
+                            }`}
+                            onClick={() => {
+                              if (!isSubmitting) {
+                                toggleDiscountInput();
+                              }
+                            }}
+                            onKeyDown={(event) => {
+                              if (isSubmitting || (event.key !== "Enter" && event.key !== " ")) {
+                                return;
+                              }
+
+                              event.preventDefault();
+                              toggleDiscountInput();
+                            }}
                           >
-                            --
-                          </Button>
+                            {isDiscountInputOpen ? "x" : "+"}
+                          </span>
                         </div>
                       </div>
 
@@ -652,35 +744,16 @@ function CreateInvoicePage() {
                 Cancel
               </Button>
             </Link>
-            <Button type="button" variant="ghost" className="gap-2 rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white" disabled={isFormBusy} onClick={handlePreview}>
-              <Eye className="h-4 w-4" />
-              Preview
-            </Button>
             <Button type="submit" className="rounded-full px-5" disabled={isFormBusy}>
-              {isSubmitting ? "Saving..." : "Submit"}
+              {isSubmitting ? "Saving..." : isEditing ? "Update" : "Submit"}
             </Button>
           </div>
         </form>
       </section>
-
-      {showPreview ? (
-        <InvoiceSummary
-          invoice={invoiceSummary}
-          className="mx-auto mt-5 w-full max-w-[1328px]"
-          showPrintButton={false}
-        />
-      ) : null}
-
-      {showPreview ? (
-        <div className="mx-auto mt-4 flex w-full max-w-[1328px] justify-end">
-          <Button className="gap-2 rounded-full px-5" onClick={() => printInvoiceSummary(invoiceSummary)}>
-            <Printer className="h-4 w-4" />
-            Print Preview
-          </Button>
-        </div>
-      ) : null}
     </main>
   );
 }
 
-export default CreateInvoicePage;
+export default function CreateInvoicePage() {
+  return <InvoiceFormPage />;
+}
