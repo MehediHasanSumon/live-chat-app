@@ -64,6 +64,7 @@ const userManagementItems: DropdownItem[] = [
 ];
 
 const settingsItems: DropdownItem[] = [
+  { href: "/company-settings", label: "Company Settings" },
   { href: "/settings", label: "User Settings" },
   { href: "/ops", label: "System Configuration" },
   { href: "/storage", label: "Storage Configuration" },

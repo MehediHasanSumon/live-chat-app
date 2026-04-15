@@ -59,7 +59,7 @@ export function AdminDashboardShell({ children }: AdminDashboardShellProps) {
           onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           onToggleSidebar={() => setIsSidebarCollapsed((current) => !current)}
         />
-        <main className="p-4 lg:p-6">{children}</main>
+        <div className="p-4 lg:p-6">{children}</div>
       </div>
     </div>
   );

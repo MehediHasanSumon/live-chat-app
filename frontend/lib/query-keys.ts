@@ -57,6 +57,11 @@ export const queryKeys = {
       list: (page: number, perPage: number, search: string) => ["admin", "customers", { page, perPage, search }] as const,
       options: ["admin", "customers", "options"] as const,
     },
+    companySettings: {
+      all: ["admin", "company-settings"] as const,
+      list: (page: number, perPage: number, search: string) => ["admin", "company-settings", { page, perPage, search }] as const,
+      detail: (companySettingId: number | string) => ["admin", "company-settings", String(companySettingId)] as const,
+    },
     invoices: {
       all: ["admin", "invoices"] as const,
       list: (page: number, perPage: number, search: string) => ["admin", "invoices", { page, perPage, search }] as const,

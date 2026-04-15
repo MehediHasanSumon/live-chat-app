@@ -23,6 +23,25 @@ type RegisterPayload = {
   password_confirmation: string;
 };
 
+type ForgotPasswordPayload = {
+  email: string;
+};
+
+type ResetPasswordPayload = {
+  email: string;
+  code: string;
+  password: string;
+  password_confirmation: string;
+};
+
+type VerifyEmailPayload = {
+  code: string;
+};
+
+type MessageResponse = {
+  message: string;
+};
+
 async function resolveAuthenticatedUser(attempts = 3): Promise<AuthMeResponse> {
   let lastError: unknown;
 
@@ -40,6 +59,18 @@ async function resolveAuthenticatedUser(attempts = 3): Promise<AuthMeResponse> {
   throw lastError;
 }
 
+function setAuthenticatedPayload(queryClient: ReturnType<typeof useQueryClient>, payload: AuthMeResponse) {
+  queryClient.setQueryData(queryKeys.auth.me, payload);
+  if (payload.data.user) {
+    useAuthStore.getState().setAuthenticated({
+      user: payload.data.user,
+      settings: payload.data.settings,
+    });
+  } else {
+    useAuthStore.getState().clearAuthenticated();
+  }
+}
+
 export function useLoginMutation() {
   const queryClient = useQueryClient();
 
@@ -49,15 +80,7 @@ export function useLoginMutation() {
       const authenticatedUser = await resolveAuthenticatedUser();
       markSessionHintAuthenticated();
       const payload = authenticatedUser ?? response;
-      queryClient.setQueryData(queryKeys.auth.me, payload);
-      if (payload.data.user) {
-        useAuthStore.getState().setAuthenticated({
-          user: payload.data.user,
-          settings: payload.data.settings,
-        });
-      } else {
-        useAuthStore.getState().clearAuthenticated();
-      }
+      setAuthenticatedPayload(queryClient, payload);
     },
   });
 }
@@ -71,15 +94,36 @@ export function useRegisterMutation() {
       const authenticatedUser = await resolveAuthenticatedUser();
       markSessionHintAuthenticated();
       const payload = authenticatedUser ?? response;
-      queryClient.setQueryData(queryKeys.auth.me, payload);
-      if (payload.data.user) {
-        useAuthStore.getState().setAuthenticated({
-          user: payload.data.user,
-          settings: payload.data.settings,
-        });
-      } else {
-        useAuthStore.getState().clearAuthenticated();
-      }
+      setAuthenticatedPayload(queryClient, payload);
+    },
+  });
+}
+
+export function useForgotPasswordMutation() {
+  return useMutation({
+    mutationFn: (payload: ForgotPasswordPayload) => apiClient.post<MessageResponse>("/forgot-password", payload),
+  });
+}
+
+export function useResetPasswordMutation() {
+  return useMutation({
+    mutationFn: (payload: ResetPasswordPayload) => apiClient.post<MessageResponse>("/reset-password", payload),
+  });
+}
+
+export function useSendEmailVerificationCodeMutation() {
+  return useMutation({
+    mutationFn: () => apiClient.post<MessageResponse>("/email/verification/send"),
+  });
+}
+
+export function useVerifyEmailCodeMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: VerifyEmailPayload) => apiClient.post<AuthMeResponse>("/email/verification/verify", payload),
+    onSuccess: (payload) => {
+      setAuthenticatedPayload(queryClient, payload);
     },
   });
 }

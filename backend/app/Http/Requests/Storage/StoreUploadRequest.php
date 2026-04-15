@@ -19,7 +19,7 @@ class StoreUploadRequest extends FormRequest
     {
         return [
             'file' => ['required', 'file', 'max:'.config('uploads.max_upload_kb')],
-            'purpose' => ['nullable', 'string', Rule::in(['message_attachment', 'user_avatar', 'group_avatar'])],
+            'purpose' => ['nullable', 'string', Rule::in(['message_attachment', 'user_avatar', 'group_avatar', 'company_logo'])],
         ];
     }
 }

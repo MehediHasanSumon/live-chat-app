@@ -38,13 +38,14 @@ function RegisterPageContent() {
     event.preventDefault();
 
     try {
-      await registerMutation.mutateAsync({
+      const response = await registerMutation.mutateAsync({
         ...form,
         email: form.email || undefined,
         phone: form.phone || undefined,
       });
 
-      window.location.assign(searchParams.get("redirect") || "/messages");
+      const redirect = searchParams.get("redirect") || "/messages";
+      window.location.assign(response.data.must_verify_email ? `/email-verification?redirect=${encodeURIComponent(redirect)}` : redirect);
     } catch {
       // Errors are surfaced through mutation state for inline form feedback.
     }

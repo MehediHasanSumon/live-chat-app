@@ -86,7 +86,7 @@ export type StorageObjectApiItem = {
   id: number;
   object_uuid: string;
   owner_user_id: number | null;
-  purpose: "message_attachment" | "user_avatar" | "group_avatar";
+  purpose: "message_attachment" | "user_avatar" | "group_avatar" | "company_logo";
   media_kind: "image" | "video" | "audio" | "voice" | "file" | "gif";
   storage_driver: "local";
   original_name: string;

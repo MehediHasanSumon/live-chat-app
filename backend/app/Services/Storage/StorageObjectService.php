@@ -10,6 +10,7 @@ use App\Models\MessageAttachment;
 use App\Models\StorageObject;
 use App\Services\Conversations\ConversationMemberService;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -19,8 +20,7 @@ class StorageObjectService
     public function __construct(
         protected StorageQuotaService $storageQuotaService,
         protected ConversationMemberService $conversationMemberService,
-    ) {
-    }
+    ) {}
 
     public function storeUpload(UploadedFile $file, int $userId, string $purpose = 'message_attachment'): StorageObject
     {
@@ -51,7 +51,8 @@ class StorageObjectService
             'checksum_sha256' => hash_file('sha256', $file->getRealPath()),
             'virus_scan_status' => config('uploads.clamav.enabled') ? 'pending' : 'clean',
             'transcode_status' => $this->shouldExtractMetadata($mediaKind) ? 'pending' : 'ready',
-            'delete_eligible_at' => $this->resolveDeleteEligibility((int) $file->getSize()),
+            'retention_mode' => $purpose === 'company_logo' ? 'exempt' : 'default',
+            'delete_eligible_at' => $purpose === 'company_logo' ? null : $this->resolveDeleteEligibility((int) $file->getSize()),
         ]);
 
         $this->storageQuotaService->recalculateUsage();
@@ -233,7 +234,7 @@ class StorageObjectService
         return 'file';
     }
 
-    protected function resolveDeleteEligibility(int $sizeBytes): ?\Illuminate\Support\Carbon
+    protected function resolveDeleteEligibility(int $sizeBytes): ?Carbon
     {
         $policy = $this->storageQuotaService->activePolicy();
 

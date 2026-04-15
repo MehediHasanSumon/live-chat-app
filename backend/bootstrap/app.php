@@ -1,18 +1,20 @@
 <?php
 
+use App\Http\Middleware\DebouncedRequest;
+use App\Http\Middleware\EnsureVerifiedEmailForApi;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__ . '/../routes/web.php',
-        api: __DIR__ . '/../routes/api.php',
-        commands: __DIR__ . '/../routes/console.php',
+        web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
     ->withBroadcasting(
-        __DIR__ . '/../routes/channels.php',
+        __DIR__.'/../routes/channels.php',
         ['middleware' => ['web', 'auth:sanctum']]
     )
     ->withMiddleware(function (Middleware $middleware): void {
@@ -21,7 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
             ->statefulApi();
 
         // Add request debouncing middleware for performance optimization
-        $middleware->appendToGroup('api', \App\Http\Middleware\DebouncedRequest::class);
+        $middleware->appendToGroup('api', DebouncedRequest::class);
+        $middleware->appendToGroup('api', EnsureVerifiedEmailForApi::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

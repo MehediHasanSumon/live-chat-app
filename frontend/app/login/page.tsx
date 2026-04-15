@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, Suspense, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { AuthFormShell } from "@/components/auth/auth-form-shell";
 import { Button } from "@/components/ui/button";
@@ -25,13 +26,13 @@ function LoginPageContent() {
     event.preventDefault();
 
     try {
-      await loginMutation.mutateAsync({
+      const response = await loginMutation.mutateAsync({
         login,
         password,
         remember,
       });
 
-      window.location.assign("/dashboard");
+      window.location.assign(response.data.must_verify_email ? "/email-verification?redirect=/dashboard" : "/dashboard");
     } catch {
       // Errors are surfaced through mutation state for inline form feedback.
     }
@@ -85,9 +86,9 @@ function LoginPageContent() {
                 />
                 Remember me
               </label>
-              <Button type="button" variant="ghost" className="h-auto px-0 text-sm font-medium">
+              <Link href="/forgot-password" className="font-semibold text-[var(--accent)] transition hover:text-[var(--accent-strong)]">
                 Forgot password?
-              </Button>
+              </Link>
             </div>
 
             {loginMutation.error instanceof ApiClientError && !fieldErrors.login && !fieldErrors.password ? (

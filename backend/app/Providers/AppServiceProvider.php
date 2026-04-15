@@ -50,5 +50,11 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(3)->by($username.'|'.$request->ip());
         });
+
+        RateLimiter::for('auth-code', function (Request $request): Limit {
+            $email = (string) $request->input('email', $request->user()?->email ?? 'guest');
+
+            return Limit::perMinute(5)->by($email.'|'.$request->ip());
+        });
     }
 }

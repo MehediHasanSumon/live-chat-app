@@ -5,6 +5,7 @@ export type AuthStoreUser = {
   username: string;
   name: string;
   email: string | null;
+  email_verified_at: string | null;
   phone: string | null;
   status: "active" | "suspended" | "deleted";
   last_seen_at: string | null;

@@ -13,6 +13,7 @@ export type AuthMeResponse = {
       username: string;
       name: string;
       email: string | null;
+      email_verified_at: string | null;
       phone: string | null;
       status: "active" | "suspended" | "deleted";
       last_seen_at: string | null;
@@ -30,6 +31,8 @@ export type AuthMeResponse = {
       quiet_hours_end: string | null;
       quiet_hours_timezone: string;
     } | null;
+    email_verification_required: boolean;
+    must_verify_email: boolean;
   };
 };
 

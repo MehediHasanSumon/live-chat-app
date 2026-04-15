@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\AuthVerificationCode;
+use App\Models\CompanySetting;
 use App\Models\User;
 use App\Models\UserSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -184,4 +186,149 @@ it('logs out the authenticated web user', function () {
         ->and($activity?->event)->toBe('logged_out')
         ->and($activity?->description)->toBe('User logged out.')
         ->and((int) $activity?->causer_id)->toBe($user->id);
+});
+
+it('sends a forgot password code without revealing account existence', function () {
+    User::factory()->create([
+        'email' => 'sumon@example.com',
+        'status' => 'active',
+    ]);
+
+    $response = $this->postJson('/forgot-password', [
+        'email' => 'sumon@example.com',
+    ]);
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('message', 'If an active account exists for that email, a reset code has been sent.');
+
+    expect(AuthVerificationCode::query()
+        ->where('email', 'sumon@example.com')
+        ->where('purpose', 'password_reset')
+        ->whereNull('consumed_at')
+        ->exists())->toBeTrue();
+
+    $this->postJson('/forgot-password', [
+        'email' => 'missing@example.com',
+    ])->assertOk();
+});
+
+it('resets a password with a valid six digit code', function () {
+    $user = User::factory()->create([
+        'email' => 'sumon@example.com',
+        'password_hash' => Hash::make('old-secret-123'),
+    ]);
+    $verificationCode = AuthVerificationCode::query()->create([
+        'user_id' => $user->id,
+        'email' => 'sumon@example.com',
+        'purpose' => 'password_reset',
+        'code_hash' => Hash::make('123456'),
+        'expires_at' => now()->addMinutes(10),
+    ]);
+
+    $response = $this->postJson('/reset-password', [
+        'email' => 'sumon@example.com',
+        'code' => '123456',
+        'password' => 'new-secret-123',
+        'password_confirmation' => 'new-secret-123',
+    ]);
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('message', 'Password reset successfully.');
+
+    expect(Hash::check('new-secret-123', $user->fresh()->password_hash))->toBeTrue()
+        ->and($verificationCode->fresh()->consumed_at)->not->toBeNull();
+});
+
+it('rejects invalid reset codes', function () {
+    $user = User::factory()->create([
+        'email' => 'sumon@example.com',
+    ]);
+    AuthVerificationCode::query()->create([
+        'user_id' => $user->id,
+        'email' => 'sumon@example.com',
+        'purpose' => 'password_reset',
+        'code_hash' => Hash::make('123456'),
+        'expires_at' => now()->addMinutes(10),
+    ]);
+
+    $response = $this->postJson('/reset-password', [
+        'email' => 'sumon@example.com',
+        'code' => '654321',
+        'password' => 'new-secret-123',
+        'password_confirmation' => 'new-secret-123',
+    ]);
+
+    $response
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['code']);
+});
+
+it('requires email on registration when email verification is enabled', function () {
+    CompanySetting::query()->create([
+        'company_name' => 'Nexus',
+        'is_email_verification_enable' => true,
+    ]);
+
+    $response = $this->postJson('/register', [
+        'username' => 'sumon-no-email',
+        'name' => 'Sumon Hasan',
+        'password' => 'secret-123',
+        'password_confirmation' => 'secret-123',
+    ]);
+
+    $response
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['email']);
+});
+
+it('verifies an authenticated user email with a six digit code', function () {
+    CompanySetting::query()->create([
+        'company_name' => 'Nexus',
+        'is_email_verification_enable' => true,
+    ]);
+    $user = User::factory()->unverified()->create([
+        'email' => 'sumon@example.com',
+    ]);
+    $verificationCode = AuthVerificationCode::query()->create([
+        'user_id' => $user->id,
+        'email' => 'sumon@example.com',
+        'purpose' => 'email_verification',
+        'code_hash' => Hash::make('123456'),
+        'expires_at' => now()->addMinutes(10),
+    ]);
+
+    $response = $this->actingAs($user, 'web')
+        ->postJson('/email/verification/verify', [
+            'code' => '123456',
+        ]);
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('data.user.email_verified_at', fn ($value) => filled($value))
+        ->assertJsonPath('data.must_verify_email', false);
+
+    expect($user->fresh()->email_verified_at)->not->toBeNull()
+        ->and($verificationCode->fresh()->consumed_at)->not->toBeNull();
+});
+
+it('blocks protected api routes until email is verified', function () {
+    CompanySetting::query()->create([
+        'company_name' => 'Nexus',
+        'is_email_verification_enable' => true,
+    ]);
+    $user = User::factory()->unverified()->create([
+        'email' => 'sumon@example.com',
+    ]);
+
+    $this->actingAs($user, 'web')
+        ->getJson('/api/me')
+        ->assertOk()
+        ->assertJsonPath('data.must_verify_email', true);
+
+    $this->actingAs($user, 'web')
+        ->getJson('/api/conversations')
+        ->assertForbidden()
+        ->assertJsonPath('email_verification_required', true);
 });

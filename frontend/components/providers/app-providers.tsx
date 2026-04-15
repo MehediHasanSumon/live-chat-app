@@ -2,13 +2,14 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
-import { ReactNode, useState } from "react";
+import { ReactNode, Suspense, useState } from "react";
 
 import { AuthQuerySync } from "@/components/providers/auth-query-sync";
 import { AuthStoreSync } from "@/components/providers/auth-store-sync";
 import { CallDock } from "@/components/providers/call-dock";
 import { CallRealtimeProvider } from "@/components/providers/call-realtime-provider";
 import { ConversationRealtimeProvider } from "@/components/providers/conversation-realtime-provider";
+import { EmailVerificationGate } from "@/components/providers/email-verification-gate";
 import { PresenceHeartbeatProvider } from "@/components/providers/presence-heartbeat-provider";
 import { ReverbProvider } from "@/components/providers/reverb-provider";
 
@@ -41,7 +42,9 @@ export function AppProviders({ children }: AppProvidersProps) {
       <CallRealtimeProvider />
       <ConversationRealtimeProvider />
       {!isStandaloneAudioCallRoute ? <CallDock /> : null}
-      {children}
+      <Suspense fallback={null}>
+        <EmailVerificationGate>{children}</EmailVerificationGate>
+      </Suspense>
     </QueryClientProvider>
   );
 }

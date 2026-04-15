@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminCompanySettingController;
 use App\Http\Controllers\AdminCustomerController;
 use App\Http\Controllers\AdminInvoiceController;
 use App\Http\Controllers\AdminOpsController;
@@ -140,6 +141,11 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/admin/customers', [AdminCustomerController::class, 'store']);
     Route::patch('/admin/customers/{customer}', [AdminCustomerController::class, 'update']);
     Route::delete('/admin/customers/{customer}', [AdminCustomerController::class, 'destroy']);
+    Route::get('/admin/company-settings', [AdminCompanySettingController::class, 'index']);
+    Route::post('/admin/company-settings', [AdminCompanySettingController::class, 'store']);
+    Route::get('/admin/company-settings/{companySetting}', [AdminCompanySettingController::class, 'show']);
+    Route::patch('/admin/company-settings/{companySetting}', [AdminCompanySettingController::class, 'update']);
+    Route::delete('/admin/company-settings/{companySetting}', [AdminCompanySettingController::class, 'destroy']);
     Route::get('/admin/invoices/next-number', [AdminInvoiceController::class, 'nextNumber']);
     Route::get('/admin/invoices/statements/daily', [AdminInvoiceController::class, 'dailyStatement']);
     Route::get('/admin/invoices/statements/monthly', [AdminInvoiceController::class, 'monthlyStatement']);
