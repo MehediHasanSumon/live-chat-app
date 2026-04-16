@@ -1,4 +1,47 @@
 import type { NextConfig } from "next";
+import type { RemotePattern } from "next/dist/shared/lib/image-config";
+
+function toRemotePattern(rawUrl: string | undefined): RemotePattern | null {
+  if (!rawUrl) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(rawUrl);
+    const protocol = parsed.protocol === "https:" ? "https" : parsed.protocol === "http:" ? "http" : null;
+
+    if (!protocol) {
+      return null;
+    }
+
+    return {
+      protocol,
+      hostname: parsed.hostname,
+      ...(parsed.port ? { port: parsed.port } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+const configuredRemotePatterns: RemotePattern[] = [
+  { protocol: "http", hostname: "localhost", port: "8000" },
+  { protocol: "http", hostname: "api.localhost" },
+  { protocol: "http", hostname: "localhost", port: "3000" },
+  { protocol: "https", hostname: "localhost" },
+  toRemotePattern(process.env.NEXT_PUBLIC_APP_URL),
+  toRemotePattern(process.env.NEXT_PUBLIC_API_BASE_URL),
+]
+  .filter((pattern): pattern is RemotePattern => Boolean(pattern))
+  .filter(
+    (pattern, index, patterns) =>
+      patterns.findIndex(
+        (candidate) =>
+          candidate.protocol === pattern.protocol &&
+          candidate.hostname === pattern.hostname &&
+          (candidate.port ?? "") === (pattern.port ?? ""),
+      ) === index,
+  );
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -11,21 +54,7 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    remotePatterns: [
-      {
-        protocol: "http",
-        hostname: "localhost",
-        port: "8000",
-      },
-      {
-        protocol: "http",
-        hostname: "api.localhost",
-      },
-      {
-        protocol: "http",
-        hostname: process.env.NEXT_PUBLIC_API_HOST || "localhost",
-      },
-    ],
+    remotePatterns: configuredRemotePatterns,
     // Use default loader for local development, can be replaced with CDN
     unoptimized: process.env.NODE_ENV === "development",
   },
