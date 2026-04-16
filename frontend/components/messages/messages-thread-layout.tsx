@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-import { applyPresenceToThread, getDirectThreadPeer, type MessageThread } from "@/lib/messages-data";
+import { type MessageThread } from "@/lib/messages-data";
 import { MessagesAsidePanel } from "@/components/messages/messages-aside-panel";
 import { MessagesConversationActionModals } from "@/components/messages/messages-conversation-action-modals";
 import { MessagesImageViewer, type MessagesImageViewerItem } from "@/components/messages/messages-image-viewer";
@@ -13,7 +13,6 @@ import { MessagesShell } from "@/components/messages/messages-shell";
 import { MessagesSidebar } from "@/components/messages/messages-sidebar";
 import { MessagesThreadView } from "@/components/messages/messages-thread-view";
 import { MessagesUserSidebar } from "@/components/messages/messages-user-sidebar";
-import { useUserPresenceQuery } from "@/lib/hooks/use-user-presence-query";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 import { type SidebarListView } from "@/components/messages/messages-sidebar";
 
@@ -26,8 +25,6 @@ export function MessagesThreadLayout({ thread, sidebarView = "messages" }: Messa
   const [viewerImages, setViewerImages] = useState<MessagesImageViewerItem[]>([]);
   const [viewerThreadId, setViewerThreadId] = useState<string | null>(null);
   const [activeViewerImageId, setActiveViewerImageId] = useState<string | null>(null);
-  const directPeer = getDirectThreadPeer(thread);
-  const { data: presence } = useUserPresenceQuery(directPeer?.user_id, !thread.isGroup && Boolean(directPeer?.user_id));
   const {
     activeThreadId,
     asideView,
@@ -55,10 +52,7 @@ export function MessagesThreadLayout({ thread, sidebarView = "messages" }: Messa
     setActiveThreadId: state.setActiveThreadId,
     toggleInfoSidebar: state.toggleInfoSidebar,
   })));
-  const threadWithPresence = useMemo(
-    () => applyPresenceToThread(thread, presence),
-    [presence, thread],
-  );
+  const threadWithPresence = thread;
 
   useEffect(() => {
     setActiveThreadId(threadWithPresence.id);

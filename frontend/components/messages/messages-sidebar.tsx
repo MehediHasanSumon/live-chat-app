@@ -35,10 +35,9 @@ import {
 } from "@/lib/hooks/use-conversation-actions";
 import { type ConversationListFilter, useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { useMarkConversationReadMutation } from "@/lib/hooks/use-mark-read-mutation";
-import { useConversationPresenceMap } from "@/lib/hooks/use-user-presence-query";
 import { useAcceptMessageRequestMutation, useRejectMessageRequestMutation } from "@/lib/hooks/use-message-request-mutations";
 import { useMessageRequestsQuery } from "@/lib/hooks/use-message-requests-query";
-import { applyPresenceToThread, toConversationThread } from "@/lib/messages-data";
+import { toConversationThread } from "@/lib/messages-data";
 import { useBlockedUsersQuery } from "@/lib/hooks/use-blocked-users-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
@@ -178,18 +177,13 @@ export function MessagesSidebar({
     () => conversations.map((conversation) => toConversationThread(conversation)),
     [conversations],
   );
-  const presenceMap = useConversationPresenceMap(threads);
-  const threadsWithPresence = useMemo(
-    () => threads.map((thread) => applyPresenceToThread(thread, presenceMap[thread.id])),
-    [presenceMap, threads],
-  );
   const visibleThreads = useMemo(
-    () => threadsWithPresence.filter((thread) => !thread.membership?.archived_at),
-    [threadsWithPresence],
+    () => threads.filter((thread) => !thread.membership?.archived_at),
+    [threads],
   );
   const archivedThreads = useMemo(
-    () => threadsWithPresence.filter((thread) => Boolean(thread.membership?.archived_at)),
-    [threadsWithPresence],
+    () => threads.filter((thread) => Boolean(thread.membership?.archived_at)),
+    [threads],
   );
   const requestThreads = useMemo(
     () => requests.map((conversation) => toConversationThread(conversation)),

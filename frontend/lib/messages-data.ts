@@ -42,6 +42,7 @@ export type ConversationApiItem = {
   last_message_preview: string | null;
   last_message_at: string | null;
   active_room_uuid: string | null;
+  direct_peer_presence?: UserPresenceApiItem | null;
   is_chat_blocked?: boolean;
   created_at: string;
   updated_at: string;
@@ -340,9 +341,15 @@ export function toConversationThread(conversation: ConversationApiItem): Message
     lastMessage: conversation.last_message_preview ?? "No messages yet",
     time: formatRelativeTime(conversation.last_message_at ?? conversation.updated_at),
     unreadCount: conversation.membership?.unread_count_cache || undefined,
-    online: false,
+    online: Boolean(conversation.direct_peer_presence?.visible && conversation.direct_peer_presence?.is_online),
     isChatBlocked: conversation.is_chat_blocked ?? false,
-    presence: null,
+    presence: conversation.direct_peer_presence
+      ? {
+          visible: conversation.direct_peer_presence.visible,
+          isOnline: conversation.direct_peer_presence.is_online,
+          lastSeenAt: conversation.direct_peer_presence.last_seen_at,
+        }
+      : null,
     isGroup: conversation.type === "group",
     membership: conversation.membership,
     members: conversation.members,

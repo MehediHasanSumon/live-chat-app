@@ -11,6 +11,7 @@ const REVERB_SCHEME = process.env.NEXT_PUBLIC_REVERB_SCHEME ?? "http";
 const REVERB_PATH = process.env.NEXT_PUBLIC_REVERB_PATH ?? "";
 
 let echoInstance: Echo<"reverb"> | null = null;
+type ConnectionState = string | null;
 
 export function isRealtimeConfigured(): boolean {
   return REVERB_APP_KEY.trim().length > 0;
@@ -170,6 +171,38 @@ export function connectEcho(): Echo<"reverb"> | null {
   echo.connector.pusher.connect();
 
   return echo;
+}
+
+export function getRealtimeConnectionState(): ConnectionState {
+  return echoInstance?.connector?.pusher?.connection.state ?? null;
+}
+
+export function isRealtimeConnected(): boolean {
+  return getRealtimeConnectionState() === "connected";
+}
+
+export function subscribeToRealtimeConnectionState(
+  listener: (state: ConnectionState) => void,
+): () => void {
+  const echo = getEchoInstance();
+  const connection = echo?.connector?.pusher?.connection;
+
+  if (!connection) {
+    listener(null);
+
+    return () => {};
+  }
+
+  const handleStateChange = (payload: { current: string }) => {
+    listener(payload.current);
+  };
+
+  listener(connection.state ?? null);
+  connection.bind("state_change", handleStateChange);
+
+  return () => {
+    connection.unbind("state_change", handleStateChange);
+  };
 }
 
 export function getSocketId(): string | null {

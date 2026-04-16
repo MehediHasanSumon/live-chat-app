@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { InfiniteData, useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 
+import { type ConversationApiItem, type MessageApiItem } from "@/lib/messages-data";
+import { type ConversationMessagesResponse } from "@/lib/hooks/use-conversation-messages-query";
+import { type ConversationsResponse } from "@/lib/hooks/use-conversations-query";
 import { queryKeys } from "@/lib/query-keys";
 import { getEchoInstance } from "@/lib/reverb";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 import { useConversationRealtimeStore } from "@/lib/stores/conversation-realtime-store";
-import { pushToast } from "@/lib/stores/toast-store";
-import { type MessageApiItem } from "@/lib/messages-data";
 
 type TypingEventPayload = {
   conversation_id: number;
@@ -23,6 +24,46 @@ type TypingEventPayload = {
 type MessageCreatedPayload = {
   message: MessageApiItem;
 };
+
+type ConversationResponse = {
+  data: ConversationApiItem;
+};
+
+type ConversationDetailCache = ConversationApiItem | ConversationResponse | undefined;
+
+function buildConversationPreview(message: MessageApiItem): string {
+  if (message.display_text?.trim()) {
+    return message.display_text.trim();
+  }
+
+  if (message.text_body?.trim()) {
+    return message.text_body.trim();
+  }
+
+  return "New message";
+}
+
+function patchConversationMessageState(
+  conversation: ConversationApiItem,
+  message: MessageApiItem,
+): ConversationApiItem {
+  if (String(conversation.id) !== String(message.conversation_id)) {
+    return conversation;
+  }
+
+  if ((conversation.last_message_seq ?? 0) >= message.seq) {
+    return conversation;
+  }
+
+  return {
+    ...conversation,
+    last_message_seq: message.seq,
+    last_message_id: message.id,
+    last_message_preview: buildConversationPreview(message),
+    last_message_at: message.created_at,
+    updated_at: message.updated_at,
+  };
+}
 
 export function ConversationRealtimeProvider() {
   const queryClient = useQueryClient();
@@ -59,22 +100,66 @@ export function ConversationRealtimeProvider() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
     };
 
-    const handleMessageCreated = (payload: MessageCreatedPayload) => {
-      invalidateConversationState();
+    const patchConversationState = (message: MessageApiItem) => {
+      queryClient.setQueriesData<ConversationsResponse>({ queryKey: queryKeys.conversations.lists }, (current) => {
+        if (!current?.data) {
+          return current;
+        }
 
-      if (!payload.message || payload.message.sender_id === authUserId) {
+        return {
+          ...current,
+          data: current.data.map((conversation) => patchConversationMessageState(conversation, message)),
+        };
+      });
+
+      queryClient.setQueryData<ConversationDetailCache>(queryKeys.conversations.detail(activeThreadId), (current) => {
+        if (!current) {
+          return current;
+        }
+
+        if (!("data" in current)) {
+          return patchConversationMessageState(current, message);
+        }
+
+        return {
+          ...current,
+          data: patchConversationMessageState(current.data, message),
+        };
+      });
+
+      queryClient.setQueryData<InfiniteData<ConversationMessagesResponse, number | null>>(
+        queryKeys.messages.list(activeThreadId),
+        (current) => {
+          if (!current?.pages?.length) {
+            return current;
+          }
+
+          const firstPage = current.pages[0];
+
+          if (firstPage.data.some((item) => item.id === message.id)) {
+            return current;
+          }
+
+          return {
+            ...current,
+            pages: [
+              {
+                ...firstPage,
+                data: [...firstPage.data, message].sort((left, right) => left.seq - right.seq),
+              },
+              ...current.pages.slice(1),
+            ],
+          };
+        },
+      );
+    };
+
+    const handleMessageCreated = (payload: MessageCreatedPayload) => {
+      if (!payload.message || String(payload.message.conversation_id) !== activeThreadId) {
         return;
       }
 
-      pushToast({
-        id: `message-${payload.message.id}`,
-        kind: "message",
-        tone: "message",
-        title: payload.message.sender?.name ?? "New message",
-        senderName: payload.message.sender?.name ?? "Someone",
-        message: payload.message.display_text ?? payload.message.text_body ?? "Sent you a message.",
-        conversationId: String(payload.message.conversation_id),
-      });
+      patchConversationState(payload.message);
     };
 
     const channel = echo.private(`conversation.${activeThreadId}`);

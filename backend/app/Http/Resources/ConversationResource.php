@@ -5,9 +5,31 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Services\Privacy\PrivacyService;
+use App\Models\ConversationMember;
 
 class ConversationResource extends JsonResource
 {
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function resolveDirectPeerPresence(Request $request): ?array
+    {
+        if ($this->type !== 'direct' || ! $request->user() || ! $this->relationLoaded('members')) {
+            return null;
+        }
+
+        $viewerId = (int) $request->user()->getAuthIdentifier();
+        $targetUser = $this->members
+            ->first(fn (ConversationMember $member) => (int) $member->user_id !== $viewerId)
+            ?->user;
+
+        if (! $targetUser) {
+            return null;
+        }
+
+        return app(PrivacyService::class)->resolvePresenceVisibility($viewerId, $targetUser);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -32,6 +54,7 @@ class ConversationResource extends JsonResource
             'last_message_preview' => $this->last_message_preview,
             'last_message_at' => $this->last_message_at,
             'active_room_uuid' => $this->active_room_uuid,
+            'direct_peer_presence' => $this->resolveDirectPeerPresence($request),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'creator' => $this->whenLoaded('creator', fn () => (new UserResource($this->creator))->resolve($request)),

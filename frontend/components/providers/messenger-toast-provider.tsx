@@ -64,11 +64,6 @@ export function MessengerToastProvider() {
 
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
 
-      if (conversationId) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.messages.list(conversationId) });
-      }
-
       if (!conversationId || payload.type === "summary" || payloadSenderId(payload) === authUserId) {
         return;
       }

@@ -4,6 +4,7 @@ use App\Models\Conversation;
 use App\Models\ConversationMember;
 use App\Models\StorageObject;
 use App\Models\User;
+use App\Models\UserSetting;
 use App\Services\Realtime\PresenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -41,6 +42,47 @@ it('creates or returns a direct conversation for two users', function () {
         ->assertJsonPath('data.id', $conversationId);
 
     expect(Conversation::query()->count())->toBe(1);
+});
+
+it('includes direct peer presence in the conversation list payload', function () {
+    $authUser = User::factory()->create();
+    $targetUser = User::factory()->create();
+
+    UserSetting::query()->create([
+        'user_id' => $targetUser->id,
+        'show_active_status' => true,
+    ]);
+
+    $conversation = Conversation::query()->create([
+        'type' => 'direct',
+        'direct_key' => hash('sha256', implode(':', [$authUser->id, $targetUser->id])),
+        'created_by' => $authUser->id,
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $authUser->id,
+        'role' => 'owner',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $targetUser->id,
+        'role' => 'member',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    app(PresenceService::class)->heartbeat($targetUser->id, 'presence-device');
+
+    $this->actingAs($authUser, 'web')
+        ->getJson('/api/conversations')
+        ->assertOk()
+        ->assertJsonPath('data.0.direct_peer_presence.user_id', $targetUser->id)
+        ->assertJsonPath('data.0.direct_peer_presence.visible', true)
+        ->assertJsonPath('data.0.direct_peer_presence.is_online', true);
 });
 
 it('creates a group and assigns the creator as owner', function () {

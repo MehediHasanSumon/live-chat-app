@@ -42,9 +42,13 @@ import {
 import { publishPopupClosingSignal } from "@/lib/call-popup-sync";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationQuery } from "@/lib/hooks/use-conversation-query";
-import { useUserPresenceQuery } from "@/lib/hooks/use-user-presence-query";
-import { getDirectThreadPeer, toConversationThread, type MessageThread } from "@/lib/messages-data";
-import { getEchoInstance } from "@/lib/reverb";
+import { toConversationThread, type MessageThread } from "@/lib/messages-data";
+import {
+  getEchoInstance,
+  isRealtimeConfigured,
+  isRealtimeConnected,
+  subscribeToRealtimeConnectionState,
+} from "@/lib/reverb";
 
 type CallRoomResponse = {
   data: CallRoomApiItem;
@@ -1092,11 +1096,7 @@ export function AudioCallWindow() {
     () => (conversation ? toConversationThread(conversation) : null),
     [conversation],
   );
-  const directPeer = useMemo(() => (thread ? getDirectThreadPeer(thread) : null), [thread]);
-  const { data: directPeerPresence } = useUserPresenceQuery(
-    directPeer?.user_id,
-    Boolean(directPeer?.user_id) && !Boolean(thread?.isGroup),
-  );
+  const directPeerPresence = thread?.presence ?? null;
   const [payload, setPayload] = useState<JoinCallApiPayload | null>(null);
   const [roomSnapshot, setRoomSnapshot] = useState<CallRoomApiItem | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -1118,6 +1118,7 @@ export function AudioCallWindow() {
   const [isCheckingDevices, setIsCheckingDevices] = useState(true);
   const [isDeviceCheckComplete, setIsDeviceCheckComplete] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRealtimeReady, setIsRealtimeReady] = useState<boolean>(() => isRealtimeConnected());
   const didInitializeRef = useRef(false);
   const didEndRef = useRef(false);
   const currentRoomUuid = resolveCallRoomUuid(
@@ -1581,6 +1582,18 @@ export function AudioCallWindow() {
   }, [authUserId, closeWindow, conversationId, currentRoomUuid]);
 
   useEffect(() => {
+    if (!isRealtimeConfigured()) {
+      setIsRealtimeReady(false);
+
+      return;
+    }
+
+    return subscribeToRealtimeConnectionState((state) => {
+      setIsRealtimeReady(state === "connected");
+    });
+  }, []);
+
+  useEffect(() => {
     if (!currentRoomUuid) {
       return;
     }
@@ -1620,15 +1633,26 @@ export function AudioCallWindow() {
 
     void syncRoomState();
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void syncRoomState();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     const intervalId = window.setInterval(() => {
-      void syncRoomState();
-    }, 3_000);
+      if (!isRealtimeReady && document.visibilityState === "visible") {
+        void syncRoomState();
+      }
+    }, 15_000);
 
     return () => {
       isCancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.clearInterval(intervalId);
     };
-  }, [authUserId, closeWindow, currentRoomUuid]);
+  }, [authUserId, closeWindow, currentRoomUuid, isRealtimeReady]);
 
   const pendingStatusLabel = useMemo(() => {
     if (roomSnapshot) {
@@ -1639,7 +1663,7 @@ export function AudioCallWindow() {
       return "Connecting";
     }
 
-    return directPeerPresence?.visible && directPeerPresence.is_online ? "Ringing" : "Calling";
+    return directPeerPresence?.visible && directPeerPresence.isOnline ? "Ringing" : "Calling";
   }, [action, directPeerPresence, roomSnapshot]);
 
   const pendingSubtitle = useMemo(() => {
