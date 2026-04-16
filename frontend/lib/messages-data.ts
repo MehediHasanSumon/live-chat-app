@@ -7,6 +7,7 @@ export type ConversationUser = {
   status: "active" | "suspended" | "deleted";
   last_seen_at: string | null;
   avatar_object_id: number | null;
+  avatar_object?: StorageObjectApiItem | null;
 };
 
 export type ConversationMembership = {
@@ -219,6 +220,7 @@ export type ChatMessage = {
   time: string;
   senderName?: string;
   senderUsername?: string;
+  senderAvatarUrl?: string | null;
   isEdited?: boolean;
   isDeletedForEveryone?: boolean;
   isForwarded?: boolean;
@@ -303,19 +305,25 @@ function buildDirectConversationName(conversation: ConversationApiItem): string 
   return otherMember?.name ?? conversation.title ?? `Conversation #${conversation.id}`;
 }
 
+function getDirectConversationPeer(conversation: ConversationApiItem) {
+  return conversation.members?.find(
+    (member) => member.user && member.user_id !== conversation.membership?.user_id,
+  )?.user ?? null;
+}
+
 function buildConversationHandle(conversation: ConversationApiItem): string {
   if (conversation.type === "group") {
     return `#group-${conversation.id}`;
   }
 
-  const otherMember = conversation.members?.find(
-    (member) => member.user && member.user_id !== conversation.membership?.user_id,
-  )?.user;
+  const otherMember = getDirectConversationPeer(conversation);
 
   return otherMember?.username ? `@${otherMember.username}` : `@conversation-${conversation.id}`;
 }
 
 export function toConversationThread(conversation: ConversationApiItem): MessageThread {
+  const directPeer = conversation.type === "direct" ? getDirectConversationPeer(conversation) : null;
+
   return {
     id: String(conversation.id),
     numericId: conversation.id,
@@ -325,8 +333,8 @@ export function toConversationThread(conversation: ConversationApiItem): Message
       conversation.type === "group"
         ? conversation.title ?? `Group #${conversation.id}`
         : buildDirectConversationName(conversation),
-    avatarUrl: conversation.avatar_object?.download_url ?? null,
-    avatarObjectId: conversation.avatar_object_id,
+    avatarUrl: conversation.avatar_object?.download_url ?? directPeer?.avatar_object?.download_url ?? null,
+    avatarObjectId: conversation.avatar_object_id ?? directPeer?.avatar_object_id ?? null,
     handle: buildConversationHandle(conversation),
     description: conversation.description,
     lastMessage: conversation.last_message_preview ?? "No messages yet",
@@ -452,6 +460,7 @@ export function toChatMessage(message: MessageApiItem, authUserId?: number | nul
     time: formatRelativeTime(message.created_at),
     senderName: message.sender?.name ?? undefined,
     senderUsername: message.sender?.username ?? undefined,
+    senderAvatarUrl: message.sender?.avatar_object?.download_url ?? null,
     isEdited: message.is_edited,
     isDeletedForEveryone: Boolean(message.deleted_for_everyone_at),
     isForwarded: Boolean(message.forwarded_from_message_id),

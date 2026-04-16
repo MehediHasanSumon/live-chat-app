@@ -41,9 +41,9 @@ class MessageService
 
         return $query
             ->with([
-                'sender',
-                'replyTo.sender',
-                'reactions.user',
+                'sender.avatarObject',
+                'replyTo.sender.avatarObject',
+                'reactions.user.avatarObject',
                 'attachments.storageObject',
             ])
             ->orderByDesc('seq')
@@ -515,7 +515,7 @@ class MessageService
         $replyTo = Message::query()
             ->whereKey($replyToMessageId)
             ->where('conversation_id', $conversation->getKey())
-            ->with('sender')
+            ->with('sender.avatarObject')
             ->first();
 
         if (! $replyTo) {
@@ -687,9 +687,9 @@ class MessageService
     {
         return $message->fresh([
             'conversation',
-            'sender',
-            'replyTo.sender',
-            'reactions.user',
+            'sender.avatarObject',
+            'replyTo.sender.avatarObject',
+            'reactions.user.avatarObject',
             'attachments.storageObject',
         ]);
     }

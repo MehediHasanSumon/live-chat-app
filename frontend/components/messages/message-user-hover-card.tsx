@@ -5,11 +5,13 @@ import { MessageAvatar } from "@/components/messages/message-avatar";
 type MessageUserHoverCardProps = {
   name: string;
   username?: string | null;
+  imageUrl?: string | null;
 };
 
 export function MessageUserHoverCard({
   name,
   username,
+  imageUrl = null,
 }: MessageUserHoverCardProps) {
   const senderHandle = username?.trim() ? `@${username.trim()}` : null;
 
@@ -18,6 +20,7 @@ export function MessageUserHoverCard({
       <div className="flex items-center gap-3">
         <MessageAvatar
           name={name}
+          imageUrl={imageUrl}
           sizeClass="h-12 w-12"
           textClass="text-sm"
         />

@@ -24,11 +24,12 @@ function MessagesChatHeaderComponent({
   isStartingVideoCall = false,
 }: MessagesChatHeaderProps) {
   const presenceLabel = formatPresenceLabel(thread.presence);
+  const presenceStatus = thread.presence?.visible ? (thread.online ? "online" : "offline") : null;
 
   return (
     <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-4 sm:px-6">
       <div className="flex items-center gap-3">
-        <MessageAvatar name={thread.name} online={thread.online} imageUrl={thread.avatarUrl} />
+        <MessageAvatar name={thread.name} status={presenceStatus} imageUrl={thread.avatarUrl} />
         <div>
           <p className="text-sm font-semibold sm:text-base">{thread.name}</p>
           {presenceLabel ? (

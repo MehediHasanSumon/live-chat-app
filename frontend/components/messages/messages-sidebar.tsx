@@ -691,7 +691,7 @@ export function MessagesSidebar({
                   data-thread-id={rowId}
                 >
                   <div className="flex items-center gap-3 pr-10">
-                    <MessageAvatar name={name} online={false} />
+                    <MessageAvatar name={name} online={false} imageUrl={blockedUser?.avatar_object?.download_url ?? null} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">

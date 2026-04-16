@@ -91,6 +91,18 @@ export function useUploadUserAvatarMutation() {
   });
 }
 
+export function useDeleteAccountAvatarMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (storageObjectId: number) => apiClient.delete<AuthEnvelopeResponse>(`/api/settings/avatar/${storageObjectId}`),
+    onSuccess: (payload) => {
+      mergeAuthEnvelope(queryClient, payload);
+      invalidateAuth(queryClient);
+    },
+  });
+}
+
 export function useUpdateAccountProfileMutation() {
   const queryClient = useQueryClient();
 

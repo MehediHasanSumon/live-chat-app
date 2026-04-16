@@ -228,6 +228,7 @@ function MessageBubbleComponent({
           >
             <MessageAvatar
               name={senderDisplayName}
+              imageUrl={message.senderAvatarUrl}
               sizeClass="h-9 w-9"
               textClass="text-xs"
             />
@@ -238,6 +239,7 @@ function MessageBubbleComponent({
               <MessageUserHoverCard
                 name={senderDisplayName}
                 username={message.senderUsername}
+                imageUrl={message.senderAvatarUrl}
               />
             </div>
           ) : null}

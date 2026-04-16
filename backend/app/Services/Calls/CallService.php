@@ -1161,7 +1161,7 @@ class CallService
         return CallRoom::query()
             ->where('room_uuid', $roomUuid)
             ->with([
-                'participants.user',
+                'participants.user.avatarObject',
             ])
             ->firstOrFail();
     }

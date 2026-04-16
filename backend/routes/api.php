@@ -157,6 +157,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/admin/ops/health', [AdminOpsController::class, 'health']);
     Route::get('/admin/ops/status', [AdminOpsController::class, 'status']);
     Route::patch('/settings/profile', [SettingsController::class, 'profile']);
+    Route::delete('/settings/avatar/{storageObject}', [SettingsController::class, 'deleteAvatar']);
     Route::patch('/settings/password', [SettingsController::class, 'password']);
     Route::patch('/settings/theme', [SettingsController::class, 'theme']);
     Route::patch('/settings/presence', [SettingsController::class, 'presence']);

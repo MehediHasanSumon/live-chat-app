@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronDown, LogOut, Menu, PanelLeftOpen, Search, Settings, User } from "lucide-react";
 
+import { AppAvatar } from "@/components/ui/app-avatar";
 import { useLogoutMutation } from "@/lib/hooks/use-auth-mutations";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { cn } from "@/lib/utils";
@@ -49,23 +50,6 @@ const notifications = [
   },
 ];
 
-function getInitials(name: string, username: string) {
-  const parts = name
-    .split(" ")
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (parts.length === 0) {
-    return username.slice(0, 2).toUpperCase();
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
 export function AdminDashboardTopbar({
   isSidebarCollapsed,
   onOpenSidebar,
@@ -78,7 +62,7 @@ export function AdminDashboardTopbar({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const displayName = user?.name?.trim() || user?.username || "Guest User";
   const displayUsername = user?.username ? `@${user.username}` : "@guest";
-  const initials = getInitials(displayName, user?.username ?? "GU");
+  const avatarUrl = user?.avatar_object?.download_url ?? null;
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
@@ -213,9 +197,16 @@ export function AdminDashboardTopbar({
             className="flex items-center gap-2.5 rounded-xl py-1.5 pl-2 pr-3 transition hover:bg-slate-100"
             aria-label="User menu"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[linear-gradient(135deg,#111827,#334155)] text-xs font-semibold text-white">
-              {initials}
-            </div>
+            <AppAvatar
+              name={displayName}
+              imageUrl={avatarUrl}
+              sizeClass="h-8 w-8"
+              textClass="text-xs"
+              radiusClassName="rounded-lg"
+              fallbackClassName="bg-[linear-gradient(135deg,#111827,#334155)] text-white"
+              className={!avatarUrl ? "tracking-[0.02em]" : undefined}
+              alt={`${displayName} avatar`}
+            />
             <div className="hidden text-left sm:block">
               <p className="text-sm font-semibold leading-tight text-slate-800">{displayName}</p>
               <p className="text-[11px] leading-tight text-slate-500">Administrator</p>

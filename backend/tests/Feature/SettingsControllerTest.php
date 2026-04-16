@@ -92,6 +92,39 @@ it('updates the authenticated user profile and avatar', function () {
         ->avatar_object_id->toBe($avatar->id);
 });
 
+it('removes the authenticated user avatar and permanently deletes the storage object', function () {
+    Storage::fake(config('uploads.disk'));
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user, 'web')
+        ->post('/api/uploads', [
+            'file' => UploadedFile::fake()->image('avatar.png', 300, 300),
+            'purpose' => 'user_avatar',
+        ])
+        ->assertCreated();
+
+    $avatar = StorageObject::query()->firstOrFail();
+
+    $user->forceFill([
+        'avatar_object_id' => $avatar->id,
+    ])->save();
+
+    Storage::disk(config('uploads.disk'))->assertExists($avatar->disk_path);
+
+    $response = $this->actingAs($user, 'web')
+        ->deleteJson("/api/settings/avatar/{$avatar->id}");
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('data.user.avatar_object_id', null)
+        ->assertJsonPath('data.user.avatar_object', null);
+
+    expect($user->fresh()->avatar_object_id)->toBeNull();
+    expect(StorageObject::query()->find($avatar->id))->toBeNull();
+    Storage::disk(config('uploads.disk'))->assertMissing($avatar->disk_path);
+});
+
 it('marks email unverified and issues a verification code after email change when verification is required', function () {
     CompanySetting::query()->create([
         'company_name' => 'Nexus',

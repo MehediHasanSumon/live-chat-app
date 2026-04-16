@@ -11,6 +11,7 @@ use App\Http\Requests\Settings\UpdateThemeRequest;
 use App\Http\Resources\Auth\AuthenticatedUserResource;
 use App\Models\StorageObject;
 use App\Http\Resources\UserSettingResource;
+use App\Services\Storage\StorageObjectService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +22,7 @@ class SettingsController extends Controller
 {
     public function __construct(
         private readonly VerificationCodeService $verificationCodes,
+        private readonly StorageObjectService $storageObjectService,
     ) {}
 
     public function profile(UpdateAccountProfileRequest $request): AuthenticatedUserResource
@@ -72,6 +74,16 @@ class SettingsController extends Controller
         return response()->json([
             'message' => 'Password updated successfully.',
         ]);
+    }
+
+    public function deleteAvatar(Request $request, StorageObject $storageObject): AuthenticatedUserResource
+    {
+        $user = $request->user();
+
+        $this->assertValidAvatarObject((int) $storageObject->getKey(), (int) $user->getKey());
+        $this->storageObjectService->hardDeleteUserAvatarForUser($user, $storageObject);
+
+        return new AuthenticatedUserResource($user->fresh(['settings', 'avatarObject']));
     }
 
     public function theme(UpdateThemeRequest $request): JsonResponse

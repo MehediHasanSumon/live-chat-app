@@ -56,7 +56,12 @@ export function CallParticipantManager({
             key={participant.id}
             className="flex min-w-[188px] items-center gap-3 rounded-2xl border border-white/10 bg-white/6 px-3 py-2.5"
           >
-            <MessageAvatar name={name} online={participant.invite_status === "accepted"} sizeClass="h-10 w-10" />
+            <MessageAvatar
+              name={name}
+              imageUrl={participant.user?.avatar_object?.download_url ?? null}
+              status={participant.invite_status === "accepted" ? "online" : null}
+              sizeClass="h-10 w-10"
+            />
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-white/92">{name}</p>

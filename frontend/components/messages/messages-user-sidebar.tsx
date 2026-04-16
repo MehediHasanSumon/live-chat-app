@@ -45,6 +45,7 @@ function MessagesUserSidebarComponent({
   const openConfirmation = useChatUiStore((state) => state.openConfirmation);
   const [searchQuery, setSearchQuery] = useState("");
   const presenceLabel = formatPresenceLabel(thread.presence);
+  const presenceStatus = thread.presence?.visible ? (thread.online ? "online" : "offline") : null;
   const currentMembership = thread.membership ?? null;
   const canManageGroupSettings = Boolean(
     thread.isGroup && currentMembership?.membership_state === "active",
@@ -146,7 +147,7 @@ function MessagesUserSidebarComponent({
         <div className="flex flex-col items-center text-center">
           <MessageAvatar
             name={thread.name}
-            online={thread.online}
+            status={presenceStatus}
             imageUrl={thread.avatarUrl}
             sizeClass="h-20 w-20"
             textClass="text-2xl"
@@ -234,6 +235,7 @@ function MessagesUserSidebarComponent({
                     <div className="flex items-center gap-3">
                       <MessageAvatar
                         name={member.user?.name ?? `User #${member.user_id}`}
+                        imageUrl={member.user?.avatar_object?.download_url ?? null}
                         online={false}
                         sizeClass="h-10 w-10"
                         textClass="text-sm"

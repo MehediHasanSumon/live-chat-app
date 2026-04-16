@@ -111,7 +111,7 @@ class CallController extends Controller
         }
 
         $callRoom->loadMissing([
-            'participants.user',
+            'participants.user.avatarObject',
         ]);
 
         return response()->json([

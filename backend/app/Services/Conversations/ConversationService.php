@@ -32,10 +32,10 @@ class ConversationService
                     ->where('membership_state', 'active');
             })
             ->with([
-                'creator',
+                'creator.avatarObject',
                 'avatarObject',
-                'lastMessage.sender',
-                'members.user',
+                'lastMessage.sender.avatarObject',
+                'members.user.avatarObject',
             ])
             ->orderByDesc('last_message_at')
             ->orderByDesc('updated_at');
@@ -332,10 +332,10 @@ class ConversationService
     protected function loadConversationForUser(Conversation $conversation, int $userId): Conversation
     {
         return $conversation->fresh([
-            'creator',
+            'creator.avatarObject',
             'avatarObject',
-            'lastMessage.sender',
-            'members.user',
+            'lastMessage.sender.avatarObject',
+            'members.user.avatarObject',
         ]);
     }
 

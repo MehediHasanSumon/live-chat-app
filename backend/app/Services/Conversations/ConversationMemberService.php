@@ -86,10 +86,10 @@ class ConversationMemberService
             });
 
             return $lockedConversation->fresh([
-                'creator',
+                'creator.avatarObject',
                 'avatarObject',
-                'lastMessage.sender',
-                'members.user',
+                'lastMessage.sender.avatarObject',
+                'members.user.avatarObject',
             ]);
         });
     }
@@ -119,10 +119,10 @@ class ConversationMemberService
             ])->save();
 
             return $conversation->fresh([
-                'creator',
+                'creator.avatarObject',
                 'avatarObject',
-                'lastMessage.sender',
-                'members.user',
+                'lastMessage.sender.avatarObject',
+                'members.user.avatarObject',
             ]);
         });
     }
@@ -153,10 +153,10 @@ class ConversationMemberService
         ])->save();
 
         return $conversation->fresh([
-            'creator',
+            'creator.avatarObject',
             'avatarObject',
-            'lastMessage.sender',
-            'members.user',
+            'lastMessage.sender.avatarObject',
+            'members.user.avatarObject',
         ]);
     }
 
@@ -184,10 +184,10 @@ class ConversationMemberService
             ])->save();
 
             return $conversation->fresh([
-                'creator',
+                'creator.avatarObject',
                 'avatarObject',
-                'lastMessage.sender',
-                'members.user',
+                'lastMessage.sender.avatarObject',
+                'members.user.avatarObject',
             ]);
         });
     }

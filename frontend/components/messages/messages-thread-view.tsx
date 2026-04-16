@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
 
 import { MessagesChatHeader } from "@/components/messages/messages-chat-header";
+import { MessageAvatar } from "@/components/messages/message-avatar";
 import { type MessagesImageViewerItem } from "@/components/messages/messages-image-viewer";
 import { MessageBubble } from "@/components/messages/message-bubble";
 import { MessageComposer } from "@/components/messages/message-composer";
@@ -61,6 +62,7 @@ export function MessagesThreadView({
   const { data: authMe } = useAuthMeQuery(true);
   const currentUserId = authMe?.data.user?.id ?? null;
   const currentUserName = authMe?.data.user?.name ?? "You";
+  const currentUserAvatarUrl = authMe?.data.user?.avatar_object?.download_url ?? null;
   const {
     data,
     isLoading,
@@ -536,6 +538,7 @@ export function MessagesThreadView({
       body: text.trim() || (voice ? "" : attachments.some((item) => item.kind === "image") ? "Photo" : "File"),
       time: "Now",
       senderName: currentUserName,
+      senderAvatarUrl: currentUserAvatarUrl,
       canEdit: false,
       canUnsend: false,
       isPending: true,
@@ -579,7 +582,7 @@ export function MessagesThreadView({
           }
         : {}),
     };
-  }, [currentUserId, currentUserName, latestMessage?.seq, mappedMessages]);
+  }, [currentUserAvatarUrl, currentUserId, currentUserName, latestMessage?.seq, mappedMessages]);
 
   const revokePendingMessageUrls = useCallback((message: ChatMessage) => {
     message.attachments?.forEach((attachment) => {
@@ -1064,9 +1067,12 @@ export function MessagesThreadView({
                             className="flex items-center justify-between gap-2.5 rounded-[18px] border border-transparent bg-white/72 px-2.5 py-2.5 transition hover:border-[rgba(96,91,255,0.14)] hover:bg-white hover:shadow-[0_10px_24px_rgba(96,109,160,0.08)]"
                           >
                             <div className="flex min-w-0 items-center gap-2.5">
-                              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,rgba(96,91,255,0.16)_0%,rgba(131,165,255,0.24)_100%)] text-[12px] font-semibold text-[var(--accent)]">
-                                {target.name.slice(0, 2).toUpperCase()}
-                              </div>
+                              <MessageAvatar
+                                name={target.name}
+                                imageUrl={target.avatarUrl}
+                                sizeClass="h-9 w-9"
+                                textClass="text-[12px]"
+                              />
                               <div className="min-w-0">
                                 <p className="truncate text-[13px] font-semibold text-[#2f3655]">{target.name}</p>
                                 <p className="truncate text-[11px] text-[#8f97bb]">

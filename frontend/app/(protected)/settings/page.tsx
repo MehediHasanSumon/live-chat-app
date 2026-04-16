@@ -1,18 +1,19 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import Image from "next/image";
-import { BellRing, Camera, Save, ShieldCheck, UserRound } from "lucide-react";
+import { BellRing, Camera, Save, ShieldCheck, Trash2, UserRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BoneyardSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
 import { CheckboxInput } from "@/components/ui/checkbox-input";
 import { FileInput } from "@/components/ui/file-input";
+import { AppAvatar } from "@/components/ui/app-avatar";
 import { SelectInput } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
 import { type AuthMeResponse, useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import {
+  useDeleteAccountAvatarMutation,
   useUpdateAccountPasswordMutation,
   useUpdateAccountProfileMutation,
   useUpdateNotificationSettingsMutation,
@@ -49,11 +50,6 @@ function mutationErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Settings could not be saved.";
 }
 
-function getInitials(name: string, username: string) {
-  const parts = name.split(" ").map((part) => part.trim()).filter(Boolean);
-  return parts.length === 0 ? username.slice(0, 2).toUpperCase() : parts.slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-}
-
 function createProfileForm(user: NonNullable<AuthMeResponse["data"]["user"]>): ProfileFormState {
   return {
     name: user.name ?? "",
@@ -88,6 +84,7 @@ export default function SettingsPage() {
   const updateProfileMutation = useUpdateAccountProfileMutation();
   const updatePasswordMutation = useUpdateAccountPasswordMutation();
   const uploadAvatarMutation = useUploadUserAvatarMutation();
+  const deleteAvatarMutation = useDeleteAccountAvatarMutation();
   const user = data?.data.user;
   const settings = data?.data.settings;
   const [profileDraft, setProfileDraft] = useState<ProfileFormState | null>(null);
@@ -106,7 +103,7 @@ export default function SettingsPage() {
     updatePresenceMutation.error ||
     updateNotificationsMutation.error ||
     updateQuietHoursMutation.error;
-  const isProfileBusy = updateProfileMutation.isPending || uploadAvatarMutation.isPending;
+  const isProfileBusy = updateProfileMutation.isPending || uploadAvatarMutation.isPending || deleteAvatarMutation.isPending;
   const timezoneChoices =
     settings?.quiet_hours_timezone && !timezoneOptions.includes(settings.quiet_hours_timezone)
       ? [settings.quiet_hours_timezone, ...timezoneOptions]
@@ -175,6 +172,34 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleAvatarDelete() {
+    if (!profileForm?.avatar_object_id) {
+      return;
+    }
+
+    setProfileError(null);
+    setProfileNotice(null);
+
+    try {
+      const deletedAvatarObjectId = profileForm.avatar_object_id;
+      const response = await deleteAvatarMutation.mutateAsync(deletedAvatarObjectId);
+
+      if (response.data.user) {
+        setProfileDraft(createProfileForm(response.data.user));
+      } else {
+        setProfileDraft({ ...profileForm, avatar_object_id: null, avatar_url: null, avatar_name: null });
+      }
+
+      setProfileNotice(
+        deletedAvatarObjectId === (user?.avatar_object_id ?? null)
+          ? "Avatar removed permanently."
+          : "Uploaded avatar removed permanently.",
+      );
+    } catch (error) {
+      setProfileError(mutationErrorMessage(error));
+    }
+  }
+
   async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPasswordError(null);
@@ -208,20 +233,30 @@ export default function SettingsPage() {
           <section className="mx-auto mt-5 grid max-w-[1328px] gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
             <aside className="glass-card rounded-[1.5rem] p-6">
               <div className="flex flex-col items-center text-center">
-                {profileForm.avatar_url ? (
-                  <Image
-                    src={profileForm.avatar_url}
+                <div className="group relative">
+                  <AppAvatar
+                    name={profileForm.name || profileForm.username || "Guest User"}
+                    imageUrl={profileForm.avatar_url}
                     alt={profileForm.avatar_name ?? "Avatar"}
-                    width={112}
-                    height={112}
-                    unoptimized
-                    className="h-28 w-28 rounded-[2rem] object-cover"
+                    sizeClass="h-28 w-28"
+                    textClass="text-3xl"
+                    radiusClassName="rounded-[2rem]"
+                    fallbackClassName="bg-[linear-gradient(135deg,#111827,#334155)] text-white"
                   />
-                ) : (
-                  <div className="flex h-28 w-28 items-center justify-center rounded-[2rem] bg-[linear-gradient(135deg,#111827,#334155)] text-3xl font-semibold text-white">
-                    {getInitials(profileForm.name || profileForm.username, profileForm.username || "GU")}
-                  </div>
-                )}
+                  {profileForm.avatar_url ? (
+                    <button
+                      type="button"
+                      className="absolute inset-0 flex items-center justify-center rounded-[2rem] bg-[#111827]/65 text-white opacity-0 transition duration-200 group-hover:opacity-100 focus:opacity-100 focus:outline-none disabled:cursor-not-allowed"
+                      aria-label="Remove avatar permanently"
+                      disabled={isProfileBusy}
+                      onClick={() => void handleAvatarDelete()}
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/15 backdrop-blur">
+                        <Trash2 className="h-4 w-4" />
+                      </span>
+                    </button>
+                  ) : null}
+                </div>
                 <p className="mt-5 text-xl font-semibold text-[#202743]">{profileForm.name || profileForm.username}</p>
                 <p className="mt-1 text-sm text-[var(--muted)]">@{profileForm.username}</p>
 
@@ -231,17 +266,6 @@ export default function SettingsPage() {
                     Avatar
                   </div>
                   <FileInput className="mt-4" accept="image/*" disabled={isProfileBusy} onChange={(event) => void handleAvatarUpload(event.target.files?.[0] ?? null)} />
-                  {profileForm.avatar_name ? <p className="mt-2 text-xs text-[var(--muted)]">{profileForm.avatar_name}</p> : null}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="mt-3"
-                    disabled={isProfileBusy || profileForm.avatar_object_id === null}
-                    onClick={() => setProfileDraft({ ...profileForm, avatar_object_id: null, avatar_url: null, avatar_name: null })}
-                  >
-                    Remove avatar
-                  </Button>
                 </div>
               </div>
             </aside>

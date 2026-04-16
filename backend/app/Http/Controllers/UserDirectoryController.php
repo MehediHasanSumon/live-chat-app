@@ -24,6 +24,7 @@ class UserDirectoryController extends Controller
             })
             ->orderBy('name')
             ->limit($query === '' ? 30 : 10)
+            ->with('avatarObject')
             ->get();
 
         return response()->json([

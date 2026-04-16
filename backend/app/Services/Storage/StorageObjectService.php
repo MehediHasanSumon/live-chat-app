@@ -8,6 +8,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Models\StorageObject;
+use App\Models\User;
 use App\Services\Conversations\ConversationMemberService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -157,6 +158,51 @@ class StorageObjectService
             ->where('avatar_object_id', $storageObject->getKey())
             ->exists()
             || $storageObject->avatarUsers()->exists()
+            || $storageObject->messageAttachments()->exists();
+
+        if ($isStillReferenced) {
+            return false;
+        }
+
+        Storage::disk(config('uploads.disk'))->delete($storageObject->disk_path);
+        $storageObject->delete();
+        $this->storageQuotaService->recalculateUsage();
+
+        return true;
+    }
+
+    public function hardDeleteUserAvatarForUser(User $user, StorageObject|int|null $storageObject): bool
+    {
+        if ($storageObject === null) {
+            return false;
+        }
+
+        $storageObject = $storageObject instanceof StorageObject
+            ? $storageObject->fresh()
+            : StorageObject::query()->find($storageObject);
+
+        if (! $storageObject instanceof StorageObject) {
+            return false;
+        }
+
+        if ($storageObject->purpose !== 'user_avatar' || (int) $storageObject->owner_user_id !== (int) $user->getKey()) {
+            return false;
+        }
+
+        if ((int) ($user->avatar_object_id ?? 0) === (int) $storageObject->getKey()) {
+            $user->forceFill([
+                'avatar_object_id' => null,
+            ])->save();
+        }
+
+        $storageObject = $storageObject->fresh();
+
+        if (! $storageObject instanceof StorageObject) {
+            return false;
+        }
+
+        $isStillReferenced = $storageObject->avatarUsers()->exists()
+            || $storageObject->avatarConversations()->exists()
             || $storageObject->messageAttachments()->exists();
 
         if ($isStillReferenced) {

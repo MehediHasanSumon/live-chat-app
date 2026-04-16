@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BriefcaseBusiness, ChevronDown, House, MessageSquare, ReceiptText, ScrollText, Settings, Users, X } from "lucide-react";
 
+import { AppAvatar } from "@/components/ui/app-avatar";
 import { useMessagesBadgeCount } from "@/lib/hooks/use-messages-badge-count";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { cn } from "@/lib/utils";
@@ -68,23 +69,6 @@ const settingsItems: DropdownItem[] = [
   { href: "/ops", label: "System Configuration" },
   { href: "/storage", label: "Storage Configuration" },
 ];
-
-function getInitials(name: string, username: string) {
-  const parts = name
-    .split(" ")
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (parts.length === 0) {
-    return username.slice(0, 2).toUpperCase();
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
 
 function isRouteActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -281,7 +265,7 @@ export function AdminDashboardSidebar({
   const [isSettingsHoverOpen, setIsSettingsHoverOpen] = useState(false);
   const displayName = user?.name?.trim() || user?.username || "Guest User";
   const displayUsername = user?.username ? `@${user.username}` : "@guest";
-  const initials = getInitials(displayName, user?.username ?? "GU");
+  const avatarUrl = user?.avatar_object?.download_url ?? null;
   const invoiceHasActiveItem = invoiceItems.some((item) => isDropdownItemActive(pathname, item));
   const businessHasActiveItem = businessItems.some((item) => isRouteActive(pathname, item.href));
   const userManagementHasActiveItem = userManagementItems.some((item) => isRouteActive(pathname, item.href));
@@ -403,9 +387,15 @@ export function AdminDashboardSidebar({
 
         <div className="shrink-0 border-t border-white/[0.06] p-3">
           <div className={cn("flex items-center", isCollapsed ? "justify-center bg-transparent px-0 py-0" : "rounded-lg bg-[#191c24] px-3 py-2.5")}>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white ring-2 ring-white/10">
-              {initials}
-            </div>
+            <AppAvatar
+              name={displayName}
+              imageUrl={avatarUrl}
+              sizeClass="h-8 w-8"
+              textClass="text-xs"
+              fallbackClassName="bg-white/10 text-white"
+              className="shrink-0 ring-2 ring-white/10"
+              alt={`${displayName} avatar`}
+            />
             <div className={cn("ml-3 min-w-0", isCollapsed ? "hidden lg:hidden" : "block")}>
               <p className="truncate text-sm font-semibold text-white">{displayName}</p>
               <p className="truncate text-[11px] text-slate-500">{displayUsername}</p>

@@ -1,16 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { Settings, ShieldCheck, UserRound } from "lucide-react";
 
 import { BoneyardSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
+import { AppAvatar } from "@/components/ui/app-avatar";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
-
-function getInitials(name: string, username: string) {
-  const parts = name.split(" ").map((part) => part.trim()).filter(Boolean);
-  return parts.length === 0 ? username.slice(0, 2).toUpperCase() : parts.slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-}
 
 function formatDateTime(value: string | null) {
   if (!value) {
@@ -41,7 +36,6 @@ export default function ProfilePage() {
   const displayName = user?.name?.trim() || user?.username || "Guest User";
   const displayUsername = user?.username ? `@${user.username}` : "@guest";
   const avatarUrl = user?.avatar_object?.download_url ?? null;
-  const initials = getInitials(displayName, user?.username ?? "GU");
 
   return (
     <main className="shell px-4 py-6 sm:px-6">
@@ -50,20 +44,15 @@ export default function ProfilePage() {
           <div className="flex flex-col gap-8">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
-                {avatarUrl ? (
-                  <Image
-                    src={avatarUrl}
-                    alt={`${displayName} avatar`}
-                    width={80}
-                    height={80}
-                    unoptimized
-                    className="h-20 w-20 rounded-[1.5rem] object-cover"
-                  />
-                ) : (
-                  <div className="flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-[linear-gradient(135deg,#111827,#334155)] text-2xl font-semibold text-white">
-                    {initials}
-                  </div>
-                )}
+                <AppAvatar
+                  name={displayName}
+                  imageUrl={avatarUrl}
+                  sizeClass="h-20 w-20"
+                  textClass="text-2xl"
+                  radiusClassName="rounded-[1.5rem]"
+                  fallbackClassName="bg-[linear-gradient(135deg,#111827,#334155)] text-white"
+                  alt={`${displayName} avatar`}
+                />
 
                 <div>
                   <p className="text-2xl font-semibold tracking-tight text-[#1f2440]">{displayName}</p>

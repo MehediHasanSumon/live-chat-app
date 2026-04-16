@@ -1,5 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { AppAvatar } from "@/components/ui/app-avatar";
+
 const orders = [
   { id: "#12458", customer: "Sarah Chen", product: "Pro Plan", amount: "$299.00", status: "Completed", tone: "emerald", date: "Jan 15, 2025" },
   { id: "#12457", customer: "Marcus Johnson", product: "Basic Plan", amount: "$49.00", status: "Pending", tone: "amber", date: "Jan 15, 2025" },
@@ -48,13 +50,12 @@ export function DashboardRecentOrders() {
                 <td className="px-5 py-3.5 text-sm font-semibold text-slate-900">{order.id}</td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
-                      {order.customer
-                        .split(" ")
-                        .map((part) => part[0])
-                        .join("")
-                        .slice(0, 2)}
-                    </div>
+                    <AppAvatar
+                      name={order.customer}
+                      sizeClass="h-8 w-8"
+                      textClass="text-xs"
+                      fallbackClassName="bg-slate-900 text-white"
+                    />
                     <span className="text-sm text-slate-700">{order.customer}</span>
                   </div>
                 </td>

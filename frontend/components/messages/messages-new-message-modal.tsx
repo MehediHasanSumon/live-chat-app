@@ -38,6 +38,7 @@ export function MessagesNewMessageModal({
         name: user.name,
         subtitle: user.username ? `@${user.username}` : user.email ?? "User",
         online: false,
+        avatarUrl: user.avatar_object?.download_url ?? null,
       })),
     [users],
   );
@@ -198,7 +199,7 @@ export function MessagesNewMessageModal({
                       : "border-[var(--line)] bg-white hover:bg-[var(--accent-soft)]/50"
                   }`}
                 >
-                  <MessageAvatar name={contact.name} online={contact.online} />
+                  <MessageAvatar name={contact.name} online={contact.online} imageUrl={contact.avatarUrl} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{contact.name}</p>
                     <p className="mt-1 truncate text-[13px] text-[var(--muted)]">{contact.subtitle}</p>
