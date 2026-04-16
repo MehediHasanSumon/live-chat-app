@@ -58,33 +58,34 @@ function AppAvatarComponent({
   sizes = "128px",
 }: AppAvatarProps) {
   return (
-    <div
-      className={cn(
-        "relative flex shrink-0 items-center justify-center overflow-hidden font-semibold",
-        sizeClass,
-        textClass,
-        radiusClassName,
-        !imageUrl && fallbackClassName,
-        className,
-      )}
-    >
-      {imageUrl ? (
-        <Image
-          src={imageUrl}
-          alt={alt ?? name}
-          fill
-          unoptimized
-          sizes={sizes}
-          className={cn("object-cover", radiusClassName, imageClassName)}
-        />
-      ) : (
-        getAvatarInitials(name)
-      )}
+    <div className={cn("relative inline-flex shrink-0", className)}>
+      <div
+        className={cn(
+          "relative flex items-center justify-center overflow-hidden font-semibold",
+          sizeClass,
+          textClass,
+          radiusClassName,
+          !imageUrl && fallbackClassName,
+        )}
+      >
+        {imageUrl ? (
+          <Image
+            src={imageUrl}
+            alt={alt ?? name}
+            fill
+            unoptimized
+            sizes={sizes}
+            className={cn("object-cover", radiusClassName, imageClassName)}
+          />
+        ) : (
+          getAvatarInitials(name)
+        )}
+      </div>
 
       {status ? (
         <span
           className={cn(
-            "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-white",
+            "absolute bottom-0 right-0 z-10 h-2.5 w-2.5 translate-x-[8%] translate-y-[8%] rounded-full ring-2 ring-white",
             status === "online" ? "bg-sky-500" : "bg-sky-300",
             statusClassName,
           )}
