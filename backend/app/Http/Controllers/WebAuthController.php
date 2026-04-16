@@ -8,6 +8,7 @@ use App\Http\Resources\Auth\AuthenticatedUserResource;
 use App\Models\User;
 use App\Models\UserSetting;
 use App\Services\Auth\VerificationCodeService;
+use App\Services\Company\PublicCompanySettingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -18,10 +19,17 @@ use Illuminate\Validation\ValidationException;
 
 class WebAuthController extends Controller
 {
-    public function __construct(private readonly VerificationCodeService $verificationCodes) {}
+    public function __construct(
+        private readonly VerificationCodeService $verificationCodes,
+        private readonly PublicCompanySettingService $publicCompanySettings,
+    ) {}
 
     public function register(WebRegisterRequest $request): JsonResponse
     {
+        if (! $this->publicCompanySettings->registrationEnabled()) {
+            $this->throwJsonValidationException('register', 'Registration is currently disabled.');
+        }
+
         $email = $request->string('email')->toString() ?: null;
         $verificationRequired = $this->verificationCodes->emailVerificationRequired();
 

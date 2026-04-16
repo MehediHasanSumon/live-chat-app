@@ -10,12 +10,15 @@ import { FieldLabel } from "@/components/ui/field-label";
 import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
 import { useLoginMutation } from "@/lib/hooks/use-auth-mutations";
+import { usePublicCompanySettingQuery } from "@/lib/hooks/use-public-company-setting";
 
 function LoginPageContent() {
   const loginMutation = useLoginMutation();
+  const { data: publicCompanySetting } = usePublicCompanySettingQuery();
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
+  const registrationEnabled = publicCompanySetting?.is_registration_enable ?? false;
 
   const fieldErrors = useMemo(
     () => (loginMutation.error instanceof ApiClientError ? loginMutation.error.errors ?? {} : {}),
@@ -39,15 +42,15 @@ function LoginPageContent() {
   }
 
   return (
-    <main className="shell flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
-      <div className="glass-card w-full max-w-xl overflow-hidden rounded-[1rem]">
+    <main className="shell flex min-h-screen items-center justify-center px-4 py-8 sm:px-6" suppressHydrationWarning>
+      <div className="glass-card w-full max-w-xl overflow-hidden rounded-[1rem]" suppressHydrationWarning>
         <AuthFormShell
           eyebrow="Sign in"
           title="Welcome back"
           description="Sign in to access your account."
-          footerText="New here?"
-          footerHref="/register"
-          footerLinkLabel="Create an account"
+          footerText={registrationEnabled ? "New here?" : undefined}
+          footerHref={registrationEnabled ? "/register" : undefined}
+          footerLinkLabel={registrationEnabled ? "Create an account" : undefined}
         >
           <form className="mt-7 space-y-3" onSubmit={handleSubmit}>
             <label className="block">

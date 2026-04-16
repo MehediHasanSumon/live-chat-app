@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { BriefcaseBusiness, ChevronDown, House, MessageSquare, ReceiptText, ScrollText, Settings, Users, X } from "lucide-react";
 
 import { AppAvatar } from "@/components/ui/app-avatar";
+import { usePublicCompanySettingQuery } from "@/lib/hooks/use-public-company-setting";
 import { useMessagesBadgeCount } from "@/lib/hooks/use-messages-badge-count";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { cn } from "@/lib/utils";
@@ -254,6 +255,7 @@ export function AdminDashboardSidebar({
 }: AdminDashboardSidebarProps) {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
+  const { data: publicCompanySetting } = usePublicCompanySettingQuery();
   const { badgeCount } = useMessagesBadgeCount(true);
   const [invoiceOpenState, setInvoiceOpenState] = useState<DropdownOpenState>("auto");
   const [isInvoiceHoverOpen, setIsInvoiceHoverOpen] = useState(false);
@@ -266,6 +268,8 @@ export function AdminDashboardSidebar({
   const displayName = user?.name?.trim() || user?.username || "Guest User";
   const displayUsername = user?.username ? `@${user.username}` : "@guest";
   const avatarUrl = user?.avatar_object?.download_url ?? null;
+  const companyName = publicCompanySetting?.company_name?.trim() || "Nexus";
+  const companyLogoUrl = publicCompanySetting?.company_logo_object?.download_url ?? null;
   const invoiceHasActiveItem = invoiceItems.some((item) => isDropdownItemActive(pathname, item));
   const businessHasActiveItem = businessItems.some((item) => isRouteActive(pathname, item.href));
   const userManagementHasActiveItem = userManagementItems.some((item) => isRouteActive(pathname, item.href));
@@ -294,10 +298,20 @@ export function AdminDashboardSidebar({
         )}
       >
         <div className="flex h-16 items-center border-b border-white/[0.06] px-5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#ea580c]">
-            <span className="text-sm font-bold text-white">N</span>
-          </div>
-          <span className={cn("ml-3 whitespace-nowrap text-lg font-bold tracking-tight", isCollapsed ? "hidden lg:hidden" : "inline")}>Nexus</span>
+          <AppAvatar
+            name={companyName}
+            imageUrl={companyLogoUrl}
+            sizeClass="h-9 w-9"
+            textClass="text-sm"
+            radiusClassName="rounded-lg"
+            fallbackClassName="bg-[#ea580c] text-white"
+            className="shrink-0"
+            alt={`${companyName} logo`}
+            sizes="36px"
+          />
+          <span className={cn("ml-3 truncate whitespace-nowrap text-lg font-bold tracking-tight", isCollapsed ? "hidden lg:hidden" : "inline")}>
+            {companyName}
+          </span>
           <button
             type="button"
             onClick={onCloseMobile}

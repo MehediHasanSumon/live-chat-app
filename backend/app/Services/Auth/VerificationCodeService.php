@@ -3,8 +3,8 @@
 namespace App\Services\Auth;
 
 use App\Models\AuthVerificationCode;
-use App\Models\CompanySetting;
 use App\Models\User;
+use App\Services\Company\PublicCompanySettingService;
 use Illuminate\Mail\Message;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -20,12 +20,11 @@ class VerificationCodeService
 
     private const MAX_ATTEMPTS = 5;
 
+    public function __construct(private readonly PublicCompanySettingService $publicCompanySettings) {}
+
     public function emailVerificationRequired(): bool
     {
-        return CompanySetting::query()
-            ->where('status', 'active')
-            ->where('is_email_verification_enable', true)
-            ->exists();
+        return $this->publicCompanySettings->emailVerificationEnabled();
     }
 
     public function userMustVerifyEmail(?User $user): bool

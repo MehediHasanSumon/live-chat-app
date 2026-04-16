@@ -12,6 +12,10 @@ type ProxyAuthState = {
   mustVerifyEmail: boolean;
 };
 
+type ProxyCompanySettingsState = {
+  registrationEnabled: boolean;
+};
+
 function hasCookies(request: NextRequest): boolean {
   const cookieHeader = request.headers.get("cookie");
   return typeof cookieHeader === "string" && cookieHeader.trim().length > 0;
@@ -58,6 +62,40 @@ async function resolveAuthState(request: NextRequest): Promise<ProxyAuthState> {
   }
 }
 
+async function resolvePublicCompanySettingsState(request: NextRequest): Promise<ProxyCompanySettingsState> {
+  const settingsUrl = `${API_BASE_URL}/api/public/company-settings`;
+
+  try {
+    const response = await fetch(settingsUrl, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        Origin: APP_URL,
+        Referer: `${APP_URL}/`,
+        "X-Requested-With": "XMLHttpRequest",
+        Cookie: request.headers.get("cookie") ?? "",
+      },
+    });
+
+    if (!response.ok) {
+      return {
+        registrationEnabled: false,
+      };
+    }
+
+    const payload = await response.json();
+
+    return {
+      registrationEnabled: Boolean(payload?.data?.is_registration_enable),
+    };
+  } catch {
+    return {
+      registrationEnabled: false,
+    };
+  }
+}
+
 function createLoginRedirect(request: NextRequest, pathname: string, search: string) {
   const loginUrl = new URL("/login", request.url);
   const redirectTarget = `${pathname}${search}`;
@@ -94,12 +132,21 @@ export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isProtectedRoute = isProtectedPath(pathname);
   const isGuestOnlyRoute = guestOnlyRoutes.has(pathname);
+  const isRegistrationRoute = pathname === "/register";
 
   if (!isProtectedRoute && !isGuestOnlyRoute) {
     return NextResponse.next();
   }
 
   if (!hasCookies(request)) {
+    if (isRegistrationRoute) {
+      const companySettingsState = await resolvePublicCompanySettingsState(request);
+
+      if (!companySettingsState.registrationEnabled) {
+        return NextResponse.redirect(new URL("/login", request.url));
+      }
+    }
+
     if (isProtectedRoute) {
       return createLoginRedirect(request, pathname, search);
     }
@@ -108,6 +155,14 @@ export async function proxy(request: NextRequest) {
   }
 
   const authState = await resolveAuthState(request);
+
+  if (!authState.authenticated && isRegistrationRoute) {
+    const companySettingsState = await resolvePublicCompanySettingsState(request);
+
+    if (!companySettingsState.registrationEnabled) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+  }
 
   if (isProtectedRoute && !authState.authenticated) {
     return createLoginRedirect(request, pathname, search);

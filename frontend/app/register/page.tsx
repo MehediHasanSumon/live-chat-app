@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, Suspense, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { AuthFormShell } from "@/components/auth/auth-form-shell";
 import { Button } from "@/components/ui/button";
@@ -9,10 +10,13 @@ import { FieldLabel } from "@/components/ui/field-label";
 import { TextInput } from "@/components/ui/text-input";
 import { ApiClientError } from "@/lib/api-client";
 import { useRegisterMutation } from "@/lib/hooks/use-auth-mutations";
+import { usePublicCompanySettingQuery } from "@/lib/hooks/use-public-company-setting";
 
 function RegisterPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const registerMutation = useRegisterMutation();
+  const { data: publicCompanySetting, isLoading } = usePublicCompanySettingQuery();
   const [form, setForm] = useState({
     name: "",
     username: "",
@@ -26,6 +30,14 @@ function RegisterPageContent() {
     () => (registerMutation.error instanceof ApiClientError ? registerMutation.error.errors ?? {} : {}),
     [registerMutation.error],
   );
+  const registrationEnabled = publicCompanySetting?.is_registration_enable ?? false;
+  const emailVerificationEnabled = publicCompanySetting?.is_email_verification_enable ?? true;
+
+  useEffect(() => {
+    if (!isLoading && !registrationEnabled) {
+      router.replace("/login");
+    }
+  }, [isLoading, registrationEnabled, router]);
 
   function updateField<K extends keyof typeof form>(field: K, value: (typeof form)[K]) {
     setForm((current) => ({
@@ -36,6 +48,10 @@ function RegisterPageContent() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!registrationEnabled) {
+      return;
+    }
 
     try {
       const response = await registerMutation.mutateAsync({
@@ -51,9 +67,40 @@ function RegisterPageContent() {
     }
   }
 
+  if (isLoading) {
+    return null;
+  }
+
+  if (!registrationEnabled) {
+    return (
+      <main className="shell flex min-h-screen items-center justify-center px-4 py-8 sm:px-6" suppressHydrationWarning>
+        <div className="glass-card w-full max-w-xl overflow-hidden rounded-[1rem]" suppressHydrationWarning>
+          <AuthFormShell
+            eyebrow="Sign up"
+            title="Registration unavailable"
+            description="New account creation is currently disabled by the company settings."
+            footerText="Already have an account?"
+            footerHref="/login"
+            footerLinkLabel="Sign in"
+          >
+            <div className="mt-7 rounded-[1rem] border border-[var(--line)] bg-white/80 px-4 py-4 text-sm leading-6 text-[var(--muted)]">
+              Access to the signup page follows the public registration setting. Please contact your administrator if you need a new account.
+            </div>
+            <Link
+              href="/login"
+              className="mt-5 inline-flex text-sm font-semibold text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
+            >
+              Back to sign in
+            </Link>
+          </AuthFormShell>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="shell flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
-      <div className="glass-card w-full max-w-2xl rounded-[1rem]">
+    <main className="shell flex min-h-screen items-center justify-center px-4 py-8 sm:px-6" suppressHydrationWarning>
+      <div className="glass-card w-full max-w-2xl rounded-[1rem]" suppressHydrationWarning>
         <AuthFormShell
           eyebrow="Sign up"
           title="Create your account"
@@ -99,13 +146,17 @@ function RegisterPageContent() {
             </label>
 
             <label className="block sm:col-span-2">
-              <FieldLabel>Email</FieldLabel>
+              <FieldLabel>{emailVerificationEnabled ? "Email*" : "Email"}</FieldLabel>
               <TextInput
                 value={form.email}
                 onChange={(event) => updateField("email", event.target.value)}
                 placeholder="Email address"
                 autoComplete="email"
+                required={emailVerificationEnabled}
               />
+              {emailVerificationEnabled ? (
+                <p className="mt-2 text-xs text-[var(--muted)]">Email verification is enabled, so a valid email is required to finish signup.</p>
+              ) : null}
               {fieldErrors.email ? <p className="mt-2 text-sm text-[#b42318]">{fieldErrors.email[0]}</p> : null}
             </label>
 

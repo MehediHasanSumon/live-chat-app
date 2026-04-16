@@ -19,6 +19,7 @@ use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\MeController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PrivacyController;
+use App\Http\Controllers\PublicCompanySettingController;
 use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\RealtimeController;
 use App\Http\Controllers\SettingsController;
@@ -30,6 +31,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+Route::get('/public/company-settings', PublicCompanySettingController::class);
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/me', MeController::class);

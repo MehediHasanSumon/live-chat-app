@@ -14,7 +14,7 @@ export function TextInput({ className, ...props }: TextInputProps) {
   const inputType = isPasswordField && showPassword ? "text" : props.type;
 
   return (
-    <div className="relative">
+    <div className="relative" suppressHydrationWarning>
       <input
         className={cn(
           "pill-input h-9 w-full px-3 text-sm outline-none transition focus:border-[var(--accent)]",

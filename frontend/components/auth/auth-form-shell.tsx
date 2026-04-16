@@ -21,8 +21,8 @@ export function AuthFormShell({
   footerLinkLabel,
 }: AuthFormShellProps) {
   return (
-    <section className="px-5 py-6 sm:px-7 sm:py-7">
-      <div className="mx-auto max-w-md">
+    <section className="px-5 py-6 sm:px-7 sm:py-7" suppressHydrationWarning>
+      <div className="mx-auto max-w-md" suppressHydrationWarning>
         {eyebrow ? <p className="soft-label">{eyebrow}</p> : null}
         <h1 className={`${eyebrow ? "mt-3" : "mt-0"} text-[1.75rem] font-semibold tracking-tight sm:text-[2rem]`}>
           {title}

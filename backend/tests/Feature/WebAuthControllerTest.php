@@ -10,7 +10,20 @@ use Spatie\Activitylog\Models\Activity;
 
 uses(RefreshDatabase::class);
 
+function enablePublicRegistration(array $overrides = []): void
+{
+    CompanySetting::query()->create([
+        'company_name' => 'Nexus',
+        'is_registration_enable' => true,
+        'is_email_verification_enable' => false,
+        'status' => 'active',
+        ...$overrides,
+    ]);
+}
+
 it('registers a web user and creates default settings', function () {
+    enablePublicRegistration();
+
     $response = $this->postJson('/register', [
         'username' => 'sumon',
         'name' => 'Sumon Hasan',
@@ -40,7 +53,18 @@ it('registers a web user and creates default settings', function () {
         ->and($activity?->getExtraProperty('username'))->toBe('sumon');
 });
 
+it('returns public company settings with fallback defaults when no active setting exists', function () {
+    $this->getJson('/api/public/company-settings')
+        ->assertOk()
+        ->assertJsonPath('data.company_name', 'Nexus')
+        ->assertJsonPath('data.is_registration_enable', false)
+        ->assertJsonPath('data.is_email_verification_enable', true)
+        ->assertJsonPath('data.company_logo_object', null);
+});
+
 it('rejects duplicate register credentials', function () {
+    enablePublicRegistration();
+
     User::factory()->create([
         'username' => 'sumon',
         'email' => 'sumon@example.com',
@@ -129,6 +153,8 @@ it('rate limits repeated login attempts', function () {
 });
 
 it('rate limits repeated register attempts', function () {
+    enablePublicRegistration();
+
     foreach (range(1, 3) as $attempt) {
         $response = $this->postJson('/register', [
             'username' => 'sumon-rate-limit',
@@ -291,8 +317,7 @@ it('rejects invalid reset codes', function () {
 });
 
 it('requires email on registration when email verification is enabled', function () {
-    CompanySetting::query()->create([
-        'company_name' => 'Nexus',
+    enablePublicRegistration([
         'is_email_verification_enable' => true,
     ]);
 
@@ -308,9 +333,24 @@ it('requires email on registration when email verification is enabled', function
         ->assertJsonValidationErrors(['email']);
 });
 
+it('blocks registration when public registration is disabled', function () {
+    $response = $this->postJson('/register', [
+        'username' => 'sumon-disabled',
+        'name' => 'Sumon Hasan',
+        'email' => 'sumon-disabled@example.com',
+        'password' => 'secret-123',
+        'password_confirmation' => 'secret-123',
+    ]);
+
+    $response
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['register']);
+
+    expect(User::query()->where('username', 'sumon-disabled')->exists())->toBeFalse();
+});
+
 it('verifies an authenticated user email with a six digit code', function () {
-    CompanySetting::query()->create([
-        'company_name' => 'Nexus',
+    enablePublicRegistration([
         'is_email_verification_enable' => true,
     ]);
     $user = User::factory()->unverified()->create([
@@ -339,8 +379,7 @@ it('verifies an authenticated user email with a six digit code', function () {
 });
 
 it('blocks protected api routes until email is verified', function () {
-    CompanySetting::query()->create([
-        'company_name' => 'Nexus',
+    enablePublicRegistration([
         'is_email_verification_enable' => true,
     ]);
     $user = User::factory()->unverified()->create([

@@ -111,8 +111,8 @@ function createEmptyForm(): CompanySettingFormState {
     currency: "BDT",
     company_logo: "",
     company_logo_name: "",
-    is_registration_enable: true,
-    is_email_verification_enable: false,
+    is_registration_enable: false,
+    is_email_verification_enable: true,
     status: "active",
   };
 }

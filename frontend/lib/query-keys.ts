@@ -1,4 +1,7 @@
 export const queryKeys = {
+  public: {
+    companySettings: ["public", "company-settings"] as const,
+  },
   auth: {
     me: ["auth", "me"] as const,
   },
