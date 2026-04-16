@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
+import { isRealtimeConfigured } from "@/lib/reverb";
 
 type TypingUser = {
   id: number;
@@ -13,6 +14,8 @@ type TypingUsersResponse = {
   data: TypingUser[];
 };
 
+const realtimeConfigured = isRealtimeConfigured();
+
 export function useTypingUsersQuery(conversationId: string, enabled = true) {
   return useQuery({
     queryKey: ["typing", conversationId],
@@ -22,8 +25,11 @@ export function useTypingUsersQuery(conversationId: string, enabled = true) {
       }),
     enabled: enabled && Boolean(conversationId),
     retry: false,
-    refetchInterval: 1000,
-    refetchIntervalInBackground: true,
+    staleTime: realtimeConfigured ? 5_000 : 0,
+    refetchInterval: realtimeConfigured ? false : 3_000,
+    refetchIntervalInBackground: false,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: false,
     select: (response) => response.data,
   });
 }

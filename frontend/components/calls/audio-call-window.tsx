@@ -1622,7 +1622,7 @@ export function AudioCallWindow() {
 
     const intervalId = window.setInterval(() => {
       void syncRoomState();
-    }, 700);
+    }, 3_000);
 
     return () => {
       isCancelled = true;

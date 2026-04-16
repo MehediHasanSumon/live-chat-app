@@ -15,9 +15,6 @@ export function AuthQuerySync() {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.auth.me,
       });
-      void queryClient.refetchQueries({
-        type: "active",
-      });
     }
 
     function handleVisibilityChange() {

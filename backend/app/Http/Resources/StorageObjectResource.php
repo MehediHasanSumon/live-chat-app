@@ -8,6 +8,22 @@ use Illuminate\Support\Facades\URL;
 
 class StorageObjectResource extends JsonResource
 {
+    protected function buildDownloadUrl(): ?string
+    {
+        if ($this->deleted_at) {
+            return null;
+        }
+
+        $ttlMinutes = max((int) config('uploads.signed_download_ttl_minutes'), 1);
+        $expiresAt = now()->addMinutes($ttlMinutes)->startOfMinute();
+
+        return URL::temporarySignedRoute(
+            'files.download',
+            $expiresAt,
+            ['objectUuid' => $this->object_uuid],
+        );
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -43,13 +59,7 @@ class StorageObjectResource extends JsonResource
             'is_expired' => $this->deleted_at !== null,
             'placeholder_text' => $this->deleted_at ? 'File expired / removed by storage policy' : null,
             'display_name' => $this->deleted_at ? 'File expired / removed by storage policy' : $this->original_name,
-            'download_url' => $this->deleted_at
-                ? null
-                : URL::temporarySignedRoute(
-                    'files.download',
-                    now()->addMinutes(config('uploads.signed_download_ttl_minutes')),
-                    ['objectUuid' => $this->object_uuid],
-                ),
+            'download_url' => $this->buildDownloadUrl(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

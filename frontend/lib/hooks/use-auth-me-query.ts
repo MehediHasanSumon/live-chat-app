@@ -70,8 +70,9 @@ export function useAuthMeQuery(enabled = false) {
     queryFn: fetchAuthMe,
     enabled,
     retry: false,
-    refetchOnMount: "always",
+    staleTime: 300_000,
+    refetchOnMount: false,
     refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }

@@ -12,6 +12,10 @@ const REVERB_PATH = process.env.NEXT_PUBLIC_REVERB_PATH ?? "";
 
 let echoInstance: Echo<"reverb"> | null = null;
 
+export function isRealtimeConfigured(): boolean {
+  return REVERB_APP_KEY.trim().length > 0;
+}
+
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") {
     return null;

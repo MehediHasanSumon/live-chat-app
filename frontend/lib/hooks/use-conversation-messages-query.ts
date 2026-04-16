@@ -5,6 +5,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { type MessageApiItem } from "@/lib/messages-data";
 import { queryKeys } from "@/lib/query-keys";
+import { isRealtimeConfigured } from "@/lib/reverb";
 
 export type ConversationMessagesResponse = {
   data: MessageApiItem[];
@@ -12,6 +13,8 @@ export type ConversationMessagesResponse = {
     next_cursor: number | null;
   };
 };
+
+const realtimeConfigured = isRealtimeConfigured();
 
 export function useConversationMessagesQuery(conversationId: string) {
   return useInfiniteQuery({
@@ -36,9 +39,10 @@ export function useConversationMessagesQuery(conversationId: string) {
     getNextPageParam: (lastPage) => lastPage.meta.next_cursor,
     enabled: Boolean(conversationId),
     retry: false,
-    refetchInterval: 2000,
-    refetchIntervalInBackground: true,
-    refetchOnMount: "always",
+    staleTime: realtimeConfigured ? 30_000 : 10_000,
+    refetchInterval: realtimeConfigured ? false : 10_000,
+    refetchIntervalInBackground: false,
+    refetchOnMount: false,
     refetchOnReconnect: true,
     select: (data) => ({
       pages: data.pages,

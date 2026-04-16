@@ -24,10 +24,11 @@ export function useUserPresenceQuery(userId: number | null | undefined, enabled 
     queryFn: () => fetchUserPresence(userId as number),
     enabled: enabled && Boolean(userId),
     retry: false,
-    staleTime: 10_000,
-    refetchInterval: 20_000,
-    refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
   });
 }
 
@@ -52,10 +53,11 @@ export function useConversationPresenceMap(threads: MessageThread[]) {
       queryKey: queryKeys.users.presence(target.userId),
       queryFn: () => fetchUserPresence(target.userId),
       retry: false,
-      staleTime: 10_000,
-      refetchInterval: 20_000,
-      refetchIntervalInBackground: true,
-      refetchOnWindowFocus: true,
+      staleTime: 15_000,
+      refetchInterval: 30_000,
+      refetchIntervalInBackground: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
     })),
   });
 
