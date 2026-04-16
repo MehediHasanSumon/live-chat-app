@@ -1,5 +1,8 @@
 "use client";
 
+import { ensureCallLaunchDeviceReadiness } from "@/lib/call-device";
+import { pushToast } from "@/lib/stores/toast-store";
+
 export type CallWindowAction = "start" | "accept" | "join";
 export type CallWindowMediaType = "voice" | "video";
 
@@ -53,7 +56,7 @@ function buildCallUrl({
   return `/calls/room?${params.toString()}`;
 }
 
-export function openCallWindow(options: OpenCallWindowOptions): Window | null {
+export async function openCallWindow(options: OpenCallWindowOptions): Promise<Window | null> {
   if (typeof window === "undefined") {
     return null;
   }
@@ -74,26 +77,56 @@ export function openCallWindow(options: OpenCallWindowOptions): Window | null {
   ].join(",");
   const target = `call-${mediaType}-${options.conversationId}`;
   const url = buildCallUrl(options);
-  const popup = window.open(url, target, features) ?? window.open(url, "_blank");
+  const popup = window.open("about:blank", target, features) ?? window.open("about:blank", "_blank");
 
   if (!popup) {
-    window.location.assign(url);
-    return null;
+    try {
+      await ensureCallLaunchDeviceReadiness({
+        requestedMediaType: mediaType,
+      });
+      window.location.assign(url);
+      return null;
+    } catch (error) {
+      pushToast({
+        kind: "crud",
+        tone: "error",
+        title: "Microphone unavailable",
+        message: error instanceof Error ? error.message : "No default microphone is available for this call.",
+      });
+
+      return null;
+    }
   }
 
-  popup.focus();
+  try {
+    await ensureCallLaunchDeviceReadiness({
+      requestedMediaType: mediaType,
+    });
+    popup.location.replace(url);
+    popup.focus();
+  } catch (error) {
+    popup.close();
+    pushToast({
+      kind: "crud",
+      tone: "error",
+      title: "Microphone unavailable",
+      message: error instanceof Error ? error.message : "No default microphone is available for this call.",
+    });
+
+    return null;
+  }
 
   return popup;
 }
 
-export function openAudioCallWindow(options: Omit<OpenCallWindowOptions, "mediaType">): Window | null {
+export function openAudioCallWindow(options: Omit<OpenCallWindowOptions, "mediaType">) {
   return openCallWindow({
     ...options,
     mediaType: "voice",
   });
 }
 
-export function openVideoCallWindow(options: Omit<OpenCallWindowOptions, "mediaType">): Window | null {
+export function openVideoCallWindow(options: Omit<OpenCallWindowOptions, "mediaType">) {
   return openCallWindow({
     ...options,
     mediaType: "video",

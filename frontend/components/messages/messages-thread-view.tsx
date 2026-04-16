@@ -328,7 +328,7 @@ export function MessagesThreadView({
     };
   }, [handleLoadOlder, hasNextPage, thread.id]);
 
-  const handleStartCall = useCallback((mediaType: "voice" | "video") => {
+  const handleStartCall = useCallback(async (mediaType: "voice" | "video") => {
     if (isBlockedConversation || isRequestConversation) {
       return;
     }
@@ -339,27 +339,27 @@ export function MessagesThreadView({
       setIsOpeningVideoCall(true);
     }
 
-    openCallWindow({
-      conversationId: thread.id,
-      action: "start",
-      mediaType,
-      title: thread.name,
-      avatarUrl: thread.avatarUrl ?? null,
-      targetUserId: thread.isGroup ? null : getDirectCallTargetUserId(thread, currentUserId ?? 0),
-      isGroup: Boolean(thread.isGroup),
-    });
-
-    window.setTimeout(() => {
+    try {
+      await openCallWindow({
+        conversationId: thread.id,
+        action: "start",
+        mediaType,
+        title: thread.name,
+        avatarUrl: thread.avatarUrl ?? null,
+        targetUserId: thread.isGroup ? null : getDirectCallTargetUserId(thread, currentUserId ?? 0),
+        isGroup: Boolean(thread.isGroup),
+      });
+    } finally {
       if (mediaType === "voice") {
         setIsOpeningVoiceCall(false);
       } else {
         setIsOpeningVideoCall(false);
       }
-    }, 220);
+    }
   }, [currentUserId, isBlockedConversation, isRequestConversation, thread]);
 
   const handleRetryCall = useCallback((message: ChatMessage) => {
-    openCallWindow({
+    void openCallWindow({
       conversationId: thread.id,
       action: "start",
       mediaType: message.call?.mediaType ?? "voice",
@@ -619,7 +619,7 @@ export function MessagesThreadView({
     setIsAcceptingIncomingCall(true);
 
     try {
-      openCallWindow({
+      const popup = await openCallWindow({
         conversationId: thread.id,
         action: "accept",
         mediaType: incomingCallForThread.callRoom.media_type,
@@ -628,8 +628,11 @@ export function MessagesThreadView({
         avatarUrl: thread.avatarUrl ?? null,
         isGroup: Boolean(thread.isGroup),
       });
-      clearIncomingCall();
-      clearActiveCall();
+
+      if (popup) {
+        clearIncomingCall();
+        clearActiveCall();
+      }
     } finally {
       setIsAcceptingIncomingCall(false);
     }

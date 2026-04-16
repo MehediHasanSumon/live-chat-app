@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AlertTriangle, Camera, CameraOff, CheckCircle2, Headphones, Mic, Video } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Headphones, Mic, RefreshCw, X } from "lucide-react";
 
 import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 
@@ -13,8 +13,6 @@ function getDeviceLabel(device: MediaDeviceInfo, index: number): string {
   switch (device.kind) {
     case "audioinput":
       return `Microphone ${index + 1}`;
-    case "videoinput":
-      return `Camera ${index + 1}`;
     case "audiooutput":
       return `Speaker ${index + 1}`;
     default:
@@ -22,20 +20,12 @@ function getDeviceLabel(device: MediaDeviceInfo, index: number): string {
   }
 }
 
-function DeviceHealthPill({
-  label,
-  ready,
-  optional = false,
-}: {
-  label: string;
-  ready: boolean;
-  optional?: boolean;
-}) {
+function DeviceHealthPill({ ready }: { ready: boolean }) {
   if (ready) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
         <CheckCircle2 className="h-3.5 w-3.5" />
-        {label} ready
+        Mic ready
       </span>
     );
   }
@@ -43,7 +33,7 @@ function DeviceHealthPill({
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
       <AlertTriangle className="h-3.5 w-3.5" />
-      {optional ? `${label} optional` : `${label} blocked`}
+      Mic blocked
     </span>
   );
 }
@@ -63,7 +53,7 @@ function DeviceSelect({
   onChange: (value: string) => void;
   disabled?: boolean;
 }) {
-  const deviceOptions: SelectInputOption[] =
+  const options: SelectInputOption[] =
     devices.length === 0
       ? [{ value: "", label: "No devices detected" }]
       : devices.map((device, index) => ({
@@ -79,7 +69,7 @@ function DeviceSelect({
       </span>
       <SelectInput
         value={value}
-        options={deviceOptions}
+        options={options}
         dropdownLabel={label}
         onChange={onChange}
         disabled={disabled || devices.length === 0}
@@ -89,72 +79,79 @@ function DeviceSelect({
   );
 }
 
-export function CallDeviceCheck({
+export function CallDeviceSettingsModal({
+  isOpen,
   title,
-  requestedMediaType,
-  selectedMediaType,
   isChecking,
   microphoneReady,
-  cameraReady,
   detailMessage,
   audioInputs,
-  videoInputs,
   audioOutputs,
   selectedAudioInputId,
-  selectedVideoInputId,
   selectedAudioOutputId,
   onSelectAudioInput,
-  onSelectVideoInput,
   onSelectAudioOutput,
-  onContinue,
-  onContinueAudioOnly,
+  onRefresh,
+  onClose,
 }: {
+  isOpen: boolean;
   title: string;
-  requestedMediaType: "voice" | "video";
-  selectedMediaType: "voice" | "video";
   isChecking: boolean;
   microphoneReady: boolean;
-  cameraReady: boolean;
   detailMessage: string | null;
   audioInputs: MediaDeviceInfo[];
-  videoInputs: MediaDeviceInfo[];
   audioOutputs: MediaDeviceInfo[];
   selectedAudioInputId: string;
-  selectedVideoInputId: string;
   selectedAudioOutputId: string;
   onSelectAudioInput: (value: string) => void;
-  onSelectVideoInput: (value: string) => void;
   onSelectAudioOutput: (value: string) => void;
-  onContinue: () => void;
-  onContinueAudioOnly?: () => void;
+  onRefresh: () => void;
+  onClose: () => void;
 }) {
-  const isVideoRequested = requestedMediaType === "video";
-  const isAudioFallback = isVideoRequested && selectedMediaType === "voice";
+  if (!isOpen) {
+    return null;
+  }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-5 py-6">
-      <div className="w-full max-w-[620px] overflow-hidden rounded-[32px] border border-[rgba(111,123,176,0.14)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(246,248,255,0.98)_100%)] p-6 text-[#2f3655] shadow-[0_28px_80px_rgba(96,109,160,0.18)]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(8,12,22,0.58)] px-4 py-6 backdrop-blur-sm">
+      <div className="w-full max-w-[520px] overflow-hidden rounded-[30px] border border-[rgba(111,123,176,0.14)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(246,248,255,0.98)_100%)] p-6 text-[#2f3655] shadow-[0_28px_80px_rgba(20,28,54,0.28)]">
+        <div className="flex items-start justify-between gap-4">
           <div className="space-y-3">
             <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[rgba(96,91,255,0.08)] text-[var(--accent)]">
-              {selectedMediaType === "video" ? <Video className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+              <Mic className="h-6 w-6" />
             </div>
 
             <div>
-              <p className="text-[12px] font-semibold uppercase tracking-[0.24em] text-[#6f789d]">Pre-call check</p>
-              <h1 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#2f3655]">
-                {isAudioFallback ? "Joining without camera" : `Check your ${selectedMediaType === "video" ? "camera and mic" : "microphone"}`}
-              </h1>
-              <p className="mt-3 max-w-[460px] text-sm leading-6 text-[#6f789d]">
-                {title} will open once your devices are ready. You can switch inputs before joining.
+              <p className="text-[12px] font-semibold uppercase tracking-[0.24em] text-[#6f789d]">Call settings</p>
+              <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#2f3655]">Check your microphone</h2>
+              <p className="mt-3 max-w-[420px] text-sm leading-6 text-[#6f789d]">
+                {title} will keep using your selected devices. Update microphone or speaker any time.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <DeviceHealthPill label="Mic" ready={microphoneReady} />
-            {isVideoRequested ? <DeviceHealthPill label="Camera" ready={cameraReady} optional={isAudioFallback} /> : null}
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(111,123,176,0.14)] bg-white/80 text-[#5c658a] transition hover:border-[rgba(96,91,255,0.28)] hover:text-[var(--accent)]"
+            aria-label="Close call settings"
+          >
+            <X className="h-4.5 w-4.5" />
+          </button>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <DeviceHealthPill ready={microphoneReady} />
+
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isChecking}
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#556080] transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${isChecking ? "animate-spin" : ""}`} />
+            {isChecking ? "Refreshing..." : "Refresh devices"}
+          </button>
         </div>
 
         {detailMessage ? (
@@ -163,7 +160,7 @@ export function CallDeviceCheck({
           </div>
         ) : null}
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="mt-6 grid gap-4">
           <DeviceSelect
             icon={<Mic className="h-4 w-4 text-[var(--accent)]" />}
             label="Microphone"
@@ -179,39 +176,15 @@ export function CallDeviceCheck({
             devices={audioOutputs}
             onChange={onSelectAudioOutput}
           />
-
-          {isVideoRequested ? (
-            <DeviceSelect
-              icon={cameraReady ? <Camera className="h-4 w-4 text-[var(--accent)]" /> : <CameraOff className="h-4 w-4 text-[var(--accent)]" />}
-              label="Camera"
-              value={selectedVideoInputId}
-              devices={videoInputs}
-              onChange={onSelectVideoInput}
-              disabled={!cameraReady && !isChecking}
-            />
-          ) : null}
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          {typeof onContinueAudioOnly === "function" ? (
-            <button
-              type="button"
-              onClick={onContinueAudioOnly}
-              className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
-            >
-              <CameraOff className="h-4 w-4" />
-              Continue with audio only
-            </button>
-          ) : null}
-
+        <div className="mt-6 flex items-center justify-end">
           <button
             type="button"
-            onClick={onContinue}
-            disabled={isChecking || !microphoneReady || (selectedMediaType === "video" && !cameraReady)}
-            className="ml-auto inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_28px_rgba(96,91,255,0.18)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={onClose}
+            className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_28px_rgba(96,91,255,0.18)] transition hover:brightness-105"
           >
-            {selectedMediaType === "video" ? <Video className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            {isChecking ? "Preparing..." : `Continue to ${selectedMediaType === "video" ? "video" : "voice"} call`}
+            Use these devices
           </button>
         </div>
 

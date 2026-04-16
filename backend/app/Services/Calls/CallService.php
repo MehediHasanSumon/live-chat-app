@@ -12,6 +12,7 @@ use App\Services\LiveKit\LiveKitRoomService;
 use App\Services\LiveKit\LiveKitTokenService;
 use App\Services\Messages\MessageService;
 use App\Services\Privacy\PrivacyService;
+use App\Services\Realtime\PresenceService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -30,6 +31,7 @@ class CallService
         protected LiveKitTokenService $liveKitTokenService,
         protected MessageService $messageService,
         protected PrivacyService $privacyService,
+        protected PresenceService $presenceService,
     ) {
     }
 
@@ -167,27 +169,47 @@ class CallService
         return $this->loadCallRoom($updatedRoom->room_uuid);
     }
 
-    public function markRinging(CallRoom $callRoom): CallRoom
+    public function markOnlineParticipantsRinging(CallRoom $callRoom, ?array $participantUserIds = null): CallRoom
     {
-        $updatedRoom = DB::transaction(function () use ($callRoom): CallRoom {
+        $updatedRoom = DB::transaction(function () use ($callRoom, $participantUserIds): CallRoom {
             $lockedRoom = $this->lockCallRoom($callRoom->room_uuid);
 
-            if ($lockedRoom->status !== 'calling') {
+            if (! in_array($lockedRoom->status, ['calling', 'ringing'], true)) {
+                return $lockedRoom;
+            }
+
+            $candidateQuery = CallRoomParticipant::query()
+                ->where('call_room_id', $lockedRoom->id)
+                ->where('user_id', '!=', $lockedRoom->created_by)
+                ->where('invite_status', 'invited');
+
+            if (is_array($participantUserIds) && $participantUserIds !== []) {
+                $candidateQuery->whereIn('user_id', $participantUserIds);
+            }
+
+            $onlineUserIds = $candidateQuery
+                ->pluck('user_id')
+                ->map(static fn ($userId): int => (int) $userId)
+                ->filter(fn (int $userId): bool => $this->presenceService->activePresence($userId) !== null)
+                ->values()
+                ->all();
+
+            if ($onlineUserIds === []) {
+                $this->applyResolvedStatus($lockedRoom);
+
                 return $lockedRoom;
             }
 
             CallRoomParticipant::query()
                 ->where('call_room_id', $lockedRoom->id)
-                ->where('user_id', '!=', $lockedRoom->created_by)
+                ->whereIn('user_id', $onlineUserIds)
                 ->where('invite_status', 'invited')
                 ->update([
                     'invite_status' => 'ringing',
                     'updated_at' => now(),
                 ]);
 
-            $lockedRoom->forceFill([
-                'status' => 'ringing',
-            ])->save();
+            $this->applyResolvedStatus($lockedRoom);
 
             return $lockedRoom;
         });
@@ -1060,12 +1082,20 @@ class CallService
             return 'connecting';
         }
 
+        $hasRingingInvitees = (clone $participantQuery)
+            ->where('invite_status', 'ringing')
+            ->exists();
+
+        if ($hasRingingInvitees) {
+            return 'ringing';
+        }
+
         $hasPendingInvitees = (clone $participantQuery)
-            ->whereIn('invite_status', ['invited', 'ringing'])
+            ->where('invite_status', 'invited')
             ->exists();
 
         if ($hasPendingInvitees) {
-            return 'ringing';
+            return 'calling';
         }
 
         return 'calling';

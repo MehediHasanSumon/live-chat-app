@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\Domain\ConversationCallStateChanged;
 use App\Events\Domain\ConversationMessageCreated;
 use App\Events\Domain\ConversationMessageUpdated;
+use App\Http\Requests\Call\CallDeviceReadyRequest;
 use App\Http\Requests\Call\EndCallRequest;
 use App\Http\Requests\Call\IssueJoinTokenRequest;
 use App\Http\Resources\CallRoomResource;
@@ -28,7 +29,7 @@ class CallController extends Controller
     ) {
     }
 
-    public function startDirect(Request $request, User $user, string $mediaType): JsonResponse
+    public function startDirect(CallDeviceReadyRequest $request, User $user, string $mediaType): JsonResponse
     {
         try {
             $payload = $this->callService->startDirect(
@@ -53,20 +54,23 @@ class CallController extends Controller
             'call.state.changed',
         );
         $this->notificationService->queueCallInvite($payload['call_room'], $payload['notify_user_ids']);
-        $payload['call_room'] = $this->callService->markRinging($payload['call_room']);
-        $this->dispatchCallFanout(
-            $payload['call_room'],
-            $this->callService->resolveRealtimeAction($payload['call_room'], 'ringing'),
-            $this->participantUserIds($payload['call_room']),
-            'call.state.changed',
-        );
+        $payload['call_room'] = $this->callService->markOnlineParticipantsRinging($payload['call_room']);
+
+        if ($payload['call_room']->status === 'ringing') {
+            $this->dispatchCallFanout(
+                $payload['call_room'],
+                $this->callService->resolveRealtimeAction($payload['call_room'], 'ringing'),
+                $this->participantUserIds($payload['call_room']),
+                'call.state.changed',
+            );
+        }
 
         return response()->json([
             'data' => (new CallRoomResource($payload['call_room']))->resolve($request),
         ], 201);
     }
 
-    public function startGroup(Request $request, Conversation $conversation, string $mediaType): JsonResponse
+    public function startGroup(CallDeviceReadyRequest $request, Conversation $conversation, string $mediaType): JsonResponse
     {
         try {
             $payload = $this->callService->startGroup(
@@ -91,13 +95,16 @@ class CallController extends Controller
             'call.state.changed',
         );
         $this->notificationService->queueCallInvite($payload['call_room'], $payload['notify_user_ids']);
-        $payload['call_room'] = $this->callService->markRinging($payload['call_room']);
-        $this->dispatchCallFanout(
-            $payload['call_room'],
-            $this->callService->resolveRealtimeAction($payload['call_room'], 'ringing'),
-            $this->participantUserIds($payload['call_room']),
-            'call.state.changed',
-        );
+        $payload['call_room'] = $this->callService->markOnlineParticipantsRinging($payload['call_room']);
+
+        if ($payload['call_room']->status === 'ringing') {
+            $this->dispatchCallFanout(
+                $payload['call_room'],
+                $this->callService->resolveRealtimeAction($payload['call_room'], 'ringing'),
+                $this->participantUserIds($payload['call_room']),
+                'call.state.changed',
+            );
+        }
 
         return response()->json([
             'data' => (new CallRoomResource($payload['call_room']))->resolve($request),
@@ -119,7 +126,7 @@ class CallController extends Controller
         ]);
     }
 
-    public function accept(Request $request, CallRoom $callRoom): JsonResponse
+    public function accept(CallDeviceReadyRequest $request, CallRoom $callRoom): JsonResponse
     {
         $actorUserId = $request->user()->getKey();
         $currentRoom = CallRoom::query()

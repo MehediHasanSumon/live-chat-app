@@ -8,18 +8,27 @@ import {
   useRemoteParticipants,
   useTracks,
 } from "@livekit/components-react";
-import { Camera, CameraOff, Lock, Mic, MicOff, PhoneCall, PhoneOff, UserPlus, Video, X } from "lucide-react";
+import { Camera, CameraOff, Lock, Mic, MicOff, MoreVertical, PhoneCall, PhoneOff, UserPlus, Video, X } from "lucide-react";
 import { ConnectionState, Room, Track, type AudioCaptureOptions, type VideoCaptureOptions } from "livekit-client";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CallDeviceCheck } from "@/components/calls/call-device-check";
+import { CallDeviceSettingsModal } from "@/components/calls/call-device-check";
 import { CallInviteManager } from "@/components/calls/call-invite-manager";
-import { CallLiveKitFeedback, SpeakingParticipantTile } from "@/components/calls/call-livekit-feedback";
+import { SpeakingParticipantTile } from "@/components/calls/call-livekit-feedback";
 import { CallModeratorMuteListener } from "@/components/calls/call-moderator-mute-listener";
 import { CallParticipantManager } from "@/components/calls/call-participant-manager";
 import { MessageAvatar } from "@/components/messages/message-avatar";
 import { ApiClientError, apiClient, ensureCsrfCookie } from "@/lib/api-client";
+import {
+  AUDIO_INPUT_PREFERENCE_KEY,
+  AUDIO_OUTPUT_PREFERENCE_KEY,
+  VIDEO_INPUT_PREFERENCE_KEY,
+  buildCallDevicePayload,
+  inspectCallDevices,
+  readStoredDevicePreference,
+  writeStoredDevicePreference,
+} from "@/lib/call-device";
 import {
   type CallSignalPayload,
   formatCallStatus,
@@ -33,7 +42,8 @@ import {
 import { publishPopupClosingSignal } from "@/lib/call-popup-sync";
 import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationQuery } from "@/lib/hooks/use-conversation-query";
-import { toConversationThread, type MessageThread } from "@/lib/messages-data";
+import { useUserPresenceQuery } from "@/lib/hooks/use-user-presence-query";
+import { getDirectThreadPeer, toConversationThread, type MessageThread } from "@/lib/messages-data";
 import { getEchoInstance } from "@/lib/reverb";
 
 type CallRoomResponse = {
@@ -43,77 +53,6 @@ type CallRoomResponse = {
 type JoinTokenResponse = {
   data: JoinCallApiPayload;
 };
-
-const AUDIO_INPUT_PREFERENCE_KEY = "chat-app:call-audio-input-id";
-const VIDEO_INPUT_PREFERENCE_KEY = "chat-app:call-video-input-id";
-const AUDIO_OUTPUT_PREFERENCE_KEY = "chat-app:call-audio-output-id";
-
-function readStoredDevicePreference(key: string): string {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return window.localStorage.getItem(key) ?? "";
-}
-
-function writeStoredDevicePreference(key: string, value: string): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  if (!value) {
-    window.localStorage.removeItem(key);
-    return;
-  }
-
-  window.localStorage.setItem(key, value);
-}
-
-function pickDeviceId(
-  devices: MediaDeviceInfo[],
-  preferredId: string,
-  fallbackId?: string | null,
-): string {
-  const candidateIds = [preferredId, fallbackId ?? ""].filter((value) => value.trim().length > 0);
-
-  for (const candidateId of candidateIds) {
-    if (devices.some((device) => device.deviceId === candidateId)) {
-      return candidateId;
-    }
-  }
-
-  return devices[0]?.deviceId ?? "";
-}
-
-function stopMediaStream(stream: MediaStream | null): void {
-  stream?.getTracks().forEach((track) => {
-    track.stop();
-  });
-}
-
-function formatDeviceAccessMessage(error: unknown, fallbackToAudioAvailable = false): string {
-  if (error instanceof DOMException) {
-    if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
-      return fallbackToAudioAvailable
-        ? "Camera access was blocked. You can still continue with audio only."
-        : "Microphone access was blocked. Please allow microphone permission and try again.";
-    }
-
-    if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
-      return fallbackToAudioAvailable
-        ? "We could not find a camera. You can still continue with audio only."
-        : "We could not find a microphone for this call.";
-    }
-  }
-
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-
-  return fallbackToAudioAvailable
-    ? "Camera access is unavailable right now. You can still continue with audio only."
-    : "We could not prepare your call devices right now.";
-}
 
 function formatCallDuration(totalSeconds: number): string {
   const safeSeconds = Math.max(0, totalSeconds);
@@ -203,6 +142,7 @@ async function startCall(
   thread: MessageThread,
   authUserId: number,
   mediaType: "voice" | "video",
+  devicePayload: ReturnType<typeof buildCallDevicePayload>,
 ): Promise<CallRoomApiItem> {
   if (thread.isChatBlocked || thread.membership?.membership_state === "request_pending") {
     throw new Error("This conversation is not ready for calling yet.");
@@ -210,7 +150,7 @@ async function startCall(
 
   if (thread.isGroup) {
     return apiClient
-      .post<CallRoomResponse>(`/api/conversations/${thread.id}/calls/group/${mediaType}`)
+      .post<CallRoomResponse>(`/api/conversations/${thread.id}/calls/group/${mediaType}`, devicePayload)
       .then((response) => response.data);
   }
 
@@ -221,7 +161,7 @@ async function startCall(
   }
 
   return apiClient
-    .post<CallRoomResponse>(`/api/calls/direct/${targetUserId}/${mediaType}`)
+    .post<CallRoomResponse>(`/api/calls/direct/${targetUserId}/${mediaType}`, devicePayload)
     .then((response) => response.data);
 }
 
@@ -232,26 +172,32 @@ async function startCallFast(
     isGroup?: boolean;
     mediaType: "voice" | "video";
   },
+  devicePayload: ReturnType<typeof buildCallDevicePayload>,
 ): Promise<CallRoomApiItem> {
   if (options.isGroup) {
     return apiClient
-      .post<CallRoomResponse>(`/api/conversations/${conversationId}/calls/group/${options.mediaType}`)
+      .post<CallRoomResponse>(`/api/conversations/${conversationId}/calls/group/${options.mediaType}`, devicePayload)
       .then((response) => response.data);
   }
 
   if (typeof options.targetUserId === "number") {
     return apiClient
-      .post<CallRoomResponse>(`/api/calls/direct/${options.targetUserId}/${options.mediaType}`)
+      .post<CallRoomResponse>(`/api/calls/direct/${options.targetUserId}/${options.mediaType}`, devicePayload)
       .then((response) => response.data);
   }
 
   throw new Error("We could not identify the other participant for this call.");
 }
 
-async function createJoinToken(roomUuid: string, wantsVideo = false) {
+async function createJoinToken(
+  roomUuid: string,
+  wantsVideo: boolean,
+  devicePayload: ReturnType<typeof buildCallDevicePayload>,
+) {
   return apiClient
     .post<JoinTokenResponse>(`/api/calls/${roomUuid}/join-token`, {
       wants_video: wantsVideo,
+      ...devicePayload,
     })
     .then((response) => response.data);
 }
@@ -266,6 +212,7 @@ type AudioCallShellProps = {
   payload: JoinCallApiPayload;
   title: string;
   avatarUrl?: string | null;
+  onOpenSettings: () => void;
   onLeave: () => void;
   onEndForAll?: () => void;
   onToggleLock?: () => void;
@@ -285,6 +232,7 @@ type AudioCallShellProps = {
   conversationMembers?: MessageThread["members"];
   audioOptions: AudioCaptureOptions;
   videoOptions?: VideoCaptureOptions;
+  audioInputDeviceId?: string;
   audioOutputDeviceId?: string;
 };
 
@@ -358,6 +306,8 @@ function useCallStageMeta(callRoom: CallRoomApiItem) {
   };
 }
 
+// Kept temporarily while the slimmer header rollout settles in.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CallWindowHeader({
   title,
   avatarUrl = null,
@@ -543,10 +493,194 @@ function CallPopupControls({
   );
 }
 
+function SlimCallWindowHeader({
+  title,
+  avatarUrl = null,
+  subtitle,
+  onOpenSettings,
+}: {
+  title: string;
+  avatarUrl?: string | null;
+  subtitle: string;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <header className="flex items-start justify-between gap-4 px-4 pb-3 pt-4 md:px-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <MessageAvatar
+          name={title}
+          online={false}
+          imageUrl={avatarUrl}
+          sizeClass="h-12 w-12"
+          textClass="text-base"
+        />
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-semibold tracking-[-0.02em] text-white/96">{title}</h1>
+          <p className="mt-1 text-sm text-white/62">{subtitle}</p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onOpenSettings}
+        aria-label="Open call settings"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/8 text-white/84 transition hover:bg-white/12"
+      >
+        <MoreVertical className="h-4.5 w-4.5" />
+      </button>
+    </header>
+  );
+}
+
+function CallManagementStrip({
+  onToggleLock,
+  onMuteAll,
+  isTogglingLock = false,
+  isMutingAll = false,
+  showLockControl,
+  isRoomLocked,
+}: {
+  onToggleLock?: () => void;
+  onMuteAll?: () => void;
+  isTogglingLock?: boolean;
+  isMutingAll?: boolean;
+  showLockControl: boolean;
+  isRoomLocked: boolean;
+}) {
+  if (!showLockControl) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2 px-4 md:px-5">
+      <button
+        type="button"
+        onClick={onMuteAll}
+        disabled={isMutingAll}
+        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3.5 py-2 text-sm font-medium text-white/88 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <MicOff className="h-4 w-4" />
+        {isMutingAll ? "Muting..." : "Mute all"}
+      </button>
+
+      <button
+        type="button"
+        onClick={onToggleLock}
+        disabled={isTogglingLock}
+        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3.5 py-2 text-sm font-medium text-white/88 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isTogglingLock ? "Updating..." : isRoomLocked ? "Unlock room" : "Lock room"}
+      </button>
+    </div>
+  );
+}
+
+function PendingCallControls({
+  onLeave,
+  isLeaving,
+}: {
+  onLeave: () => void;
+  isLeaving: boolean;
+}) {
+  return (
+    <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-6">
+      <div className="flex items-center gap-3 rounded-full border border-white/10 bg-[rgba(12,16,31,0.84)] px-4 py-3 shadow-[0_28px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl">
+        <button
+          type="button"
+          disabled
+          aria-label="Microphone will turn on when the call connects"
+          className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/6 text-white/34 opacity-70"
+        >
+          <Mic className="h-4.5 w-4.5" />
+        </button>
+
+        <button
+          type="button"
+          disabled
+          aria-label="Participant controls are unavailable until the call connects"
+          className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/6 text-white/34 opacity-70"
+        >
+          <UserPlus className="h-4.5 w-4.5" />
+        </button>
+
+        <button
+          type="button"
+          onClick={onLeave}
+          disabled={isLeaving}
+          aria-label={isLeaving ? "Ending call" : "End call"}
+          className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ff5d72_0%,#ff3f62_100%)] text-white shadow-[0_18px_28px_rgba(255,75,110,0.28)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <PhoneOff className="h-4.5 w-4.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PendingCallShell({
+  title,
+  avatarUrl = null,
+  statusLabel,
+  subtitle,
+  onOpenSettings,
+  onLeave,
+  isLeaving,
+}: {
+  title: string;
+  avatarUrl?: string | null;
+  statusLabel: string;
+  subtitle: string;
+  onOpenSettings: () => void;
+  onLeave: () => void;
+  isLeaving: boolean;
+}) {
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(255,189,141,0.14),transparent_18%),radial-gradient(circle_at_bottom,rgba(51,87,124,0.22),transparent_28%),linear-gradient(180deg,#141927_0%,#0e1320_100%)] text-white">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-x-[12%] top-[12%] h-[34%] rounded-full bg-[radial-gradient(circle,rgba(165,108,86,0.42)_0%,rgba(165,108,86,0)_72%)] blur-3xl" />
+        <div className="absolute inset-x-[10%] bottom-[8%] h-[38%] rounded-full bg-[radial-gradient(circle,rgba(42,68,96,0.42)_0%,rgba(42,68,96,0)_72%)] blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_22%,rgba(8,10,16,0.2)_100%)]" />
+      </div>
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[460px] flex-col">
+        <SlimCallWindowHeader
+          title={title}
+          avatarUrl={avatarUrl}
+          subtitle={subtitle}
+          onOpenSettings={onOpenSettings}
+        />
+
+        <div className="flex flex-1 flex-col items-center justify-center px-6 pb-24 text-center">
+          <div className="relative">
+            <div className="absolute inset-[-26px] rounded-full border border-white/8 bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_68%)] blur-2xl" />
+            <div className="absolute inset-[-12px] animate-pulse rounded-full border border-white/10" />
+            <MessageAvatar
+              name={title}
+              online={false}
+              imageUrl={avatarUrl}
+              sizeClass="relative z-10 h-24 w-24"
+              textClass="text-3xl"
+            />
+          </div>
+
+          <div className="mt-7 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/62 shadow-[0_16px_36px_rgba(0,0,0,0.14)] backdrop-blur">
+            {statusLabel}
+          </div>
+          <h2 className="mt-4 text-[2rem] font-semibold tracking-[-0.05em] text-white/96">{title}</h2>
+          <p className="mt-2 text-sm font-medium text-white/70">{subtitle}</p>
+        </div>
+
+        <PendingCallControls onLeave={onLeave} isLeaving={isLeaving} />
+      </div>
+    </div>
+  );
+}
+
 function AudioCallStage({
   callRoom,
   title,
   avatarUrl = null,
+  onOpenSettings,
   onLeave,
   onEndForAll,
   onToggleLock,
@@ -570,6 +704,7 @@ function AudioCallStage({
   callRoom: CallRoomApiItem;
   title: string;
   avatarUrl?: string | null;
+  onOpenSettings: () => void;
   onLeave: () => void;
   onEndForAll?: () => void;
   onToggleLock?: () => void;
@@ -595,18 +730,18 @@ function AudioCallStage({
   return (
     <>
       <RoomAudioRenderer />
-      <CallWindowHeader
+      <SlimCallWindowHeader
         title={title}
         avatarUrl={avatarUrl}
-        statusLabel={statusLabel}
-        durationLabel={durationLabel}
-        onEndForAll={onEndForAll}
+        subtitle={durationLabel ? `${statusLabel} · ${durationLabel}` : statusLabel}
+        onOpenSettings={onOpenSettings}
+      />
+
+      <CallManagementStrip
         onToggleLock={onToggleLock}
         onMuteAll={onMuteAll}
-        isEndingForAll={isEndingForAll}
         isTogglingLock={isTogglingLock}
         isMutingAll={isMutingAll}
-        showEndForAll={showEndForAll}
         showLockControl={showLockControl}
         isRoomLocked={isRoomLocked}
       />
@@ -631,10 +766,6 @@ function AudioCallStage({
           ) : null}
         </div>
       ) : null}
-
-      <div className="px-4 md:px-5">
-        <CallLiveKitFeedback compact />
-      </div>
 
       <div className="flex flex-1 flex-col items-center justify-center px-6 pb-24 text-center">
         <div className="relative">
@@ -699,6 +830,7 @@ function VideoCallStage({
   callRoom,
   title,
   avatarUrl = null,
+  onOpenSettings,
   onLeave,
   onEndForAll,
   onToggleLock,
@@ -723,6 +855,7 @@ function VideoCallStage({
   callRoom: CallRoomApiItem;
   title: string;
   avatarUrl?: string | null;
+  onOpenSettings: () => void;
   onLeave: () => void;
   onEndForAll?: () => void;
   onToggleLock?: () => void;
@@ -749,18 +882,18 @@ function VideoCallStage({
   return (
     <>
       <RoomAudioRenderer />
-      <CallWindowHeader
+      <SlimCallWindowHeader
         title={title}
         avatarUrl={avatarUrl}
-        statusLabel={statusLabel}
-        durationLabel={durationLabel}
-        onEndForAll={onEndForAll}
+        subtitle={durationLabel ? `${statusLabel} · ${durationLabel}` : statusLabel}
+        onOpenSettings={onOpenSettings}
+      />
+
+      <CallManagementStrip
         onToggleLock={onToggleLock}
         onMuteAll={onMuteAll}
-        isEndingForAll={isEndingForAll}
         isTogglingLock={isTogglingLock}
         isMutingAll={isMutingAll}
-        showEndForAll={showEndForAll}
         showLockControl={showLockControl}
         isRoomLocked={isRoomLocked}
       />
@@ -786,10 +919,6 @@ function VideoCallStage({
         </div>
       ) : null}
 
-      <div className="px-4 md:px-5">
-        <CallLiveKitFeedback compact />
-      </div>
-
       <div className="flex min-h-0 flex-1 px-4 pb-24 pt-2 md:px-5">
         <div className="flex min-h-0 flex-1 overflow-hidden rounded-[34px] border border-white/8 bg-[linear-gradient(180deg,rgba(10,14,29,0.92)_0%,rgba(8,12,22,0.94)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_32px_90px_rgba(0,0,0,0.34)]">
           <VideoParticipantGrid />
@@ -814,6 +943,7 @@ function AudioCallShell({
   payload,
   title,
   avatarUrl = null,
+  onOpenSettings,
   onLeave,
   onEndForAll,
   onToggleLock,
@@ -833,13 +963,24 @@ function AudioCallShell({
   conversationMembers,
   audioOptions,
   videoOptions,
+  audioInputDeviceId,
   audioOutputDeviceId,
 }: AudioCallShellProps) {
   const isVideoCall = payload.call_room.media_type === "video";
   const canPublishVideo = isVideoCall && payload.publish_mode === "video";
   const room = useMemo(() => new Room(), []);
 
-  const handleConnected = useCallback(() => {
+  useEffect(() => {
+    if (!audioInputDeviceId) {
+      return;
+    }
+
+    void room.switchActiveDevice("audioinput", audioInputDeviceId).catch(() => {
+      // Ignore browsers that do not support live microphone switching.
+    });
+  }, [audioInputDeviceId, room]);
+
+  useEffect(() => {
     if (!audioOutputDeviceId) {
       return;
     }
@@ -865,7 +1006,6 @@ function AudioCallShell({
           connect
           audio={audioOptions}
           video={canPublishVideo ? videoOptions || true : false}
-          onConnected={handleConnected}
           data-lk-theme="default"
           className="flex min-h-0 flex-1 flex-col"
         >
@@ -875,6 +1015,7 @@ function AudioCallShell({
               callRoom={payload.call_room}
               title={title}
               avatarUrl={avatarUrl}
+              onOpenSettings={onOpenSettings}
               onLeave={onLeave}
               onEndForAll={onEndForAll}
               onToggleLock={onToggleLock}
@@ -901,6 +1042,7 @@ function AudioCallShell({
               callRoom={payload.call_room}
               title={title}
               avatarUrl={avatarUrl}
+              onOpenSettings={onOpenSettings}
               onLeave={onLeave}
               onEndForAll={onEndForAll}
               onToggleLock={onToggleLock}
@@ -950,6 +1092,11 @@ export function AudioCallWindow() {
     () => (conversation ? toConversationThread(conversation) : null),
     [conversation],
   );
+  const directPeer = useMemo(() => (thread ? getDirectThreadPeer(thread) : null), [thread]);
+  const { data: directPeerPresence } = useUserPresenceQuery(
+    directPeer?.user_id,
+    Boolean(directPeer?.user_id) && !Boolean(thread?.isGroup),
+  );
   const [payload, setPayload] = useState<JoinCallApiPayload | null>(null);
   const [roomSnapshot, setRoomSnapshot] = useState<CallRoomApiItem | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -959,9 +1106,8 @@ export function AudioCallWindow() {
   const [isMutingAll, setIsMutingAll] = useState(false);
   const [removingUserId, setRemovingUserId] = useState<number | null>(null);
   const [invitingUserId, setInvitingUserId] = useState<number | null>(null);
-  const [selectedMediaType, setSelectedMediaType] = useState<"voice" | "video">(requestedMediaType);
+  const selectedMediaType = requestedMediaType;
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>([]);
-  const [videoInputDevices, setVideoInputDevices] = useState<MediaDeviceInfo[]>([]);
   const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedAudioInputId, setSelectedAudioInputId] = useState<string>(() => readStoredDevicePreference(AUDIO_INPUT_PREFERENCE_KEY));
   const [selectedVideoInputId, setSelectedVideoInputId] = useState<string>(() => readStoredDevicePreference(VIDEO_INPUT_PREFERENCE_KEY));
@@ -970,7 +1116,8 @@ export function AudioCallWindow() {
   const [cameraReady, setCameraReady] = useState(requestedMediaType !== "video");
   const [deviceCheckMessage, setDeviceCheckMessage] = useState<string | null>(null);
   const [isCheckingDevices, setIsCheckingDevices] = useState(true);
-  const [isDeviceCheckConfirmed, setIsDeviceCheckConfirmed] = useState(false);
+  const [isDeviceCheckComplete, setIsDeviceCheckComplete] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const didInitializeRef = useRef(false);
   const didEndRef = useRef(false);
   const currentRoomUuid = resolveCallRoomUuid(
@@ -990,8 +1137,16 @@ export function AudioCallWindow() {
   const showEndForAll = canManageRoomControls;
   const showLockControl = canManageRoomControls;
   const isRoomLocked = payload?.call_room.is_locked ?? roomSnapshot?.is_locked ?? false;
-  const canContinueWithAudioOnly =
-    requestedMediaType === "video" && selectedMediaType === "video" && microphoneReady && !cameraReady;
+  const devicePayload = useMemo(
+    () =>
+      microphoneReady && selectedAudioInputId
+        ? buildCallDevicePayload({
+            selectedAudioInputId,
+            selectedAudioOutputId,
+          })
+        : null,
+    [microphoneReady, selectedAudioInputId, selectedAudioOutputId],
+  );
   const audioOptions = useMemo<AudioCaptureOptions>(() => ({
     echoCancellation: true,
     noiseSuppression: true,
@@ -1009,93 +1164,33 @@ export function AudioCallWindow() {
   }, [selectedMediaType, selectedVideoInputId]);
 
   const runDeviceCheck = useCallback(async (mediaType: "voice" | "video" = selectedMediaType) => {
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices.enumerateDevices) {
-      setMicrophoneReady(false);
-      setCameraReady(mediaType !== "video");
-      setDeviceCheckMessage("This browser cannot inspect your call devices.");
-      setIsCheckingDevices(false);
-      return;
-    }
-
     setIsCheckingDevices(true);
-    setDeviceCheckMessage(null);
-
-    let requestedStream: MediaStream | null = null;
-    let audioOnlyStream: MediaStream | null = null;
-    let primaryError: unknown = null;
-
     try {
-      try {
-        requestedStream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: mediaType === "video",
-        });
-      } catch (error) {
-        primaryError = error;
+      const snapshot = await inspectCallDevices({
+        requestedMediaType: mediaType,
+        preferredAudioInputId: selectedAudioInputId,
+        preferredAudioOutputId: selectedAudioOutputId,
+        preferredVideoInputId: selectedVideoInputId,
+      });
 
-        if (mediaType === "video") {
-          audioOnlyStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: false,
-          });
-        } else {
-          throw error;
-        }
-      }
-
-      const grantedStream = requestedStream ?? audioOnlyStream;
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const nextAudioInputs = devices.filter((device) => device.kind === "audioinput");
-      const nextVideoInputs = devices.filter((device) => device.kind === "videoinput");
-      const nextAudioOutputs = devices.filter((device) => device.kind === "audiooutput");
-      const audioTrack = grantedStream?.getAudioTracks()[0] ?? null;
-
-      setAudioInputDevices(nextAudioInputs);
-      setVideoInputDevices(nextVideoInputs);
-      setAudioOutputDevices(nextAudioOutputs);
-
-      setSelectedAudioInputId((current) =>
-        pickDeviceId(nextAudioInputs, current || selectedAudioInputId, audioTrack?.getSettings().deviceId),
+      setAudioInputDevices(snapshot.audioInputs);
+      setAudioOutputDevices(snapshot.audioOutputs);
+      setSelectedAudioInputId(snapshot.selectedAudioInputId);
+      setSelectedVideoInputId(snapshot.selectedVideoInputId);
+      setSelectedAudioOutputId(snapshot.selectedAudioOutputId);
+      setMicrophoneReady(snapshot.microphoneReady);
+      setCameraReady(snapshot.cameraReady);
+      setDeviceCheckMessage(snapshot.detailMessage);
+      setErrorMessage((current) =>
+        current && !snapshot.microphoneReady
+          ? (snapshot.detailMessage ?? "No default microphone is available for this call.")
+          : current,
       );
-      setSelectedVideoInputId((current) =>
-        pickDeviceId(nextVideoInputs, current || selectedVideoInputId),
-      );
-      setSelectedAudioOutputId((current) => pickDeviceId(nextAudioOutputs, current || selectedAudioOutputId));
-
-      const nextMicrophoneReady = Boolean(grantedStream?.getAudioTracks().length);
-      const nextCameraReady =
-        mediaType === "video"
-          ? Boolean(requestedStream?.getVideoTracks().length)
-          : true;
-
-      setMicrophoneReady(nextMicrophoneReady);
-      setCameraReady(nextCameraReady);
-
-      if (primaryError) {
-        setDeviceCheckMessage(formatDeviceAccessMessage(primaryError, mediaType === "video"));
-      } else if (mediaType === "video" && !nextCameraReady) {
-        setDeviceCheckMessage("Camera access is unavailable. You can still continue with audio only.");
-      }
-    } catch (error) {
-      setMicrophoneReady(false);
-      setCameraReady(mediaType !== "video");
-      setDeviceCheckMessage(formatDeviceAccessMessage(error, mediaType === "video"));
     } finally {
-      stopMediaStream(requestedStream);
-      stopMediaStream(audioOnlyStream);
       setIsCheckingDevices(false);
+      setIsDeviceCheckComplete(true);
     }
   }, [selectedAudioInputId, selectedAudioOutputId, selectedMediaType, selectedVideoInputId]);
-
-  const continueAfterDeviceCheck = useCallback((nextMediaType?: "voice" | "video") => {
-    if (nextMediaType) {
-      setSelectedMediaType(nextMediaType);
-    }
-
-    setErrorMessage(null);
-    setIsPreparing(true);
-    setIsDeviceCheckConfirmed(true);
-  }, []);
 
   const closeWindow = useCallback(() => {
     window.close();
@@ -1316,7 +1411,7 @@ export function AudioCallWindow() {
   }, [activeConversationRoomUuid, payload?.call_room.room_uuid, roomSnapshot?.room_uuid, roomUuid]);
 
   useEffect(() => {
-    if (!isDeviceCheckConfirmed) {
+    if (!isDeviceCheckComplete) {
       return;
     }
 
@@ -1328,6 +1423,12 @@ export function AudioCallWindow() {
 
     if (!conversationId) {
       setErrorMessage("We could not resolve this conversation.");
+      setIsPreparing(false);
+      return;
+    }
+
+    if (!devicePayload) {
+      setErrorMessage(deviceCheckMessage ?? "No default microphone is available for this call.");
       setIsPreparing(false);
       return;
     }
@@ -1350,6 +1451,8 @@ export function AudioCallWindow() {
     }
 
     didInitializeRef.current = true;
+    setErrorMessage(null);
+    setIsPreparing(true);
 
     const run = async () => {
       try {
@@ -1368,7 +1471,7 @@ export function AudioCallWindow() {
 
               if (participant && participant.invite_status !== "accepted") {
                 const acceptedCallRoom = await apiClient
-                  .post<CallRoomResponse>(`/api/calls/${targetRoomUuid}/accept`)
+                  .post<CallRoomResponse>(`/api/calls/${targetRoomUuid}/accept`, devicePayload)
                   .then((response) => response.data);
                 setRoomSnapshot(acceptedCallRoom);
               }
@@ -1378,19 +1481,19 @@ export function AudioCallWindow() {
           if (!targetRoomUuid) {
             const callRoom =
               conversationId && (isGroup || targetUserId !== null)
-                ? await startCallFast(conversationId, { isGroup, targetUserId, mediaType: selectedMediaType })
-                : await startCall(thread as MessageThread, authUserId as number, selectedMediaType);
+                ? await startCallFast(conversationId, { isGroup, targetUserId, mediaType: selectedMediaType }, devicePayload)
+                : await startCall(thread as MessageThread, authUserId as number, selectedMediaType, devicePayload);
             setRoomSnapshot(callRoom);
             targetRoomUuid = callRoom.room_uuid;
           }
         } else if (normalizedAction === "accept") {
           const acceptedCallRoom = await apiClient
-            .post<CallRoomResponse>(`/api/calls/${roomUuid}/accept`)
+            .post<CallRoomResponse>(`/api/calls/${roomUuid}/accept`, devicePayload)
             .then((response) => response.data);
           setRoomSnapshot(acceptedCallRoom);
         }
 
-        const joinPayload = await createJoinToken(targetRoomUuid, selectedMediaType === "video");
+        const joinPayload = await createJoinToken(targetRoomUuid, selectedMediaType === "video" && cameraReady, devicePayload);
         setRoomSnapshot(joinPayload.call_room);
         setPayload(joinPayload);
       } catch (error) {
@@ -1401,7 +1504,7 @@ export function AudioCallWindow() {
     };
 
     void run();
-  }, [action, activeConversationRoomUuid, authUserId, conversationId, isConversationError, isDeviceCheckConfirmed, isGroup, roomUuid, selectedMediaType, targetUserId, thread]);
+  }, [action, activeConversationRoomUuid, authUserId, cameraReady, conversationId, deviceCheckMessage, devicePayload, isConversationError, isDeviceCheckComplete, isGroup, roomUuid, selectedMediaType, targetUserId, thread]);
 
   useEffect(() => {
     if (!currentRoomUuid) {
@@ -1527,6 +1630,34 @@ export function AudioCallWindow() {
     };
   }, [authUserId, closeWindow, currentRoomUuid]);
 
+  const pendingStatusLabel = useMemo(() => {
+    if (roomSnapshot) {
+      return roomSnapshot.status === "active" ? "Connecting" : getCallUiStatus(roomSnapshot);
+    }
+
+    if (action === "accept" || action === "join") {
+      return "Connecting";
+    }
+
+    return directPeerPresence?.visible && directPeerPresence.is_online ? "Ringing" : "Calling";
+  }, [action, directPeerPresence, roomSnapshot]);
+
+  const pendingSubtitle = useMemo(() => {
+    if (errorMessage) {
+      return errorMessage;
+    }
+
+    if (pendingStatusLabel === "Ringing") {
+      return "Receiver is online. Waiting for answer.";
+    }
+
+    if (pendingStatusLabel === "Calling") {
+      return "Trying to reach the receiver.";
+    }
+
+    return isPreparing ? "Joining the call with your default devices." : "Connecting your call.";
+  }, [errorMessage, isPreparing, pendingStatusLabel]);
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(93,108,255,0.14),transparent_30%),linear-gradient(180deg,#edf2ff_0%,#f8faff_100%)]">
       {payload ? (
@@ -1534,6 +1665,9 @@ export function AudioCallWindow() {
           payload={payload}
           title={(thread?.name ?? initialTitle) || (activeMediaType === "video" ? "Video call" : "Voice call")}
           avatarUrl={thread?.avatarUrl ?? initialAvatarUrl ?? null}
+          onOpenSettings={() => {
+            setIsSettingsOpen(true);
+          }}
           onLeave={() => {
             void endCall();
           }}
@@ -1585,38 +1719,10 @@ export function AudioCallWindow() {
           conversationMembers={thread?.members}
           audioOptions={audioOptions}
           videoOptions={videoOptions}
+          audioInputDeviceId={selectedAudioInputId}
           audioOutputDeviceId={selectedAudioOutputId}
         />
-      ) : !errorMessage && !isDeviceCheckConfirmed ? (
-        <CallDeviceCheck
-          title={(thread?.name ?? initialTitle) || "This conversation"}
-          requestedMediaType={requestedMediaType}
-          selectedMediaType={selectedMediaType}
-          isChecking={isCheckingDevices}
-          microphoneReady={microphoneReady}
-          cameraReady={cameraReady}
-          detailMessage={deviceCheckMessage}
-          audioInputs={audioInputDevices}
-          videoInputs={videoInputDevices}
-          audioOutputs={audioOutputDevices}
-          selectedAudioInputId={selectedAudioInputId}
-          selectedVideoInputId={selectedVideoInputId}
-          selectedAudioOutputId={selectedAudioOutputId}
-          onSelectAudioInput={setSelectedAudioInputId}
-          onSelectVideoInput={setSelectedVideoInputId}
-          onSelectAudioOutput={setSelectedAudioOutputId}
-          onContinue={() => {
-            continueAfterDeviceCheck(selectedMediaType);
-          }}
-          onContinueAudioOnly={
-            canContinueWithAudioOnly
-              ? () => {
-                  continueAfterDeviceCheck("voice");
-                }
-              : undefined
-          }
-        />
-      ) : (
+      ) : errorMessage ? (
         <div className="flex min-h-screen items-center justify-center px-5 py-6">
           <div className={`w-full rounded-[28px] border border-[rgba(111,123,176,0.14)] bg-white px-6 py-7 text-center shadow-[0_24px_70px_rgba(96,109,160,0.12)] ${activeMediaType === "video" ? "max-w-[560px]" : "max-w-[420px]"}`}>
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(96,91,255,0.08)] text-[var(--accent)]">
@@ -1668,7 +1774,41 @@ export function AudioCallWindow() {
             ) : null}
           </div>
         </div>
+      ) : (
+        <PendingCallShell
+          title={(thread?.name ?? initialTitle) || (activeMediaType === "video" ? "Video call" : "Voice call")}
+          avatarUrl={thread?.avatarUrl ?? initialAvatarUrl ?? null}
+          statusLabel={pendingStatusLabel}
+          subtitle={pendingSubtitle}
+          onOpenSettings={() => {
+            setIsSettingsOpen(true);
+          }}
+          onLeave={() => {
+            void endCall("cancelled_from_pending_popup");
+          }}
+          isLeaving={isLeaving}
+        />
       )}
+
+      <CallDeviceSettingsModal
+        isOpen={isSettingsOpen}
+        title={(thread?.name ?? initialTitle) || "This conversation"}
+        isChecking={isCheckingDevices}
+        microphoneReady={microphoneReady}
+        detailMessage={deviceCheckMessage}
+        audioInputs={audioInputDevices}
+        audioOutputs={audioOutputDevices}
+        selectedAudioInputId={selectedAudioInputId}
+        selectedAudioOutputId={selectedAudioOutputId}
+        onSelectAudioInput={setSelectedAudioInputId}
+        onSelectAudioOutput={setSelectedAudioOutputId}
+        onRefresh={() => {
+          void runDeviceCheck(selectedMediaType);
+        }}
+        onClose={() => {
+          setIsSettingsOpen(false);
+        }}
+      />
     </main>
   );
 }

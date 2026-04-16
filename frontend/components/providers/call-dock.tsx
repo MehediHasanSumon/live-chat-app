@@ -219,7 +219,7 @@ export function CallDock() {
     }
 
     try {
-      openCallWindow({
+      const popup = await openCallWindow({
         conversationId: session.callRoom.conversation_id,
         action: "accept",
         mediaType: session.callRoom.media_type,
@@ -228,8 +228,11 @@ export function CallDock() {
         avatarUrl: thread?.avatarUrl ?? null,
         isGroup: Boolean(thread?.isGroup),
       });
-      clearIncomingCall();
-      clearActiveCall();
+
+      if (popup) {
+        clearIncomingCall();
+        clearActiveCall();
+      }
     } finally {
       setIsAcceptingIncomingCall(false);
     }

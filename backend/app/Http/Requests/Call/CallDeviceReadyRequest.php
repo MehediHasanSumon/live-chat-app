@@ -5,7 +5,7 @@ namespace App\Http\Requests\Call;
 use App\Http\Requests\Call\Concerns\HasCallDeviceRules;
 use Illuminate\Foundation\Http\FormRequest;
 
-class IssueJoinTokenRequest extends FormRequest
+class CallDeviceReadyRequest extends FormRequest
 {
     use HasCallDeviceRules;
 
@@ -19,9 +19,6 @@ class IssueJoinTokenRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'wants_video' => ['sometimes', 'boolean'],
-            ...$this->callDeviceRules(),
-        ];
+        return $this->callDeviceRules();
     }
 }

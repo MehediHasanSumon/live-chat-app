@@ -15,6 +15,7 @@ use App\Services\LiveKit\LiveKitRoomService;
 use App\Services\LiveKit\LiveKitTokenService;
 use App\Services\LiveKit\LiveKitWebhookService;
 use App\Services\Calls\CallService;
+use App\Services\Realtime\PresenceService;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -51,6 +52,15 @@ function createCallGroupConversation(User $owner, array $members, array $setting
     return $conversation;
 }
 
+function callDevicePayload(array $overrides = []): array
+{
+    return array_merge([
+        'device_ready' => true,
+        'audio_input_device_id' => 'default-microphone',
+        'audio_output_device_id' => 'default-speaker',
+    ], $overrides);
+}
+
 it('starts a direct voice call and dispatches incoming call fanout', function () {
     Event::fake([
         ConversationCallStateChanged::class,
@@ -83,9 +93,10 @@ it('starts a direct voice call and dispatches incoming call fanout', function ()
         ]);
 
     $this->app->instance(LiveKitRoomService::class, $roomService);
+    app(PresenceService::class)->heartbeat($recipient->id, 'device-online');
 
     $response = $this->actingAs($caller, 'web')
-        ->postJson("/api/calls/direct/{$recipient->id}/voice");
+        ->postJson("/api/calls/direct/{$recipient->id}/voice", callDevicePayload());
 
     $response
         ->assertCreated()
@@ -131,6 +142,62 @@ it('starts a direct voice call and dispatches incoming call fanout', function ()
         return $event->userId === $recipient->id
             && $event->eventName === 'call.incoming'
             && $event->payload['call_room']['room_uuid'] === $roomUuid;
+    });
+});
+
+it('keeps a direct call in calling status while the recipient is offline', function () {
+    Event::fake([
+        ConversationCallStateChanged::class,
+        UserCallSignaled::class,
+    ]);
+
+    $caller = User::factory()->create();
+    $recipient = User::factory()->create();
+    UserSetting::query()->create([
+        'user_id' => $recipient->id,
+        'show_active_status' => true,
+        'allow_message_requests' => false,
+        'push_enabled' => true,
+        'sound_enabled' => true,
+        'vibrate_enabled' => true,
+        'quiet_hours_enabled' => false,
+        'theme' => 'system',
+        'updated_at' => now(),
+    ]);
+
+    $roomService = Mockery::mock(LiveKitRoomService::class);
+    $roomService->shouldReceive('createRoom')
+        ->once()
+        ->andReturn([
+            'name' => 'stub-room',
+        ]);
+
+    $this->app->instance(LiveKitRoomService::class, $roomService);
+
+    $response = $this->actingAs($caller, 'web')
+        ->postJson("/api/calls/direct/{$recipient->id}/voice", callDevicePayload());
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('data.status', 'calling');
+
+    $roomUuid = $response->json('data.room_uuid');
+
+    expect(
+        CallRoomParticipant::query()
+            ->whereHas('callRoom', fn ($query) => $query->where('room_uuid', $roomUuid))
+            ->where('user_id', $recipient->id)
+            ->value('invite_status')
+    )->toBe('invited');
+
+    Event::assertDispatched(ConversationCallStateChanged::class, function (ConversationCallStateChanged $event) use ($roomUuid): bool {
+        return $event->callRoom->room_uuid === $roomUuid
+            && $event->action === 'calling';
+    });
+
+    Event::assertNotDispatched(ConversationCallStateChanged::class, function (ConversationCallStateChanged $event) use ($roomUuid): bool {
+        return $event->callRoom->room_uuid === $roomUuid
+            && $event->action === 'ringing';
     });
 });
 
@@ -184,7 +251,7 @@ it('moves a call into connecting on accept and stores the call duration when it 
     ]);
 
     $acceptResponse = $this->actingAs($recipient, 'web')
-        ->postJson("/api/calls/{$callRoom->room_uuid}/accept");
+        ->postJson("/api/calls/{$callRoom->room_uuid}/accept", callDevicePayload());
 
     $acceptResponse
         ->assertOk()
@@ -1049,7 +1116,7 @@ it('issues join tokens only for accepted participants and enforces the video pub
     $this->app->instance(LiveKitRoomService::class, $roomService);
 
     $createResponse = $this->actingAs($owner, 'web')
-        ->postJson("/api/conversations/{$conversation->id}/calls/group/video");
+        ->postJson("/api/conversations/{$conversation->id}/calls/group/video", callDevicePayload());
 
     $createResponse->assertCreated();
 
@@ -1294,7 +1361,7 @@ it('prevents non admins from starting a group call when the group requires admin
     ]);
 
     $this->actingAs($member, 'web')
-        ->postJson("/api/conversations/{$conversation->id}/calls/group/voice")
+        ->postJson("/api/conversations/{$conversation->id}/calls/group/voice", callDevicePayload())
         ->assertStatus(422)
         ->assertJsonPath('errors.call.0', 'Only group admins can start a call in this conversation.');
 });
