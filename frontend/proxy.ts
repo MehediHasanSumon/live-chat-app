@@ -130,6 +130,7 @@ export const config = {
     "/",
     "/register",
     "/messages/:path*",
+    "/profile/:path*",
     "/settings/:path*",
     "/dashboard/:path*",
     "/invoices/:path*",

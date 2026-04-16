@@ -1,5 +1,6 @@
 export const protectedPrefixes = [
   "/messages",
+  "/profile",
   "/settings",
   "/dashboard",
   "/invoices",

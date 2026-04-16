@@ -18,6 +18,17 @@ export type AuthMeResponse = {
       status: "active" | "suspended" | "deleted";
       last_seen_at: string | null;
       avatar_object_id: number | null;
+      avatar_object: {
+        id: number;
+        object_uuid: string;
+        purpose: "user_avatar" | "group_avatar" | "company_logo" | "message_attachment";
+        original_name: string;
+        mime_type: string;
+        size_bytes: number;
+        width: number | null;
+        height: number | null;
+        download_url: string | null;
+      } | null;
     } | null;
     settings: {
       theme: "system" | "light" | "dark";

@@ -13,10 +13,9 @@ return [
         'logout',
         'register',
         'forgot-password',
-        'reset-password/verify-code',
         'reset-password',
-        'email/verification/send',
-        'email/verification/verify',
+        'reset-password/*',
+        'email/verification/*',
         'sanctum/csrf-cookie',
     ],
 

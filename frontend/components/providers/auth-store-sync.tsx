@@ -7,7 +7,7 @@ import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 export function AuthStoreSync() {
-  const { data, isError } = useAuthMeQuery(true);
+  const { data, isError, isFetched, isPending } = useAuthMeQuery(true);
   const {
     setAuthenticated,
     clearAuthenticated,
@@ -17,6 +17,10 @@ export function AuthStoreSync() {
   })));
 
   useEffect(() => {
+    if (isPending) {
+      return;
+    }
+
     if (data?.authenticated && data.data.user) {
       setAuthenticated({
         user: data.data.user,
@@ -25,10 +29,10 @@ export function AuthStoreSync() {
       return;
     }
 
-    if (isError || data?.authenticated === false || !data?.data.user) {
+    if (isFetched && (isError || data?.authenticated === false || !data?.data.user)) {
       clearAuthenticated();
     }
-  }, [clearAuthenticated, data, isError, setAuthenticated]);
+  }, [clearAuthenticated, data, isError, isFetched, isPending, setAuthenticated]);
 
   return null;
 }
