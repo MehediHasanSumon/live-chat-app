@@ -22,7 +22,6 @@ import {
 import {
   useDeclineCallMutation,
 } from "@/lib/hooks/use-call-mutations";
-import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationsQuery } from "@/lib/hooks/use-conversations-query";
 import { useConversationMessagesQuery } from "@/lib/hooks/use-conversation-messages-query";
 import { useMarkConversationReadMutation } from "@/lib/hooks/use-mark-read-mutation";
@@ -38,6 +37,7 @@ import { useUnblockUserMutation } from "@/lib/hooks/use-conversation-actions";
 import { useTypingUsersQuery } from "@/lib/hooks/use-typing-users-query";
 import { toChatMessage, toConversationThread, type MessageThread } from "@/lib/messages-data";
 import { type ChatMessage, type ComposerAttachmentInput, type ComposerVoiceInput } from "@/lib/messages-data";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useCallStore } from "@/lib/stores/call-store";
 import { useConversationRealtimeStore } from "@/lib/stores/conversation-realtime-store";
 
@@ -59,10 +59,10 @@ export function MessagesThreadView({
   onOpenImageViewer,
 }: MessagesThreadViewProps) {
   const router = useRouter();
-  const { data: authMe } = useAuthMeQuery(true);
-  const currentUserId = authMe?.data.user?.id ?? null;
-  const currentUserName = authMe?.data.user?.name ?? "You";
-  const currentUserAvatarUrl = authMe?.data.user?.avatar_object?.download_url ?? null;
+  const currentUser = useAuthStore((state) => state.user);
+  const currentUserId = currentUser?.id ?? null;
+  const currentUserName = currentUser?.name ?? "You";
+  const currentUserAvatarUrl = currentUser?.avatar_object?.download_url ?? null;
   const {
     data,
     isLoading,

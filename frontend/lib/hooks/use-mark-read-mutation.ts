@@ -111,9 +111,6 @@ export function useMarkConversationReadMutation() {
           return applyReadState(current, variables.lastSeq);
         },
       );
-
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(variables.conversationId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
     },
   });
 }

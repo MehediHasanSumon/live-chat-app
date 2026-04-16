@@ -6,6 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { apiClient } from "@/lib/api-client";
 import { listenToPopupClosingSignals } from "@/lib/call-popup-sync";
+import { type ConversationApiItem } from "@/lib/messages-data";
 import { getEchoInstance } from "@/lib/reverb";
 import { queryKeys } from "@/lib/query-keys";
 import { useChatUiStore } from "@/lib/stores/chat-ui-store";
@@ -23,12 +24,53 @@ type CallRoomResponse = {
   data: CallRoomApiItem;
 };
 
-function invalidateConversationQueries(
+type ConversationsCache = ConversationApiItem[] | { data?: ConversationApiItem[] } | undefined;
+type ConversationDetailCache = ConversationApiItem | { data: ConversationApiItem } | undefined;
+
+function patchConversationCallState(conversation: ConversationApiItem, callRoom: CallRoomApiItem): ConversationApiItem {
+  if (conversation.id !== callRoom.conversation_id) {
+    return conversation;
+  }
+
+  return {
+    ...conversation,
+    active_room_uuid: isCallTerminal(callRoom) ? null : callRoom.room_uuid,
+  };
+}
+
+function patchConversationCaches(
   queryClient: ReturnType<typeof useQueryClient>,
-  conversationId: number,
+  callRoom: CallRoomApiItem,
 ) {
-  queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
-  queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
+  queryClient.setQueriesData<ConversationsCache>({ queryKey: queryKeys.conversations.lists }, (current) => {
+    if (Array.isArray(current)) {
+      return current.map((conversation) => patchConversationCallState(conversation, callRoom));
+    }
+
+    if (current?.data) {
+      return {
+        ...current,
+        data: current.data.map((conversation) => patchConversationCallState(conversation, callRoom)),
+      };
+    }
+
+    return current;
+  });
+
+  queryClient.setQueryData<ConversationDetailCache>(queryKeys.conversations.detail(callRoom.conversation_id), (current) => {
+    if (!current) {
+      return current;
+    }
+
+    if ("data" in current) {
+      return {
+        ...current,
+        data: patchConversationCallState(current.data, callRoom),
+      };
+    }
+
+    return patchConversationCallState(current, callRoom);
+  });
 }
 
 export function CallRealtimeProvider() {
@@ -67,12 +109,12 @@ export function CallRealtimeProvider() {
 
     const handleIncoming = (payload: CallSignalPayload) => {
       receiveIncomingCall(payload);
-      invalidateConversationQueries(queryClient, payload.call_room.conversation_id);
+      patchConversationCaches(queryClient, payload.call_room);
     };
 
     const handleStateChanged = (payload: CallSignalPayload) => {
       syncCallState(payload, userId);
-      invalidateConversationQueries(queryClient, payload.call_room.conversation_id);
+      patchConversationCaches(queryClient, payload.call_room);
 
       const participant = getCallParticipant(payload.call_room, userId);
 
@@ -105,7 +147,7 @@ export function CallRealtimeProvider() {
 
     const handleStateChanged = (payload: CallSignalPayload) => {
       syncCallState(payload, userId);
-      invalidateConversationQueries(queryClient, payload.call_room.conversation_id);
+      patchConversationCaches(queryClient, payload.call_room);
 
       const participant = getCallParticipant(payload.call_room, userId);
 
@@ -157,7 +199,8 @@ export function CallRealtimeProvider() {
         });
 
       if (signal.conversationId != null) {
-        invalidateConversationQueries(queryClient, Number(signal.conversationId));
+        void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(signal.conversationId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
         void queryClient.invalidateQueries({ queryKey: queryKeys.messages.list(signal.conversationId) });
         return;
       }

@@ -3,11 +3,15 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { type MessageApiItem } from "@/lib/messages-data";
+import { type ConversationApiItem, type MessageApiItem } from "@/lib/messages-data";
 import { queryKeys } from "@/lib/query-keys";
 import { connectEcho } from "@/lib/reverb";
+import { useChatUiStore } from "@/lib/stores/chat-ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { pushToast } from "@/lib/stores/toast-store";
+
+type ConversationsCache = ConversationApiItem[] | { data?: ConversationApiItem[] } | undefined;
+type ConversationDetailCache = ConversationApiItem | { data: ConversationApiItem } | undefined;
 
 type NotificationPayload = {
   notification_id?: number;
@@ -40,10 +44,23 @@ function payloadBody(payload: NotificationPayload) {
   return payload.body ?? payload.message?.display_text ?? payload.message?.text_body ?? "Sent you a message.";
 }
 
+function buildConversationPreview(message: MessageApiItem): string {
+  if (message.display_text?.trim()) {
+    return message.display_text.trim();
+  }
+
+  if (message.text_body?.trim()) {
+    return message.text_body.trim();
+  }
+
+  return "New message";
+}
+
 export function MessengerToastProvider() {
   const queryClient = useQueryClient();
   const shownMessageIdsRef = useRef<Set<number>>(new Set());
   const authUserId = useAuthStore((state) => state.user?.id ?? null);
+  const activeThreadId = useChatUiStore((state) => state.activeThreadId);
 
   useEffect(() => {
     if (!authUserId) {
@@ -62,7 +79,62 @@ export function MessengerToastProvider() {
       const conversationId = payloadConversationId(payload);
       const messageId = payloadMessageId(payload);
 
-      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+      if (payload.message && conversationId) {
+        const message = payload.message;
+        const isActiveConversation = activeThreadId === conversationId;
+        const patchConversation = (conversation: ConversationApiItem): ConversationApiItem => {
+          if (String(conversation.id) !== conversationId) {
+            return conversation;
+          }
+
+          return {
+            ...conversation,
+            last_message_seq: Math.max(conversation.last_message_seq ?? 0, message.seq),
+            last_message_id: message.id,
+            last_message_preview: buildConversationPreview(message),
+            last_message_at: message.created_at,
+            updated_at: message.updated_at,
+            membership: conversation.membership
+              ? {
+                  ...conversation.membership,
+                  unread_count_cache: isActiveConversation ? 0 : conversation.membership.unread_count_cache + 1,
+                }
+              : conversation.membership,
+          };
+        };
+
+        queryClient.setQueriesData<ConversationsCache>({ queryKey: queryKeys.conversations.lists }, (current) => {
+          if (Array.isArray(current)) {
+            return current.map(patchConversation);
+          }
+
+          if (current?.data) {
+            return {
+              ...current,
+              data: current.data.map(patchConversation),
+            };
+          }
+
+          return current;
+        });
+
+        queryClient.setQueryData<ConversationDetailCache>(queryKeys.conversations.detail(conversationId), (current) => {
+          if (!current) {
+            return current;
+          }
+
+          if ("data" in current) {
+            return {
+              ...current,
+              data: patchConversation(current.data),
+            };
+          }
+
+          return patchConversation(current);
+        });
+      } else {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+      }
 
       if (!conversationId || payload.type === "summary" || payloadSenderId(payload) === authUserId) {
         return;
@@ -96,7 +168,7 @@ export function MessengerToastProvider() {
       userChannel.stopListening(".notification.badge.updated");
       userChannel.stopListening(".conversation.request.created");
     };
-  }, [authUserId, queryClient]);
+  }, [activeThreadId, authUserId, queryClient]);
 
   return null;
 }

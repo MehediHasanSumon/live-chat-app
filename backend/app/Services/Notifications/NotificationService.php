@@ -3,6 +3,7 @@
 namespace App\Services\Notifications;
 
 use App\Jobs\DeliverNotificationOutboxJob;
+use App\Http\Resources\MessageResource;
 use App\Models\CallRoom;
 use App\Models\CallRoomParticipant;
 use App\Models\ConversationMember;
@@ -13,6 +14,7 @@ use App\Models\UserDevice;
 use App\Models\UserRestriction;
 use App\Models\UserSetting;
 use App\Services\Realtime\UserRealtimeSignalService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -28,11 +30,18 @@ class NotificationService
 
     public function queueMessagePush(Message $message): void
     {
-        $message->loadMissing(['conversation.members', 'sender']);
+        $message->loadMissing([
+            'conversation.members',
+            'sender.avatarObject',
+            'replyTo.sender.avatarObject',
+            'reactions.user.avatarObject',
+            'attachments.storageObject',
+        ]);
+        $messagePayload = (new MessageResource($message))->resolve(new Request());
 
         $message->conversation->members
             ->filter(fn (ConversationMember $membership): bool => $membership->user_id !== $message->sender_id)
-            ->each(function (ConversationMember $membership) use ($message): void {
+            ->each(function (ConversationMember $membership) use ($message, $messagePayload): void {
                 if ($membership->membership_state === 'request_pending') {
                     $notification = $this->createOutboxEntry(
                         userId: (int) $membership->user_id,
@@ -46,6 +55,7 @@ class NotificationService
                             'message_id' => $message->getKey(),
                             'conversation_id' => (int) $message->conversation_id,
                             'sender_id' => (int) $message->sender_id,
+                            'message' => $messagePayload,
                             'type' => 'request',
                         ],
                     );
@@ -80,6 +90,7 @@ class NotificationService
                         'message_id' => $message->getKey(),
                         'conversation_id' => (int) $message->conversation_id,
                         'sender_id' => (int) $message->sender_id,
+                        'message' => $messagePayload,
                         'type' => 'new_message',
                     ],
                     status: $isSuppressed ? 'suppressed' : 'queued',

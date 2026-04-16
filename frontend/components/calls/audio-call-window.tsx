@@ -40,7 +40,6 @@ import {
   type JoinCallApiPayload,
 } from "@/lib/calls-data";
 import { publishPopupClosingSignal } from "@/lib/call-popup-sync";
-import { useAuthMeQuery } from "@/lib/hooks/use-auth-me-query";
 import { useConversationQuery } from "@/lib/hooks/use-conversation-query";
 import { toConversationThread, type MessageThread } from "@/lib/messages-data";
 import {
@@ -49,6 +48,7 @@ import {
   isRealtimeConnected,
   subscribeToRealtimeConnectionState,
 } from "@/lib/reverb";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 type CallRoomResponse = {
   data: CallRoomApiItem;
@@ -1085,8 +1085,7 @@ export function AudioCallWindow() {
   const targetUserIdParam = searchParams.get("targetUserId");
   const targetUserId = targetUserIdParam && /^\d+$/.test(targetUserIdParam) ? Number(targetUserIdParam) : null;
   const isGroup = searchParams.get("isGroup") === "1";
-  const { data: authMe } = useAuthMeQuery(true);
-  const authUserId = authMe?.data.user?.id ?? null;
+  const authUserId = useAuthStore((state) => state.user?.id ?? null);
   const {
     data: conversation,
     isError: isConversationError,
