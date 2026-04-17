@@ -40,6 +40,14 @@ function createPrivacyDirectConversation(User $leftUser, User $rightUser): Conve
     return $conversation;
 }
 
+function privacyCallDevicePayload(): array
+{
+    return [
+        'device_ready' => true,
+        'audio_input_device_id' => 'default-microphone',
+    ];
+}
+
 it('creates message requests for new direct conversations and lets the recipient accept them', function () {
     $sender = User::factory()->create();
     $recipient = User::factory()->create();
@@ -218,7 +226,7 @@ it('prevents direct calls until the message request is accepted', function () {
     $recipient = User::factory()->create();
 
     $this->actingAs($caller, 'web')
-        ->postJson("/api/calls/direct/{$recipient->id}/voice")
+        ->postJson("/api/calls/direct/{$recipient->id}/voice", privacyCallDevicePayload())
         ->assertStatus(422)
         ->assertJsonPath('errors.call.0', 'Calls are only allowed after the message request is accepted.');
 });

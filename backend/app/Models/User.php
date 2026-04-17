@@ -138,4 +138,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(NotificationOutbox::class);
     }
+
+    public function createdInvoiceSmsTemplates(): HasMany
+    {
+        return $this->hasMany(InvoiceSmsTemplate::class, 'created_by');
+    }
+
+    public function updatedInvoiceSmsTemplates(): HasMany
+    {
+        return $this->hasMany(InvoiceSmsTemplate::class, 'updated_by');
+    }
 }

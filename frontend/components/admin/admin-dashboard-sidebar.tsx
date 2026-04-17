@@ -55,8 +55,9 @@ const businessItems: DropdownItem[] = [
   { href: "/product-prices", label: "Product Prices" },
 ];
 
-const utilityItems: NavItem[] = [
-  { href: "/system-log", label: "System Log", icon: ScrollText },
+const logItems: DropdownItem[] = [
+  { href: "/system-log", label: "System Log" },
+  { href: "/invoice-sms-logs", label: "SMS Logs" },
 ];
 
 const userManagementItems: DropdownItem[] = [
@@ -67,6 +68,8 @@ const userManagementItems: DropdownItem[] = [
 
 const settingsItems: DropdownItem[] = [
   { href: "/company-settings", label: "Company Settings" },
+  { href: "/sms-credentials", label: "SMS Credentials" },
+  { href: "/invoice-sms-templates", label: "SMS Templates" },
   { href: "/ops", label: "System Configuration" },
   { href: "/storage", label: "Storage Configuration" },
 ];
@@ -263,6 +266,8 @@ export function AdminDashboardSidebar({
   const [isBusinessHoverOpen, setIsBusinessHoverOpen] = useState(false);
   const [userManagementOpenState, setUserManagementOpenState] = useState<DropdownOpenState>("auto");
   const [isUserManagementHoverOpen, setIsUserManagementHoverOpen] = useState(false);
+  const [logsOpenState, setLogsOpenState] = useState<DropdownOpenState>("auto");
+  const [isLogsHoverOpen, setIsLogsHoverOpen] = useState(false);
   const [settingsOpenState, setSettingsOpenState] = useState<DropdownOpenState>("auto");
   const [isSettingsHoverOpen, setIsSettingsHoverOpen] = useState(false);
   const displayName = user?.name?.trim() || user?.username || "Guest User";
@@ -273,10 +278,12 @@ export function AdminDashboardSidebar({
   const invoiceHasActiveItem = invoiceItems.some((item) => isDropdownItemActive(pathname, item));
   const businessHasActiveItem = businessItems.some((item) => isRouteActive(pathname, item.href));
   const userManagementHasActiveItem = userManagementItems.some((item) => isRouteActive(pathname, item.href));
+  const logsHasActiveItem = logItems.some((item) => isRouteActive(pathname, item.href));
   const settingsHasActiveItem = settingsItems.some((item) => isRouteActive(pathname, item.href));
   const invoiceOpen = invoiceOpenState === "open" || (invoiceOpenState === "auto" && invoiceHasActiveItem);
   const businessOpen = businessOpenState === "open" || (businessOpenState === "auto" && businessHasActiveItem);
   const userManagementOpen = userManagementOpenState === "open" || (userManagementOpenState === "auto" && userManagementHasActiveItem);
+  const logsOpen = logsOpenState === "open" || (logsOpenState === "auto" && logsHasActiveItem);
   const settingsOpen = settingsOpenState === "open" || (settingsOpenState === "auto" && settingsHasActiveItem);
 
   return (
@@ -378,11 +385,19 @@ export function AdminDashboardSidebar({
             onExpandDesktop={onExpandDesktop}
           />
 
-          <div className="space-y-0">
-            {utilityItems.map((item) => (
-              <SidebarLink key={item.label} item={item} pathname={pathname} isCollapsed={isCollapsed} onNavigate={onCloseMobile} />
-            ))}
-          </div>
+          <SidebarDropdown
+            label="Logs"
+            icon={ScrollText}
+            items={logItems}
+            pathname={pathname}
+            isCollapsed={isCollapsed}
+            isOpen={logsOpen}
+            isHoverOpen={isLogsHoverOpen}
+            onToggle={() => setLogsOpenState(logsOpen ? "closed" : "open")}
+            onHoverChange={setIsLogsHoverOpen}
+            onNavigate={onCloseMobile}
+            onExpandDesktop={onExpandDesktop}
+          />
 
           <SidebarDropdown
             label="Settings"

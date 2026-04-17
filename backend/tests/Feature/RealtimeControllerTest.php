@@ -164,14 +164,14 @@ it('stores a presence heartbeat using redis style keys', function () {
         ->assertJsonPath('data.ttl_seconds', PresenceService::HEARTBEAT_TTL_SECONDS)
         ->assertJsonPath('data.active_devices', 1);
 
-    expect(Cache::get("presence:user:{$user->id}"))->toMatchArray([
+    $presencePayload = Cache::get("presence:user:{$user->id}");
+
+    expect($presencePayload)->toMatchArray([
         'user_id' => $user->id,
-        'devices' => [
-            $deviceUuid => [
-                'device_uuid' => $deviceUuid,
-            ],
-        ],
-    ]);
+    ])
+        ->and($presencePayload['devices'][$deviceUuid]['device_uuid'] ?? null)->toBe($deviceUuid)
+        ->and($presencePayload['devices'][$deviceUuid]['updated_at'] ?? null)->not->toBeNull()
+        ->and($presencePayload['devices'][$deviceUuid]['expires_at'] ?? null)->not->toBeNull();
 
     expect($user->fresh()->last_seen_at)->not->toBeNull();
 });
@@ -198,14 +198,15 @@ it('disconnects one presence device without dropping the user offline when anoth
         ->assertJsonPath('data.is_online', true)
         ->assertJsonPath('data.active_devices', 1);
 
-    expect(Cache::get("presence:user:{$user->id}"))->toMatchArray([
+    $presencePayload = Cache::get("presence:user:{$user->id}");
+
+    expect($presencePayload)->toMatchArray([
         'user_id' => $user->id,
-        'devices' => [
-            $secondDeviceUuid => [
-                'device_uuid' => $secondDeviceUuid,
-            ],
-        ],
-    ]);
+    ])
+        ->and(array_keys($presencePayload['devices'] ?? []))->toBe([$secondDeviceUuid])
+        ->and($presencePayload['devices'][$secondDeviceUuid]['device_uuid'] ?? null)->toBe($secondDeviceUuid)
+        ->and($presencePayload['devices'][$secondDeviceUuid]['updated_at'] ?? null)->not->toBeNull()
+        ->and($presencePayload['devices'][$secondDeviceUuid]['expires_at'] ?? null)->not->toBeNull();
 });
 
 it('marks a user offline once the last active presence device disconnects', function () {

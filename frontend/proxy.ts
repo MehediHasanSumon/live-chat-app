@@ -189,6 +189,8 @@ export const config = {
     "/settings/:path*",
     "/dashboard/:path*",
     "/invoices/:path*",
+    "/invoice-sms-templates/:path*",
+    "/invoice-sms-logs/:path*",
     "/customers/:path*",
     "/ops/:path*",
     "/storage/:path*",
@@ -199,5 +201,6 @@ export const config = {
     "/product-units/:path*",
     "/product-prices/:path*",
     "/system-log/:path*",
+    "/sms-credentials/:path*",
   ],
 };

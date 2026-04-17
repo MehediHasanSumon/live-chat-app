@@ -73,6 +73,25 @@ export const queryKeys = {
       dailyStatement: (filters: Record<string, string>) => ["admin", "invoices", "statements", "daily", filters] as const,
       monthlyStatement: (filters: Record<string, string>) => ["admin", "invoices", "statements", "monthly", filters] as const,
     },
+    smsCredentials: {
+      all: ["admin", "sms", "credentials"] as const,
+      active: ["admin", "sms", "credentials", "active"] as const,
+      list: (page: number, perPage: number, search: string, status: string) =>
+        ["admin", "sms", "credentials", { page, perPage, search, status }] as const,
+    },
+    invoiceSmsTemplates: {
+      all: ["admin", "invoice-sms-templates"] as const,
+      list: (page: number, perPage: number, search: string, status: string) =>
+        ["admin", "invoice-sms-templates", { page, perPage, search, status }] as const,
+      options: ["admin", "invoice-sms-templates", "options"] as const,
+      variables: ["admin", "invoice-sms-templates", "variables"] as const,
+    },
+    invoiceSmsLogs: {
+      all: ["admin", "invoice-sms-logs"] as const,
+      list: (page: number, perPage: number, search: string, status: string) =>
+        ["admin", "invoice-sms-logs", { page, perPage, search, status }] as const,
+      detail: (invoiceSmsLogId: number | string) => ["admin", "invoice-sms-logs", String(invoiceSmsLogId)] as const,
+    },
     systemLogs: {
       all: ["admin", "system-logs"] as const,
       list: (page: number, perPage: number, search: string) => ["admin", "system-logs", { page, perPage, search }] as const,

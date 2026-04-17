@@ -4,6 +4,8 @@ export const protectedPrefixes = [
   "/settings",
   "/dashboard",
   "/invoices",
+  "/invoice-sms-templates",
+  "/invoice-sms-logs",
   "/customers",
   "/ops",
   "/storage",
@@ -14,6 +16,7 @@ export const protectedPrefixes = [
   "/product-units",
   "/product-prices",
   "/system-log",
+  "/sms-credentials",
 ] as const;
 
 export function matchesProtectedPrefix(pathname: string, prefixes: readonly string[] = protectedPrefixes): boolean {

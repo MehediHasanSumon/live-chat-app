@@ -8,6 +8,7 @@ use App\Models\InvoiceItem;
 use App\Models\Product;
 use App\Models\ProductPrice;
 use App\Models\ProductUnit;
+use App\Services\Invoices\InvoiceSmsService;
 use App\Support\InvoiceNumberHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,7 +19,10 @@ use Illuminate\Validation\ValidationException;
 
 class AdminInvoiceController extends Controller
 {
-    public function __construct(private readonly InvoiceNumberHelper $invoiceNumberHelper) {}
+    public function __construct(
+        private readonly InvoiceNumberHelper $invoiceNumberHelper,
+        private readonly InvoiceSmsService $invoiceSmsService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -213,6 +217,8 @@ class AdminInvoiceController extends Controller
 
             return $invoice;
         });
+
+        $this->invoiceSmsService->sendInvoiceCreatedNotification($invoice);
 
         return response()->json([
             'data' => $this->serializeInvoice($invoice->fresh(['customer', 'items.product', 'items.unit', 'smsLogs'])),

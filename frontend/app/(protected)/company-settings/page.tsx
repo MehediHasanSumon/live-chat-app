@@ -2,7 +2,7 @@
 
 import { FormEvent, ReactNode, Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Building2, Eye, PencilLine, Plus, Trash2, X } from "lucide-react";
+import { Eye, PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -139,24 +139,6 @@ function createFormFromRecord(record: AdminCompanySettingRecord): CompanySetting
     is_email_verification_enable: record.is_email_verification_enable,
     status: record.status,
   };
-}
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return "Just now";
-  }
-
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
-}
-
-function formatVatRate(value: string) {
-  const numericValue = Number(value);
-
-  if (!Number.isFinite(numericValue)) {
-    return `${value}%`;
-  }
-
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(numericValue)}%`;
 }
 
 function parsePageParam(value: string | null) {
@@ -657,7 +639,7 @@ function CompanySettingsTable({
           <table className="min-w-full">
             <thead>
               <tr className="border-b border-[var(--line)] text-left text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-                {["#", "Company", "Contact", "VAT", "Updated"].map((heading, index) => (
+                {["#", "Company Name", "Proprietor Name", "Mobile", "Status"].map((heading, index) => (
                   <th key={heading} className={cn("px-6 py-4 font-semibold", index === 0 && "sm:px-8")}>{heading}</th>
                 ))}
                 <th className="px-6 py-4 font-semibold sm:px-8"><span className="sr-only">Actions</span></th>
@@ -709,27 +691,11 @@ function CompanySettingRow({
     <tr className="border-b border-[var(--line)] text-sm text-[var(--foreground)] last:border-0">
       <td className="px-6 py-4 text-[var(--muted)] sm:px-8">{index}</td>
       <td className="px-6 py-4">
-        <div className="flex min-w-[240px] items-start gap-3">
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
-            <Building2 className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="font-medium text-[#2d3150]">{companySetting.company_name}</p>
-            <p className="mt-1 text-xs text-[var(--muted)]">{companySetting.proprietor_name ?? "No proprietor"}</p>
-            <StatusBadge status={companySetting.status} />
-          </div>
-        </div>
+        <p className="min-w-[220px] font-medium text-[#2d3150]">{companySetting.company_name}</p>
       </td>
-      <td className="px-6 py-4 text-[var(--muted)]">
-        <InfoStack values={[companySetting.company_mobile, companySetting.company_phone, companySetting.company_email]} />
-      </td>
-      <td className="px-6 py-4">
-        <div className="min-w-[110px]">
-          <p className="font-medium text-[#2d3150]">{formatVatRate(companySetting.vat_rate)}</p>
-          <p className="mt-1 text-xs text-[var(--muted)]">{companySetting.currency}</p>
-        </div>
-      </td>
-      <td className="px-6 py-4 text-[var(--muted)]">{formatDate(companySetting.updated_at)}</td>
+      <td className="px-6 py-4 text-[var(--muted)]">{companySetting.proprietor_name ?? "-"}</td>
+      <td className="px-6 py-4 text-[var(--muted)]">{companySetting.company_mobile ?? "-"}</td>
+      <td className="px-6 py-4"><StatusBadge status={companySetting.status} /></td>
       <td className="px-6 py-4 sm:px-8">
         <div className="flex justify-end gap-2">
           <Link
@@ -755,19 +721,9 @@ function CompanySettingRow({
 
 function StatusBadge({ status }: { status: AdminCompanySettingStatus }) {
   return (
-    <span className={cn("mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize", status === "active" && "bg-emerald-50 text-emerald-700", status === "inactive" && "bg-rose-50 text-rose-700")}>
+    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize", status === "active" && "bg-emerald-50 text-emerald-700", status === "inactive" && "bg-rose-50 text-rose-700")}>
       {status}
     </span>
-  );
-}
-
-function InfoStack({ values }: { values: Array<string | null> }) {
-  return (
-    <div className="min-w-[170px] space-y-1">
-      {values.map((value, index) => (
-        <p key={`${value ?? "empty"}-${index}`} className="truncate">{value || "-"}</p>
-      ))}
-    </div>
   );
 }
 

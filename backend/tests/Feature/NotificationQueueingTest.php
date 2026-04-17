@@ -41,6 +41,14 @@ function createNotificationConversation(User $leftUser, User $rightUser, array $
     return $conversation;
 }
 
+function notificationCallDevicePayload(): array
+{
+    return [
+        'device_ready' => true,
+        'audio_input_device_id' => 'default-microphone',
+    ];
+}
+
 it('creates and delivers an outbox notification for a new message', function () {
     $sender = User::factory()->create();
     $recipient = User::factory()->create();
@@ -152,7 +160,7 @@ it('produces call invite outbox notifications when a call starts', function () {
     $this->app->instance(LiveKitRoomService::class, $roomService);
 
     $this->actingAs($caller, 'web')
-        ->postJson("/api/calls/direct/{$recipient->id}/voice")
+        ->postJson("/api/calls/direct/{$recipient->id}/voice", notificationCallDevicePayload())
         ->assertCreated();
 
     $notification = NotificationOutbox::query()
@@ -185,7 +193,7 @@ it('marks call invites as silent when notification sound is disabled', function 
     $this->app->instance(LiveKitRoomService::class, $roomService);
 
     $this->actingAs($caller, 'web')
-        ->postJson("/api/calls/direct/{$recipient->id}/voice")
+        ->postJson("/api/calls/direct/{$recipient->id}/voice", notificationCallDevicePayload())
         ->assertCreated();
 
     $notification = NotificationOutbox::query()
@@ -248,7 +256,7 @@ it('marks call invites as busy when the recipient is already in another active c
     $this->app->instance(LiveKitRoomService::class, $roomService);
 
     $this->actingAs($newCaller, 'web')
-        ->postJson("/api/calls/direct/{$recipient->id}/voice")
+        ->postJson("/api/calls/direct/{$recipient->id}/voice", notificationCallDevicePayload())
         ->assertCreated();
 
     $notification = NotificationOutbox::query()
