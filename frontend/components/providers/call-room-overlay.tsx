@@ -58,25 +58,16 @@ function CallParticipantGrid() {
   const tracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }], {
     onlySubscribed: false,
   });
-  const usePortraitCards = tracks.length <= 2;
 
   return (
-    <div
-      className={`grid h-full w-full auto-rows-fr gap-4 overflow-auto p-5 ${
-        usePortraitCards
-          ? "grid-cols-1 justify-items-center md:grid-cols-2"
-          : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
-      }`}
-    >
+    <div className={`grid h-full w-full auto-rows-fr grid-cols-1 gap-3 overflow-auto p-0 ${tracks.length > 2 ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2"}`}>
       {tracks.map((trackRef) => {
         const key = `${trackRef.participant.identity}-${trackRef.source}`;
 
         return (
           <div
             key={key}
-            className={`min-h-0 overflow-hidden rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(18,24,44,0.96)_0%,rgba(14,18,34,0.94)_100%)] shadow-[0_28px_70px_rgba(4,8,20,0.42)] ${
-              usePortraitCards ? "h-full w-full max-w-[18rem]" : "h-full w-full"
-            }`}
+            className="h-full min-h-0 w-full overflow-hidden rounded-[30px] border border-white/8 bg-black"
           >
             <SpeakingParticipantTile trackRef={trackRef} />
           </div>
@@ -205,9 +196,7 @@ function LiveKitCallPanel({
   const mediaSummary = payload.publish_mode === "video" ? "Camera + mic" : "Mic only";
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-hidden bg-[radial-gradient(circle_at_top,rgba(90,107,255,0.18),transparent_22%),radial-gradient(circle_at_bottom_left,rgba(84,166,255,0.12),transparent_24%),linear-gradient(180deg,#0a1020_0%,#0b1224_38%,#09111d_100%)] text-white">
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02)_0%,rgba(255,255,255,0)_18%)]" />
-
+    <div className="fixed inset-0 z-[60] overflow-hidden bg-[#05070d] text-white">
       <div className="relative flex h-full flex-col px-4 pb-24 pt-4 md:px-6 md:pt-5">
         <header className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(20,27,50,0.94)_0%,rgba(14,20,38,0.9)_100%)] px-5 py-4 shadow-[0_24px_70px_rgba(0,0,0,0.28)] backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -342,7 +331,7 @@ function LiveKitCallPanel({
           <div className="flex min-h-0 flex-1 py-4">
             <div className="flex min-h-0 flex-1 flex-col gap-4">
               <CallLiveKitFeedback />
-              <div className="flex min-h-0 flex-1 overflow-hidden rounded-[34px] border border-white/8 bg-[linear-gradient(180deg,rgba(10,14,29,0.92)_0%,rgba(8,12,22,0.94)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_32px_90px_rgba(0,0,0,0.34)]">
+              <div className="flex min-h-0 flex-1 overflow-hidden rounded-[34px]">
                 <CallParticipantGrid />
               </div>
             </div>

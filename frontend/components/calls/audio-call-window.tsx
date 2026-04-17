@@ -811,23 +811,16 @@ function VideoParticipantGrid() {
   const tracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }], {
     onlySubscribed: false,
   });
-  const usePortraitCards = tracks.length <= 2;
 
   return (
-    <div
-      className={`grid h-full w-full auto-rows-fr gap-4 overflow-auto p-5 ${
-        usePortraitCards ? "grid-cols-1 justify-items-center md:grid-cols-2" : "grid-cols-1 md:grid-cols-2"
-      }`}
-    >
+    <div className="grid h-full w-full auto-rows-fr grid-cols-1 gap-3 overflow-auto p-0 md:grid-cols-2">
       {tracks.map((trackRef) => {
         const key = `${trackRef.participant.identity}-${trackRef.source}`;
 
         return (
           <div
             key={key}
-            className={`min-h-0 overflow-hidden rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(18,24,44,0.96)_0%,rgba(14,18,34,0.94)_100%)] shadow-[0_28px_70px_rgba(4,8,20,0.42)] ${
-              usePortraitCards ? "h-full w-full max-w-[18rem]" : "h-full w-full"
-            }`}
+            className="h-full min-h-0 w-full overflow-hidden rounded-[28px] border border-white/8 bg-black"
           >
             <SpeakingParticipantTile trackRef={trackRef} />
           </div>
@@ -931,7 +924,7 @@ function VideoCallStage({
       ) : null}
 
       <div className="flex min-h-0 flex-1 px-4 pb-24 pt-2 md:px-5">
-        <div className="flex min-h-0 flex-1 overflow-hidden rounded-[34px] border border-white/8 bg-[linear-gradient(180deg,rgba(10,14,29,0.92)_0%,rgba(8,12,22,0.94)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_32px_90px_rgba(0,0,0,0.34)]">
+        <div className="flex min-h-0 flex-1 overflow-hidden rounded-[34px]">
           <VideoParticipantGrid />
         </div>
       </div>
@@ -1002,13 +995,7 @@ function AudioCallShell({
   }, [audioOutputDeviceId, room]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(255,189,141,0.14),transparent_18%),radial-gradient(circle_at_bottom,rgba(51,87,124,0.22),transparent_28%),linear-gradient(180deg,#141927_0%,#0e1320_100%)] text-white">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-x-[12%] top-[12%] h-[34%] rounded-full bg-[radial-gradient(circle,rgba(165,108,86,0.42)_0%,rgba(165,108,86,0)_72%)] blur-3xl" />
-        <div className="absolute inset-x-[10%] bottom-[8%] h-[38%] rounded-full bg-[radial-gradient(circle,rgba(42,68,96,0.42)_0%,rgba(42,68,96,0)_72%)] blur-3xl" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_22%,rgba(8,10,16,0.2)_100%)]" />
-      </div>
-
+    <div className="relative min-h-screen overflow-hidden bg-[#05070d] text-white">
       <div className={`relative mx-auto flex min-h-screen w-full flex-col ${isVideoCall ? "max-w-[1280px]" : "max-w-[460px]"}`}>
         <LiveKitRoom
           room={room}
@@ -1689,7 +1676,7 @@ export function AudioCallWindow() {
   }, [errorMessage, isPreparing, pendingStatusLabel]);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(93,108,255,0.14),transparent_30%),linear-gradient(180deg,#edf2ff_0%,#f8faff_100%)]">
+    <main className="min-h-screen bg-[#05070d]">
       {payload ? (
         <AudioCallShell
           payload={payload}
