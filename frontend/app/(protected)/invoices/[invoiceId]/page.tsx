@@ -7,7 +7,10 @@ import { useParams, useRouter } from "next/navigation";
 import { InvoiceSummary, InvoiceSummaryData, printInvoiceSummary } from "@/components/admin/invoice-summary";
 import { BoneyardSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
 import { Button } from "@/components/ui/button";
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
+import { buildAdminDetailPdfPath } from "@/lib/admin-pdf";
 import { AdminInvoiceRecord, useAdminInvoiceQuery, useDeleteAdminInvoiceMutation } from "@/lib/hooks/use-admin-invoices";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 
 function toNumber(value: string | number | null | undefined) {
   const numericValue = Number(value ?? 0);
@@ -47,6 +50,7 @@ export default function InvoiceDetailsPage() {
   const { data: invoice, isLoading, error } = useAdminInvoiceQuery(invoiceId, Boolean(invoiceId));
   const deleteInvoice = useDeleteAdminInvoiceMutation();
   const invoiceSummary = invoice ? toInvoiceSummary(invoice) : null;
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
 
   async function handleDelete() {
     if (!invoice || !window.confirm(`Delete invoice "${invoice.invoice_no}"?`)) {
@@ -55,6 +59,14 @@ export default function InvoiceDetailsPage() {
 
     await deleteInvoice.mutateAsync(invoice.id);
     router.push("/invoices");
+  }
+
+  async function handleDownloadPdf() {
+    if (!invoiceId) {
+      return;
+    }
+
+    await download(buildAdminDetailPdfPath("invoices", invoiceId), "invoice");
   }
 
   return (
@@ -77,6 +89,7 @@ export default function InvoiceDetailsPage() {
               <Printer className="h-4 w-4" />
               Print
             </Button>
+            <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
             <Link href={`/invoices/${invoiceId}/edit`}>
               <Button
                 as="span"
@@ -103,6 +116,8 @@ export default function InvoiceDetailsPage() {
           </div>
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       {isLoading ? (
         <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] rounded-[1.5rem]">

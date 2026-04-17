@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -10,6 +11,8 @@ use Spatie\Permission\PermissionRegistrar;
 
 class AdminPermissionController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -51,6 +54,39 @@ class AdminPermissionController extends Controller
                 'next' => $permissions->nextPageUrl(),
             ],
         ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $permissions = Permission::query()
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('guard_name', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('name')
+            ->get();
+
+        $rows = $permissions->values()->map(fn (Permission $permission, int $index): array => [
+            (string) ($index + 1),
+            $permission->name,
+            $permission->guard_name,
+            $this->pdfDate($permission->updated_at),
+        ])->all();
+
+        return $this->downloadTableReportPdf('Permissions List', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Name'],
+            ['label' => 'Guard', 'width' => '90px'],
+            ['label' => 'Updated', 'width' => '90px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'permissions');
     }
 
     public function store(Request $request): JsonResponse

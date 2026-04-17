@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use App\Models\InvoiceSmsTemplate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class AdminInvoiceSmsTemplateController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -41,6 +45,48 @@ class AdminInvoiceSmsTemplateController extends Controller
             'meta' => $this->paginationMeta($templates),
             'links' => $this->paginationLinks($templates),
         ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+            'status' => ['sometimes', 'nullable', Rule::in(['active', 'inactive'])],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $templates = InvoiceSmsTemplate::query()
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('body', 'like', "%{$search}%");
+                });
+            })
+            ->when(! empty($validated['status']), fn ($query) => $query->where('status', $validated['status']))
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
+
+        $rows = $templates->values()->map(fn (InvoiceSmsTemplate $template, int $index): array => [
+            (string) ($index + 1),
+            $template->name,
+            Str::limit($template->body, 80),
+            collect($template->variables_json ?? [])->join(', ') ?: '-',
+            $template->is_default ? 'Yes' : 'No',
+            ucfirst($template->status),
+            $this->pdfDate($template->updated_at),
+        ])->all();
+
+        return $this->downloadTableReportPdf('Invoice SMS Templates', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Name', 'width' => '120px'],
+            ['label' => 'Body'],
+            ['label' => 'Variables', 'width' => '120px'],
+            ['label' => 'Default', 'width' => '60px', 'align' => 'center'],
+            ['label' => 'Status', 'width' => '70px', 'align' => 'center'],
+            ['label' => 'Updated', 'width' => '90px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'invoice-sms-templates');
     }
 
     public function options(): JsonResponse

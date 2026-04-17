@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use App\Models\ProductUnit;
 use App\Support\ProductUnitCodeHelper;
 use Illuminate\Http\JsonResponse;
@@ -10,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 class AdminProductUnitController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function __construct(private readonly ProductUnitCodeHelper $codeHelper)
     {
     }
@@ -53,6 +56,42 @@ class AdminProductUnitController extends Controller
             ->values();
 
         return response()->json(['data' => $units]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $units = ProductUnit::query()
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('unit_name', 'like', "%{$search}%")
+                        ->orWhere('unit_value', 'like', "%{$search}%")
+                        ->orWhere('unit_code', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('unit_name')
+            ->get();
+
+        $rows = $units->values()->map(fn (ProductUnit $unit, int $index): array => [
+            (string) ($index + 1),
+            $unit->unit_name,
+            $unit->unit_value,
+            $unit->unit_code,
+            $this->pdfDate($unit->updated_at),
+        ])->all();
+
+        return $this->downloadTableReportPdf('Product Units List', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Unit Name'],
+            ['label' => 'Unit Value', 'width' => '110px'],
+            ['label' => 'Unit Code', 'width' => '90px', 'align' => 'center'],
+            ['label' => 'Updated', 'width' => '90px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'product-units');
     }
 
     public function store(Request $request): JsonResponse

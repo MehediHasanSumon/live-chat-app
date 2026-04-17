@@ -4,11 +4,13 @@ import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { Button } from "@/components/ui/button";
 import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { Pagination } from "@/components/ui/pagination";
 import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
+import { buildAdminListPdfPath } from "@/lib/admin-pdf";
 import { ApiClientError } from "@/lib/api-client";
 import {
   AdminSmsCredentialRecord,
@@ -18,6 +20,7 @@ import {
   useDeleteAdminSmsCredentialMutation,
   useUpdateAdminSmsCredentialMutation,
 } from "@/lib/hooks/use-admin-sms";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE = 1;
@@ -87,6 +90,7 @@ function SmsCredentialsPageContent() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [deletingCredentialId, setDeletingCredentialId] = useState<number | null>(null);
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
   const isSubmitting = createCredential.isPending || updateCredential.isPending;
 
   const updateListUrl = useCallback(
@@ -230,6 +234,10 @@ function SmsCredentialsPageContent() {
     }
   }
 
+  async function handleDownloadPdf() {
+    await download(buildAdminListPdfPath("sms/credentials", { search, status }), "sms-credentials");
+  }
+
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
@@ -238,17 +246,22 @@ function SmsCredentialsPageContent() {
             <h1 className="text-3xl font-semibold tracking-tight text-[#1f2440]">SMS Credentials</h1>
             <p className="mt-2 text-sm text-[var(--muted)]">Manage provider access for invoice SMS delivery.</p>
           </div>
-          <Button
-            className="gap-2 self-start rounded-full px-5 sm:self-center"
-            aria-controls="sms-credential-form-section"
-            aria-expanded={isFormOpen}
-            onClick={() => (isFormOpen ? closeForm() : openCreateForm())}
-          >
-            {isFormOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {isFormOpen ? "Close" : "Create Credential"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
+            <Button
+              className="gap-2 self-start rounded-full px-5 sm:self-center"
+              aria-controls="sms-credential-form-section"
+              aria-expanded={isFormOpen}
+              onClick={() => (isFormOpen ? closeForm() : openCreateForm())}
+            >
+              {isFormOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {isFormOpen ? "Close" : "Create Credential"}
+            </Button>
+          </div>
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       <div className={cn("mx-auto w-full max-w-[1328px] overflow-hidden transition-all duration-300 ease-out", isFormOpen ? "mt-5 max-h-[720px] translate-y-0 opacity-100" : "mt-0 max-h-0 -translate-y-2 opacity-0")}>
         <section id="sms-credential-form-section" aria-hidden={!isFormOpen} className="glass-card overflow-hidden rounded-[1.5rem]">

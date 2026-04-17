@@ -101,6 +101,29 @@ it('shows a company setting', function () {
         ->assertJsonPath('data.company_name', 'Nexus Details');
 });
 
+it('downloads company settings list and detail as pdf', function () {
+    $user = User::factory()->create();
+    $companySetting = CompanySetting::query()->create(companySettingPayload([
+        'company_name' => 'Nexus Details',
+    ]));
+
+    $this->actingAs($user, 'web')
+        ->get('/api/admin/company-settings/export/pdf?search=nexus')
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('content-disposition');
+
+    $detailResponse = $this->actingAs($user, 'web')
+        ->get("/api/admin/company-settings/{$companySetting->id}/export/pdf");
+
+    $detailResponse
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('content-disposition');
+
+    expect($detailResponse->getContent())->toContain('%PDF');
+});
+
 it('deletes a company setting', function () {
     $user = User::factory()->create();
     $companySetting = CompanySetting::query()->create(companySettingPayload());

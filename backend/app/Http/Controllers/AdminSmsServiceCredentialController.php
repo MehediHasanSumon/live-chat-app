@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use App\Models\SmsServiceCredential;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -9,6 +10,8 @@ use Illuminate\Validation\Rule;
 
 class AdminSmsServiceCredentialController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -53,6 +56,46 @@ class AdminSmsServiceCredentialController extends Controller
         return response()->json([
             'data' => $credential ? $this->serializeCredential($credential) : null,
         ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+            'status' => ['sometimes', 'nullable', Rule::in(['active', 'inactive'])],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $credentials = SmsServiceCredential::query()
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('url', 'like', "%{$search}%")
+                        ->orWhere('sender_id', 'like', "%{$search}%");
+                });
+            })
+            ->when(! empty($validated['status']), fn ($query) => $query->where('status', $validated['status']))
+            ->orderByRaw("CASE WHEN status = 'active' THEN 0 ELSE 1 END")
+            ->orderByDesc('id')
+            ->get();
+
+        $rows = $credentials->values()->map(fn (SmsServiceCredential $credential, int $index): array => [
+            (string) ($index + 1),
+            $credential->url,
+            $credential->sender_id,
+            $this->apiKeyPreview($credential->api_key) ?? ($credential->api_key ? 'Saved' : '-'),
+            ucfirst($credential->status),
+            $this->pdfDate($credential->updated_at),
+        ])->all();
+
+        return $this->downloadTableReportPdf('SMS Credentials List', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Provider'],
+            ['label' => 'Sender ID', 'width' => '100px'],
+            ['label' => 'API Key', 'width' => '120px'],
+            ['label' => 'Status', 'width' => '70px', 'align' => 'center'],
+            ['label' => 'Updated', 'width' => '90px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'sms-credentials');
     }
 
     public function store(Request $request): JsonResponse

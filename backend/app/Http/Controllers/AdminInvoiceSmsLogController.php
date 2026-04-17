@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use App\Models\InvoiceSmsLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -9,6 +10,8 @@ use Illuminate\Validation\Rule;
 
 class AdminInvoiceSmsLogController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -61,6 +64,63 @@ class AdminInvoiceSmsLogController extends Controller
         return response()->json([
             'data' => $this->serializeLog($invoiceSmsLog->load(['invoice.customer', 'customer', 'credential', 'template'])),
         ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+            'status' => ['sometimes', 'nullable', Rule::in(['pending', 'sent', 'failed'])],
+            'invoice_id' => ['sometimes', 'nullable', 'integer', 'exists:invoices,id'],
+            'customer_id' => ['sometimes', 'nullable', 'integer', 'exists:customers,id'],
+            'sms_service_credential_id' => ['sometimes', 'nullable', 'integer', 'exists:sms_service_credentials,id'],
+            'invoice_sms_template_id' => ['sometimes', 'nullable', 'integer', 'exists:invoice_sms_templates,id'],
+            'date_from' => ['sometimes', 'nullable', 'date'],
+            'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $logs = InvoiceSmsLog::query()
+            ->with(['invoice.customer', 'customer', 'credential', 'template'])
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('mobile', 'like', "%{$search}%")
+                        ->orWhere('recipient_name', 'like', "%{$search}%")
+                        ->orWhere('sender_id', 'like', "%{$search}%")
+                        ->orWhere('message', 'like', "%{$search}%")
+                        ->orWhereHas('invoice', fn ($query) => $query->where('invoice_no', 'like', "%{$search}%"));
+                });
+            })
+            ->when(! empty($validated['status']), fn ($query) => $query->where('status', $validated['status']))
+            ->when(! empty($validated['invoice_id']), fn ($query) => $query->where('invoice_id', $validated['invoice_id']))
+            ->when(! empty($validated['customer_id']), fn ($query) => $query->where('customer_id', $validated['customer_id']))
+            ->when(! empty($validated['sms_service_credential_id']), fn ($query) => $query->where('sms_service_credential_id', $validated['sms_service_credential_id']))
+            ->when(! empty($validated['invoice_sms_template_id']), fn ($query) => $query->where('invoice_sms_template_id', $validated['invoice_sms_template_id']))
+            ->when(! empty($validated['date_from']), fn ($query) => $query->where('created_at', '>=', $validated['date_from']))
+            ->when(! empty($validated['date_to']), fn ($query) => $query->where('created_at', '<=', $validated['date_to']))
+            ->orderByDesc('id')
+            ->get();
+
+        $rows = $logs->values()->map(fn (InvoiceSmsLog $log, int $index): array => [
+            (string) ($index + 1),
+            $log->invoice?->invoice_no ?? '#'.$log->invoice_id,
+            $log->recipient_name ?: ($log->customer?->name ?? '-'),
+            $log->mobile,
+            $log->template?->name ?? '-',
+            ucfirst($log->status),
+            $this->pdfDateTime($log->sent_at ?: $log->created_at),
+        ])->all();
+
+        return $this->downloadTableReportPdf('Invoice SMS Logs', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Invoice', 'width' => '105px'],
+            ['label' => 'Recipient'],
+            ['label' => 'Mobile', 'width' => '110px'],
+            ['label' => 'Template', 'width' => '110px'],
+            ['label' => 'Status', 'width' => '70px', 'align' => 'center'],
+            ['label' => 'Sent', 'width' => '115px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'invoice-sms-logs');
     }
 
     protected function serializeLog(InvoiceSmsLog $log): array

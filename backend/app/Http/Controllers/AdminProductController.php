@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use App\Models\Product;
 use App\Support\ProductCodeHelper;
 use Illuminate\Http\JsonResponse;
@@ -11,6 +12,8 @@ use Illuminate\Validation\Rule;
 
 class AdminProductController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function __construct(private readonly ProductCodeHelper $codeHelper)
     {
     }
@@ -58,6 +61,48 @@ class AdminProductController extends Controller
             ->values();
 
         return response()->json(['data' => $products]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+            'status' => ['sometimes', 'nullable', Rule::in(['active', 'inactive'])],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $products = Product::query()
+            ->with('activePrice.unit')
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('product_name', 'like', "%{$search}%")
+                        ->orWhere('product_code', 'like', "%{$search}%");
+                });
+            })
+            ->when(! empty($validated['status']), fn ($query) => $query->where('status', $validated['status']))
+            ->orderBy('product_name')
+            ->get();
+
+        $rows = $products->values()->map(fn (Product $product, int $index): array => [
+            (string) ($index + 1),
+            $product->product_name,
+            $this->pdfText($product->product_code),
+            ucfirst($product->status),
+            $product->activePrice ? $this->pdfMoney($product->activePrice->sell_price) : 'No active price',
+            $product->activePrice?->unit ? $product->activePrice->unit->unit_name.' ('.$product->activePrice->unit->unit_code.')' : '-',
+            $this->pdfDate($product->updated_at),
+        ])->all();
+
+        return $this->downloadTableReportPdf('Products List', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Name'],
+            ['label' => 'Code', 'width' => '82px', 'align' => 'center'],
+            ['label' => 'Status', 'width' => '70px', 'align' => 'center'],
+            ['label' => 'Active Price', 'width' => '90px', 'align' => 'right'],
+            ['label' => 'Unit', 'width' => '110px'],
+            ['label' => 'Updated', 'width' => '90px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'products');
     }
 
     public function store(Request $request): JsonResponse

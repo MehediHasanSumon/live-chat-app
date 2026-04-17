@@ -1,26 +1,28 @@
 "use client";
 
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
-import { FileText, PencilLine, Plus, Trash2, X } from "lucide-react";
+import { PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { Button } from "@/components/ui/button";
 import { BoneyardSkeleton, PanelSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { CheckboxInput } from "@/components/ui/checkbox-input";
 import { Pagination } from "@/components/ui/pagination";
 import { RadioInput } from "@/components/ui/radio-input";
 import { TextInput } from "@/components/ui/text-input";
+import { buildAdminListPdfPath } from "@/lib/admin-pdf";
 import { ApiClientError } from "@/lib/api-client";
 import {
   AdminUserRecord,
   AdminUserStatus,
-  getAdminUsersPdfDownloadUrl,
   useAdminRoleOptionsQuery,
   useAdminUsersQuery,
   useCreateAdminUserMutation,
   useDeleteAdminUserMutation,
   useUpdateAdminUserMutation,
 } from "@/lib/hooks/use-admin-users";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE = 1;
@@ -79,21 +81,6 @@ function parseSearchParam(value: string | null) {
   return (value ?? "").trim();
 }
 
-function parseContentDispositionFilename(headerValue: string | null) {
-  if (!headerValue) {
-    return null;
-  }
-
-  const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
-
-  if (utf8Match?.[1]) {
-    return decodeURIComponent(utf8Match[1]);
-  }
-
-  const basicMatch = headerValue.match(/filename="?([^"]+)"?/i);
-  return basicMatch?.[1] ?? null;
-}
-
 function UsersPageContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -113,10 +100,9 @@ function UsersPageContent() {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [editingUser, setEditingUser] = useState<AdminUserRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isUserSectionOpen, setIsUserSectionOpen] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
 
   const isSubmitting = createUser.isPending || updateUser.isPending;
 
@@ -358,62 +344,7 @@ function UsersPageContent() {
   }
 
   async function handleDownloadPdf() {
-    setDownloadError(null);
-
-    try {
-      setIsDownloadingPdf(true);
-
-      const response = await fetch(getAdminUsersPdfDownloadUrl(search), {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        const contentType = response.headers.get("content-type") ?? "";
-
-        if (contentType.includes("application/json")) {
-          const payload = await response.json().catch(() => null);
-          throw new ApiClientError(response.status, payload ?? undefined);
-        }
-
-        throw new ApiClientError(response.status, { message: "Unable to download the PDF right now." });
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-
-      if (arrayBuffer.byteLength === 0) {
-        throw new ApiClientError(response.status, { message: "Downloaded PDF was empty. Please try again." });
-      }
-
-      const filename =
-        parseContentDispositionFilename(response.headers.get("content-disposition")) ??
-        `users-${new Date().toISOString().slice(0, 10)}.pdf`;
-      const blob = new Blob([arrayBuffer], {
-        type: response.headers.get("content-type") ?? "application/pdf",
-      });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.style.display = "none";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => {
-        URL.revokeObjectURL(url);
-      }, 60_000);
-    } catch (downloadPdfError) {
-      if (downloadPdfError instanceof ApiClientError) {
-        setDownloadError(downloadPdfError.message);
-        return;
-      }
-
-      setDownloadError("Unable to download the PDF right now.");
-    } finally {
-      setIsDownloadingPdf(false);
-    }
+    await download(buildAdminListPdfPath("users", { search }), "users");
   }
 
   return (
@@ -426,15 +357,7 @@ function UsersPageContent() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              className="gap-2 self-start rounded-full px-5 sm:self-center"
-              disabled={isDownloadingPdf}
-              onClick={() => void handleDownloadPdf()}
-            >
-              <FileText className="h-4 w-4" />
-              Download
-            </Button>
+            <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
 
             <Button
               className="gap-2 self-start rounded-full px-5 sm:self-center"
@@ -455,6 +378,8 @@ function UsersPageContent() {
           </div>
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       <div
         className={cn(
@@ -643,7 +568,6 @@ function UsersPageContent() {
             </div>
         </form>
 
-        {downloadError ? <p className="mt-3 text-sm text-rose-600">{downloadError}</p> : null}
       </section>
       </div>
 

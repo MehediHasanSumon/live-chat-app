@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
@@ -19,6 +20,8 @@ use Illuminate\Validation\ValidationException;
 
 class AdminInvoiceController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function __construct(
         private readonly InvoiceNumberHelper $invoiceNumberHelper,
         private readonly InvoiceSmsService $invoiceSmsService,
@@ -74,6 +77,120 @@ class AdminInvoiceController extends Controller
     {
         return response()->json([
             'data' => $this->serializeInvoice($invoice->load(['customer', 'items.product', 'items.unit', 'smsLogs'])),
+        ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+            'payment_type' => ['sometimes', 'nullable', Rule::in(['due', 'cash', 'pos'])],
+            'payment_status' => ['sometimes', 'nullable', Rule::in(['unpaid', 'partial', 'paid'])],
+            'status' => ['sometimes', 'nullable', Rule::in(['draft', 'submitted', 'cancelled'])],
+            'date_from' => ['sometimes', 'nullable', 'date'],
+            'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $invoices = Invoice::query()
+            ->with(['customer', 'items.product', 'items.unit', 'smsLogs'])
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('invoice_no', 'like', "%{$search}%")
+                        ->orWhereHas('customer', function ($query) use ($search): void {
+                            $query
+                                ->where('name', 'like', "%{$search}%")
+                                ->orWhere('mobile', 'like', "%{$search}%")
+                                ->orWhere('vehicle_no', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->when(! empty($validated['payment_type']), fn ($query) => $query->where('payment_type', $validated['payment_type']))
+            ->when(! empty($validated['payment_status']), fn ($query) => $query->where('payment_status', $validated['payment_status']))
+            ->when(! empty($validated['status']), fn ($query) => $query->where('status', $validated['status']))
+            ->when(! empty($validated['date_from']), fn ($query) => $query->where('invoice_datetime', '>=', Carbon::parse($validated['date_from'])->startOfDay()))
+            ->when(! empty($validated['date_to']), fn ($query) => $query->where('invoice_datetime', '<=', Carbon::parse($validated['date_to'])->endOfDay()))
+            ->orderByDesc('invoice_datetime')
+            ->orderByDesc('id')
+            ->get();
+
+        $rows = $invoices->values()->map(fn (Invoice $invoice, int $index): array => [
+            (string) ($index + 1),
+            $invoice->invoice_no,
+            $invoice->customer?->name ?? '-',
+            strtoupper($invoice->payment_type),
+            $this->pdfMoney($invoice->total_amount),
+            $this->pdfMoney($invoice->paid_amount),
+            $this->pdfMoney($invoice->due_amount),
+            ucfirst($invoice->status),
+            $this->pdfDateTime($invoice->invoice_datetime),
+        ])->all();
+
+        return $this->downloadTableReportPdf('Invoices List', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Invoice', 'width' => '110px'],
+            ['label' => 'Customer'],
+            ['label' => 'Payment', 'width' => '70px', 'align' => 'center'],
+            ['label' => 'Total', 'width' => '82px', 'align' => 'right'],
+            ['label' => 'Paid', 'width' => '82px', 'align' => 'right'],
+            ['label' => 'Due', 'width' => '82px', 'align' => 'right'],
+            ['label' => 'Status', 'width' => '70px', 'align' => 'center'],
+            ['label' => 'Date', 'width' => '115px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'invoices');
+    }
+
+    public function exportDetailPdf(Invoice $invoice)
+    {
+        $invoice->load(['customer', 'items.product', 'items.unit', 'smsLogs']);
+        $generatedAt = now();
+        $smsStatus = $this->resolveSmsStatus($invoice);
+
+        return $this->downloadDetailReportPdf('Invoice Details', [
+            [
+                'title' => 'Invoice',
+                'fields' => [
+                    ['label' => 'Invoice No', 'value' => $invoice->invoice_no],
+                    ['label' => 'Invoice Date', 'value' => $this->pdfDateTime($invoice->invoice_datetime)],
+                    ['label' => 'Status', 'value' => ucfirst($invoice->status)],
+                    ['label' => 'Payment Type', 'value' => strtoupper($invoice->payment_type)],
+                    ['label' => 'Payment Status', 'value' => ucfirst($invoice->payment_status)],
+                    ['label' => 'SMS Status', 'value' => ucfirst(str_replace('_', ' ', $smsStatus))],
+                ],
+            ],
+            [
+                'title' => 'Customer',
+                'fields' => [
+                    ['label' => 'Name', 'value' => $this->pdfText($invoice->customer?->name)],
+                    ['label' => 'Mobile', 'value' => $this->pdfText($invoice->customer?->mobile)],
+                    ['label' => 'Vehicle No', 'value' => $this->pdfText($invoice->customer?->vehicle_no)],
+                ],
+            ],
+        ], $generatedAt, 'invoice-'.$invoice->id, [
+            'summaryItems' => [
+                ['label' => 'Invoice', 'value' => $invoice->invoice_no],
+                ['label' => 'Total', 'value' => $this->pdfMoney($invoice->total_amount)],
+                ['label' => 'Due', 'value' => $this->pdfMoney($invoice->due_amount)],
+            ],
+            'tables' => [[
+                'title' => 'Items',
+                'columns' => [
+                    ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+                    ['label' => 'Product'],
+                    ['label' => 'Unit', 'width' => '100px'],
+                    ['label' => 'Price', 'width' => '85px', 'align' => 'right'],
+                    ['label' => 'Qty', 'width' => '80px', 'align' => 'right'],
+                    ['label' => 'Total', 'width' => '90px', 'align' => 'right'],
+                ],
+                'rows' => $invoice->items->values()->map(fn ($item, int $index): array => [
+                    (string) ($index + 1),
+                    $item->product_name,
+                    $item->unit_name ?: ($item->unit_code ?: '-'),
+                    $this->pdfMoney($item->price),
+                    number_format((float) $item->quantity, 4, '.', ''),
+                    $this->pdfMoney($item->line_total),
+                ])->all(),
+            ]],
         ]);
     }
 

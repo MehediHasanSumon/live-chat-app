@@ -60,6 +60,24 @@ it('filters permissions by search on the server', function () {
         ->assertJsonPath('meta.total', 2);
 });
 
+it('downloads the filtered permissions list as a pdf', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
+    $user = User::factory()->create();
+
+    Permission::findOrCreate('reports.view', 'web');
+    Permission::findOrCreate('reports.export', 'web');
+
+    $response = $this->actingAs($user, 'web')
+        ->get('/api/admin/permissions/export/pdf?search=reports');
+
+    $response
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('content-disposition');
+
+    expect($response->getContent())->toContain('%PDF');
+});
+
 it('creates a custom permission', function () {
     $this->seed(RolesAndPermissionsSeeder::class);
     $user = User::factory()->create();

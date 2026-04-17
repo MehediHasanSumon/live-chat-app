@@ -7,13 +7,16 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
+import { buildAdminListPdfPath } from "@/lib/admin-pdf";
 import {
   AdminInvoiceSmsLogStatus,
   InvoiceSmsLogRecord,
   useAdminInvoiceSmsLogsQuery,
 } from "@/lib/hooks/use-admin-sms";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE = 1;
@@ -81,6 +84,7 @@ function InvoiceSmsLogsPageContent() {
   const paginationMeta = logsResponse?.meta;
   const [searchDraft, setSearchDraft] = useState(search);
   const [statusDraft, setStatusDraft] = useState(status);
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
 
   const updateListUrl = useCallback(
     (next: { page?: number; perPage?: number; search?: string; status?: string }) => {
@@ -119,14 +123,23 @@ function InvoiceSmsLogsPageContent() {
     updateListUrl({ page: DEFAULT_PAGE, search: searchDraft, status: statusDraft });
   }
 
+  async function handleDownloadPdf() {
+    await download(buildAdminListPdfPath("invoice-sms-logs", { search, status }), "invoice-sms-logs");
+  }
+
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-[#1f2440]">Invoice SMS Logs</h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">Review invoice SMS delivery attempts and provider responses.</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight text-[#1f2440]">Invoice SMS Logs</h1>
+            <p className="mt-2 text-sm text-[var(--muted)]">Review invoice SMS delivery attempts and provider responses.</p>
+          </div>
+          <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       <section className="glass-card relative z-30 mx-auto mt-5 w-full max-w-[1328px] overflow-visible rounded-[1.5rem] px-6 py-5 sm:px-8">
         <form className="flex flex-col gap-3 lg:flex-row lg:items-end" onSubmit={handleSearchSubmit}>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use App\Http\Resources\StorageObjectResource;
 use App\Models\CompanySetting;
 use App\Models\StorageObject;
@@ -11,6 +12,8 @@ use Illuminate\Validation\Rule;
 
 class AdminCompanySettingController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -64,6 +67,100 @@ class AdminCompanySettingController extends Controller
     {
         return response()->json([
             'data' => $this->serializeCompanySetting($companySetting),
+        ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+            'status' => ['sometimes', 'nullable', Rule::in(['active', 'inactive'])],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $companySettings = CompanySetting::query()
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('company_name', 'like', "%{$search}%")
+                        ->orWhere('proprietor_name', 'like', "%{$search}%")
+                        ->orWhere('company_mobile', 'like', "%{$search}%")
+                        ->orWhere('company_phone', 'like', "%{$search}%")
+                        ->orWhere('company_email', 'like', "%{$search}%")
+                        ->orWhere('trade_license', 'like', "%{$search}%")
+                        ->orWhere('tin_no', 'like', "%{$search}%")
+                        ->orWhere('bin_no', 'like', "%{$search}%")
+                        ->orWhere('vat_no', 'like', "%{$search}%");
+                });
+            })
+            ->when(! empty($validated['status']), fn ($query) => $query->where('status', $validated['status']))
+            ->orderBy('company_name')
+            ->get();
+
+        $rows = $companySettings->values()->map(fn (CompanySetting $companySetting, int $index): array => [
+            (string) ($index + 1),
+            $companySetting->company_name,
+            $this->pdfText($companySetting->proprietor_name),
+            $this->pdfText($companySetting->company_mobile),
+            $this->pdfText($companySetting->company_email),
+            $companySetting->currency,
+            ucfirst($companySetting->status),
+        ])->all();
+
+        return $this->downloadTableReportPdf('Company Settings List', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Company'],
+            ['label' => 'Proprietor'],
+            ['label' => 'Mobile', 'width' => '110px'],
+            ['label' => 'Email'],
+            ['label' => 'Currency', 'width' => '70px', 'align' => 'center'],
+            ['label' => 'Status', 'width' => '70px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'company-settings');
+    }
+
+    public function exportDetailPdf(CompanySetting $companySetting)
+    {
+        $generatedAt = now();
+
+        return $this->downloadDetailReportPdf('Company Details', [
+            [
+                'title' => 'Company',
+                'fields' => [
+                    ['label' => 'Company Name', 'value' => $this->pdfText($companySetting->company_name)],
+                    ['label' => 'Company Details', 'value' => $this->pdfText($companySetting->company_details)],
+                    ['label' => 'Proprietor Name', 'value' => $this->pdfText($companySetting->proprietor_name)],
+                    ['label' => 'Currency', 'value' => $this->pdfText($companySetting->currency)],
+                    ['label' => 'VAT Rate', 'value' => $this->pdfText($companySetting->vat_rate).' %'],
+                    ['label' => 'Status', 'value' => ucfirst($companySetting->status)],
+                ],
+            ],
+            [
+                'title' => 'Contact',
+                'fields' => [
+                    ['label' => 'Mobile', 'value' => $this->pdfText($companySetting->company_mobile)],
+                    ['label' => 'Phone', 'value' => $this->pdfText($companySetting->company_phone)],
+                    ['label' => 'Email', 'value' => $this->pdfText($companySetting->company_email)],
+                    ['label' => 'Company Address', 'value' => $this->pdfText($companySetting->company_address)],
+                    ['label' => 'Factory Address', 'value' => $this->pdfText($companySetting->factory_address)],
+                ],
+            ],
+            [
+                'title' => 'Compliance',
+                'fields' => [
+                    ['label' => 'Trade License', 'value' => $this->pdfText($companySetting->trade_license)],
+                    ['label' => 'TIN No', 'value' => $this->pdfText($companySetting->tin_no)],
+                    ['label' => 'BIN No', 'value' => $this->pdfText($companySetting->bin_no)],
+                    ['label' => 'VAT No', 'value' => $this->pdfText($companySetting->vat_no)],
+                    ['label' => 'Registration Enabled', 'value' => $companySetting->is_registration_enable ? 'Enabled' : 'Disabled'],
+                    ['label' => 'Email Verification', 'value' => $companySetting->is_email_verification_enable ? 'Enabled' : 'Disabled'],
+                ],
+            ],
+        ], $generatedAt, 'company-setting-'.$companySetting->id, [
+            'summaryItems' => [
+                ['label' => 'Company', 'value' => $companySetting->company_name],
+                ['label' => 'Status', 'value' => ucfirst($companySetting->status)],
+                ['label' => 'Currency', 'value' => $companySetting->currency],
+            ],
         ]);
     }
 

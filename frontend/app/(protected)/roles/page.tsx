@@ -4,11 +4,13 @@ import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { Button } from "@/components/ui/button";
 import { BoneyardSkeleton, PanelSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { CheckboxInput } from "@/components/ui/checkbox-input";
 import { Pagination } from "@/components/ui/pagination";
 import { TextInput } from "@/components/ui/text-input";
+import { buildAdminListPdfPath } from "@/lib/admin-pdf";
 import { ApiClientError } from "@/lib/api-client";
 import {
   AdminRoleRecord,
@@ -18,6 +20,7 @@ import {
   useDeleteAdminRoleMutation,
   useUpdateAdminRoleMutation,
 } from "@/lib/hooks/use-admin-roles";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE = 1;
@@ -73,6 +76,7 @@ function RolesPageContent() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isRoleSectionOpen, setIsRoleSectionOpen] = useState(false);
   const [deletingRoleId, setDeletingRoleId] = useState<number | null>(null);
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
 
   const isSubmitting = createRole.isPending || updateRole.isPending;
 
@@ -219,6 +223,10 @@ function RolesPageContent() {
     }
   }
 
+  async function handleDownloadPdf() {
+    await download(buildAdminListPdfPath("roles", { search }), "roles");
+  }
+
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
@@ -228,28 +236,33 @@ function RolesPageContent() {
             <p className="mt-2 text-sm text-[var(--muted)]">Manage roles and their permission access.</p>
           </div>
 
-          <Button
-            className="gap-2 self-start rounded-full px-5 sm:self-center"
-            aria-controls="role-form-section"
-            aria-expanded={isRoleSectionOpen}
-            onClick={() => {
-              if (isRoleSectionOpen) {
-                closeRoleSection();
-                return;
-              }
+          <div className="flex flex-wrap gap-2">
+            <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
+            <Button
+              className="gap-2 self-start rounded-full px-5 sm:self-center"
+              aria-controls="role-form-section"
+              aria-expanded={isRoleSectionOpen}
+              onClick={() => {
+                if (isRoleSectionOpen) {
+                  closeRoleSection();
+                  return;
+                }
 
-              setIsRoleSectionOpen(true);
-              setEditingRole(null);
-              setName("");
-              setSelectedPermissions([]);
-              setFormError(null);
-            }}
-          >
-            {isRoleSectionOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {isRoleSectionOpen ? "Close" : "Create Role"}
-          </Button>
+                setIsRoleSectionOpen(true);
+                setEditingRole(null);
+                setName("");
+                setSelectedPermissions([]);
+                setFormError(null);
+              }}
+            >
+              {isRoleSectionOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {isRoleSectionOpen ? "Close" : "Create Role"}
+            </Button>
+          </div>
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       <div
         className={cn(

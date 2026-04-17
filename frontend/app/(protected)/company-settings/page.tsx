@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Eye, PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { Button } from "@/components/ui/button";
 import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { CheckboxInput } from "@/components/ui/checkbox-input";
@@ -12,6 +13,7 @@ import { FileInput } from "@/components/ui/file-input";
 import { Pagination } from "@/components/ui/pagination";
 import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
+import { buildAdminListPdfPath } from "@/lib/admin-pdf";
 import { ApiClientError } from "@/lib/api-client";
 import {
   AdminCompanySettingRecord,
@@ -22,6 +24,7 @@ import {
   useUploadCompanyLogoMutation,
   useUpdateAdminCompanySettingMutation,
 } from "@/lib/hooks/use-admin-company-settings";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE = 1;
@@ -177,6 +180,7 @@ function CompanySettingsPageContent() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isCompanySettingSectionOpen, setIsCompanySettingSectionOpen] = useState(false);
   const [deletingCompanySettingId, setDeletingCompanySettingId] = useState<number | null>(null);
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
   const isSubmitting = createCompanySetting.isPending || updateCompanySetting.isPending || uploadCompanyLogo.isPending;
 
   const updatePaginationUrl = useCallback(
@@ -381,6 +385,10 @@ function CompanySettingsPageContent() {
     }
   }
 
+  async function handleDownloadPdf() {
+    await download(buildAdminListPdfPath("company-settings", { search }), "company-settings");
+  }
+
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
@@ -389,17 +397,22 @@ function CompanySettingsPageContent() {
             <h1 className="text-3xl font-semibold tracking-tight text-[#1f2440]">Company Settings</h1>
             <p className="mt-2 text-sm text-[var(--muted)]">Manage company identity, compliance, VAT, and registration options.</p>
           </div>
-          <Button
-            className="gap-2 self-start rounded-full px-5 sm:self-center"
-            aria-controls="company-setting-form-section"
-            aria-expanded={isCompanySettingSectionOpen}
-            onClick={() => (isCompanySettingSectionOpen ? closeCompanySettingSection() : openCreateSection())}
-          >
-            {isCompanySettingSectionOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {isCompanySettingSectionOpen ? "Close" : "Create Company"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
+            <Button
+              className="gap-2 self-start rounded-full px-5 sm:self-center"
+              aria-controls="company-setting-form-section"
+              aria-expanded={isCompanySettingSectionOpen}
+              onClick={() => (isCompanySettingSectionOpen ? closeCompanySettingSection() : openCreateSection())}
+            >
+              {isCompanySettingSectionOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {isCompanySettingSectionOpen ? "Close" : "Create Company"}
+            </Button>
+          </div>
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       <CompanySettingForm
         form={form}

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use App\Models\ProductPrice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -10,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 class AdminProductPriceController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -62,6 +65,51 @@ class AdminProductPriceController extends Controller
             ->values();
 
         return response()->json(['data' => $prices]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+            'product_id' => ['sometimes', 'integer', 'exists:products,id'],
+            'is_active' => ['sometimes', 'boolean'],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $prices = ProductPrice::query()
+            ->with(['product', 'unit', 'creator'])
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->whereHas('product', function ($query) use ($search): void {
+                    $query
+                        ->where('product_name', 'like', "%{$search}%")
+                        ->orWhere('product_code', 'like', "%{$search}%");
+                });
+            })
+            ->when(! empty($validated['product_id']), fn ($query) => $query->where('product_id', $validated['product_id']))
+            ->when(array_key_exists('is_active', $validated), fn ($query) => $query->where('is_active', $validated['is_active']))
+            ->orderByDesc('date_time')
+            ->orderByDesc('id')
+            ->get();
+
+        $rows = $prices->values()->map(fn (ProductPrice $price, int $index): array => [
+            (string) ($index + 1),
+            $price->product?->product_name ?? 'Deleted product',
+            $price->unit ? $price->unit->unit_name.' ('.$price->unit->unit_code.')' : '-',
+            $this->pdfMoney($price->original_price),
+            $this->pdfMoney($price->sell_price),
+            $price->is_active ? 'Active' : 'Inactive',
+            $this->pdfDateTime($price->date_time),
+        ])->all();
+
+        return $this->downloadTableReportPdf('Product Prices List', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Product'],
+            ['label' => 'Unit', 'width' => '110px'],
+            ['label' => 'Original', 'width' => '85px', 'align' => 'right'],
+            ['label' => 'Sell', 'width' => '85px', 'align' => 'right'],
+            ['label' => 'Status', 'width' => '70px', 'align' => 'center'],
+            ['label' => 'Date', 'width' => '115px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'product-prices');
     }
 
     public function store(Request $request): JsonResponse

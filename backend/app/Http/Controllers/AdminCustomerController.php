@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AdminCustomerController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -61,6 +64,42 @@ class AdminCustomerController extends Controller
             ->values();
 
         return response()->json(['data' => $customers]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $customers = Customer::query()
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('mobile', 'like', "%{$search}%")
+                        ->orWhere('vehicle_no', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('name')
+            ->get();
+
+        $rows = $customers->values()->map(fn (Customer $customer, int $index): array => [
+            (string) ($index + 1),
+            $customer->name,
+            $this->pdfText($customer->mobile),
+            $this->pdfText($customer->vehicle_no),
+            $this->pdfDate($customer->updated_at),
+        ])->all();
+
+        return $this->downloadTableReportPdf('Customers List', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Name'],
+            ['label' => 'Mobile', 'width' => '120px'],
+            ['label' => 'Vehicle No', 'width' => '120px'],
+            ['label' => 'Updated', 'width' => '90px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'customers');
     }
 
     public function store(Request $request): JsonResponse

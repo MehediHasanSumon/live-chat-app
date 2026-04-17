@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { Button } from "@/components/ui/button";
 import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -11,6 +12,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { RadioInput } from "@/components/ui/radio-input";
 import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
+import { buildAdminListPdfPath } from "@/lib/admin-pdf";
 import { ApiClientError } from "@/lib/api-client";
 import { useAdminProductUnitOptionsQuery } from "@/lib/hooks/use-admin-product-units";
 import {
@@ -20,6 +22,7 @@ import {
   useDeleteAdminProductPriceMutation,
   useUpdateAdminProductPriceMutation,
 } from "@/lib/hooks/use-admin-product-prices";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 import { useAdminProductOptionsQuery } from "@/lib/hooks/use-admin-products";
 import { cn } from "@/lib/utils";
 
@@ -136,6 +139,7 @@ function ProductPricesPageContent() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isProductPriceSectionOpen, setIsProductPriceSectionOpen] = useState(false);
   const [deletingProductPriceId, setDeletingProductPriceId] = useState<number | null>(null);
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
 
   const isSubmitting = createProductPrice.isPending || updateProductPrice.isPending;
   const isFormBusy = isSubmitting || isProductsLoading || isUnitsLoading;
@@ -362,6 +366,10 @@ function ProductPricesPageContent() {
     }
   }
 
+  async function handleDownloadPdf() {
+    await download(buildAdminListPdfPath("product-prices", { search }), "product-prices");
+  }
+
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
@@ -371,24 +379,29 @@ function ProductPricesPageContent() {
             <p className="mt-2 text-sm text-[var(--muted)]">Manage purchase cost, sale price, and active product pricing.</p>
           </div>
 
-          <Button
-            className="gap-2 self-start rounded-full px-5 sm:self-center"
-            aria-controls="product-price-form-section"
-            aria-expanded={isProductPriceSectionOpen}
-            onClick={() => {
-              if (isProductPriceSectionOpen) {
-                closeProductPriceSection();
-                return;
-              }
+          <div className="flex flex-wrap gap-2">
+            <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
+            <Button
+              className="gap-2 self-start rounded-full px-5 sm:self-center"
+              aria-controls="product-price-form-section"
+              aria-expanded={isProductPriceSectionOpen}
+              onClick={() => {
+                if (isProductPriceSectionOpen) {
+                  closeProductPriceSection();
+                  return;
+                }
 
-              openCreateSection();
-            }}
-          >
-            {isProductPriceSectionOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {isProductPriceSectionOpen ? "Close" : "Create Product Price"}
-          </Button>
+                openCreateSection();
+              }}
+            >
+              {isProductPriceSectionOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {isProductPriceSectionOpen ? "Close" : "Create Product Price"}
+            </Button>
+          </div>
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       <div
         className={cn(

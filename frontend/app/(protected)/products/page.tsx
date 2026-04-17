@@ -4,11 +4,13 @@ import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { Button } from "@/components/ui/button";
 import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { Pagination } from "@/components/ui/pagination";
 import { RadioInput } from "@/components/ui/radio-input";
 import { TextInput } from "@/components/ui/text-input";
+import { buildAdminListPdfPath } from "@/lib/admin-pdf";
 import { ApiClientError } from "@/lib/api-client";
 import {
   AdminProductRecord,
@@ -18,6 +20,7 @@ import {
   useDeleteAdminProductMutation,
   useUpdateAdminProductMutation,
 } from "@/lib/hooks/use-admin-products";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE = 1;
@@ -99,6 +102,7 @@ function ProductsPageContent() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isProductSectionOpen, setIsProductSectionOpen] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
 
   const isSubmitting = createProduct.isPending || updateProduct.isPending;
 
@@ -290,6 +294,10 @@ function ProductsPageContent() {
     }
   }
 
+  async function handleDownloadPdf() {
+    await download(buildAdminListPdfPath("products", { search }), "products");
+  }
+
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
@@ -299,24 +307,29 @@ function ProductsPageContent() {
             <p className="mt-2 text-sm text-[var(--muted)]">Manage fuel products, codes, and active sale status.</p>
           </div>
 
-          <Button
-            className="gap-2 self-start rounded-full px-5 sm:self-center"
-            aria-controls="product-form-section"
-            aria-expanded={isProductSectionOpen}
-            onClick={() => {
-              if (isProductSectionOpen) {
-                closeProductSection();
-                return;
-              }
+          <div className="flex flex-wrap gap-2">
+            <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
+            <Button
+              className="gap-2 self-start rounded-full px-5 sm:self-center"
+              aria-controls="product-form-section"
+              aria-expanded={isProductSectionOpen}
+              onClick={() => {
+                if (isProductSectionOpen) {
+                  closeProductSection();
+                  return;
+                }
 
-              openCreateSection();
-            }}
-          >
-            {isProductSectionOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {isProductSectionOpen ? "Close" : "Create Product"}
-          </Button>
+                openCreateSection();
+              }}
+            >
+              {isProductSectionOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {isProductSectionOpen ? "Close" : "Create Product"}
+            </Button>
+          </div>
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       <div
         className={cn(

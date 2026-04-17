@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\InteractsWithPdfReports;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -10,6 +11,8 @@ use Spatie\Permission\PermissionRegistrar;
 
 class AdminRoleController extends Controller
 {
+    use InteractsWithPdfReports;
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -52,6 +55,42 @@ class AdminRoleController extends Controller
                 'next' => $roles->nextPageUrl(),
             ],
         ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $roles = Role::query()
+            ->with('permissions')
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('guard_name', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('name')
+            ->get();
+
+        $rows = $roles->values()->map(fn (Role $role, int $index): array => [
+            (string) ($index + 1),
+            $role->name,
+            $role->guard_name,
+            $role->permissions->sortBy('name')->pluck('name')->join(', ') ?: '-',
+            $this->pdfDate($role->updated_at),
+        ])->all();
+
+        return $this->downloadTableReportPdf('Roles List', [
+            ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
+            ['label' => 'Name', 'width' => '110px'],
+            ['label' => 'Guard', 'width' => '90px'],
+            ['label' => 'Permissions'],
+            ['label' => 'Updated', 'width' => '90px', 'align' => 'center'],
+        ], $rows, $generatedAt, 'roles');
     }
 
     public function store(Request $request): JsonResponse

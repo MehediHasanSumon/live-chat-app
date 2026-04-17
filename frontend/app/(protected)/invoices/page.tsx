@@ -5,12 +5,14 @@ import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { Eye, PencilLine, Plus, Send, Trash2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { Button } from "@/components/ui/button";
 import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Pagination } from "@/components/ui/pagination";
 import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
+import { buildAdminListPdfPath } from "@/lib/admin-pdf";
 import { ApiClientError } from "@/lib/api-client";
 import {
   AdminInvoiceRecord,
@@ -22,6 +24,7 @@ import {
   useDeleteAdminInvoiceMutation,
   useResendAdminInvoiceSmsMutation,
 } from "@/lib/hooks/use-admin-invoices";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 import { pushToast } from "@/lib/stores/toast-store";
 import { cn } from "@/lib/utils";
 
@@ -192,6 +195,7 @@ function InvoicesPageContent() {
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<number | null>(null);
   const [resendingInvoiceId, setResendingInvoiceId] = useState<number | null>(null);
   const filtersAreActive = hasActiveFilters(filters);
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {
@@ -369,6 +373,17 @@ function InvoicesPageContent() {
     }
   }
 
+  async function handleDownloadPdf() {
+    await download(buildAdminListPdfPath("invoices", {
+      search: filters.search,
+      status: filters.status,
+      payment_type: filters.paymentType,
+      payment_status: filters.paymentStatus,
+      date_from: filters.dateFrom,
+      date_to: filters.dateTo,
+    }), "invoices");
+  }
+
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
@@ -378,14 +393,19 @@ function InvoicesPageContent() {
             <p className="mt-2 text-sm text-[var(--muted)]">Create cash memos and review submitted invoices.</p>
           </div>
 
-          <Link href="/invoices/create">
-            <Button className="gap-2 rounded-full px-5">
-              <Plus className="h-4 w-4" />
-              Create Invoice
-            </Button>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
+            <Link href="/invoices/create">
+              <Button className="gap-2 rounded-full px-5">
+                <Plus className="h-4 w-4" />
+                Create Invoice
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       <section className="glass-card relative z-30 mx-auto mt-5 w-full max-w-[1328px] overflow-visible rounded-[1.5rem] px-6 py-5 sm:px-8">
         <form className="grid gap-3 lg:grid-cols-[minmax(220px,1.4fr)_repeat(5,minmax(150px,1fr))_auto] lg:items-end" onSubmit={handleFilterSubmit}>

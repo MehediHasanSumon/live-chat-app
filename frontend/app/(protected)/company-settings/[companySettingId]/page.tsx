@@ -7,7 +7,10 @@ import { ArrowLeft, Building2, FileText, MapPin, Phone, ShieldCheck } from "luci
 
 import { BoneyardSkeleton, PanelSkeleton } from "@/components/ui/boneyard-loading";
 import { Button } from "@/components/ui/button";
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
+import { buildAdminDetailPdfPath } from "@/lib/admin-pdf";
 import { useAdminCompanySettingQuery } from "@/lib/hooks/use-admin-company-settings";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 import { cn } from "@/lib/utils";
 
 function formatDateTime(value: string | null) {
@@ -38,6 +41,15 @@ function CompanySettingDetailsContent() {
   const params = useParams<{ companySettingId: string }>();
   const companySettingId = params.companySettingId;
   const { data: companySetting, isLoading, error } = useAdminCompanySettingQuery(companySettingId, Boolean(companySettingId));
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
+
+  async function handleDownloadPdf() {
+    if (!companySettingId) {
+      return;
+    }
+
+    await download(buildAdminDetailPdfPath("company-settings", companySettingId), "company-setting");
+  }
 
   return (
     <main className="shell px-4 py-6 sm:px-6">
@@ -52,19 +64,24 @@ function CompanySettingDetailsContent() {
             <p className="mt-2 text-sm text-[var(--muted)]">Full company identity, compliance, VAT, and account options.</p>
           </div>
 
-          {companySetting ? (
-            <span
-              className={cn(
-                "inline-flex w-fit rounded-full px-3 py-1.5 text-sm font-semibold capitalize",
-                companySetting.status === "active" && "bg-emerald-50 text-emerald-700",
-                companySetting.status === "inactive" && "bg-rose-50 text-rose-700",
-              )}
-            >
-              {companySetting.status}
-            </span>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
+            {companySetting ? (
+              <span
+                className={cn(
+                  "inline-flex w-fit rounded-full px-3 py-1.5 text-sm font-semibold capitalize",
+                  companySetting.status === "active" && "bg-emerald-50 text-emerald-700",
+                  companySetting.status === "inactive" && "bg-rose-50 text-rose-700",
+                )}
+              >
+                {companySetting.status}
+              </span>
+            ) : null}
+          </div>
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       {error ? (
         <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] rounded-[1.5rem] px-6 py-8 text-sm text-rose-600 sm:px-8">
