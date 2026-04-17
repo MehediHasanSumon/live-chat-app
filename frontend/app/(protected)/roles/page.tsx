@@ -72,9 +72,9 @@ function RolesPageContent() {
   const [editingRole, setEditingRole] = useState<AdminRoleRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isRoleSectionOpen, setIsRoleSectionOpen] = useState(false);
+  const [deletingRoleId, setDeletingRoleId] = useState<number | null>(null);
 
   const isSubmitting = createRole.isPending || updateRole.isPending;
-  const isTableBusy = deleteRole.isPending;
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {
@@ -201,6 +201,7 @@ function RolesPageContent() {
     setFormError(null);
 
     try {
+      setDeletingRoleId(role.id);
       await deleteRole.mutateAsync(role.id);
 
       if (editingRole?.id === role.id) {
@@ -213,6 +214,8 @@ function RolesPageContent() {
       }
 
       setFormError("Unable to delete the role right now.");
+    } finally {
+      setDeletingRoleId(null);
     }
   }
 
@@ -358,14 +361,14 @@ function RolesPageContent() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" className="rounded-full px-5" disabled={isTableBusy}>
+            <Button type="submit" className="rounded-full px-5">
               Search
             </Button>
             <Button
               type="button"
               variant="ghost"
               className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white"
-              disabled={isTableBusy || (!search && !searchDraft)}
+              disabled={!search && !searchDraft}
               onClick={handleClearSearch}
             >
               Clear
@@ -436,7 +439,7 @@ function RolesPageContent() {
                             size="icon-sm"
                             aria-label="Edit role"
                             title="Edit"
-                            disabled={isTableBusy}
+                            disabled={deletingRoleId === role.id}
                             onClick={() => {
                               setEditingRole(role);
                               setName(role.name);
@@ -453,7 +456,7 @@ function RolesPageContent() {
                             size="icon-sm"
                             aria-label="Delete role"
                             title="Delete"
-                            disabled={isTableBusy}
+                            disabled={deletingRoleId === role.id}
                             onClick={() => void handleDelete(role)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -468,7 +471,6 @@ function RolesPageContent() {
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
-                  disabled={isTableBusy}
                   perPageOptions={PER_PAGE_OPTIONS}
                   onPageChange={(nextPage) => updatePaginationUrl(nextPage)}
                   onPerPageChange={(nextPerPage) => updatePaginationUrl(DEFAULT_PAGE, nextPerPage)}

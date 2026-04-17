@@ -176,8 +176,8 @@ function CompanySettingsPageContent() {
   const [editingCompanySetting, setEditingCompanySetting] = useState<AdminCompanySettingRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isCompanySettingSectionOpen, setIsCompanySettingSectionOpen] = useState(false);
+  const [deletingCompanySettingId, setDeletingCompanySettingId] = useState<number | null>(null);
   const isSubmitting = createCompanySetting.isPending || updateCompanySetting.isPending || uploadCompanyLogo.isPending;
-  const isTableBusy = deleteCompanySetting.isPending;
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {
@@ -371,10 +371,13 @@ function CompanySettingsPageContent() {
     setFormError(null);
 
     try {
+      setDeletingCompanySettingId(companySetting.id);
       await deleteCompanySetting.mutateAsync(companySetting.id);
       if (editingCompanySetting?.id === companySetting.id) closeCompanySettingSection();
     } catch (submissionError) {
       setFormError(submissionError instanceof ApiClientError ? submissionError.message : "Unable to delete the company setting right now.");
+    } finally {
+      setDeletingCompanySettingId(null);
     }
   }
 
@@ -421,12 +424,12 @@ function CompanySettingsPageContent() {
             />
           </Field>
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" className="rounded-full px-5" disabled={isTableBusy}>Search</Button>
+            <Button type="submit" className="rounded-full px-5">Search</Button>
             <Button
               type="button"
               variant="ghost"
               className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white"
-              disabled={isTableBusy || (!search && !searchDraft)}
+              disabled={!search && !searchDraft}
               onClick={() => { setSearchDraft(""); updateSearchUrl(""); }}
             >
               Clear
@@ -442,8 +445,8 @@ function CompanySettingsPageContent() {
       ) : (
         <CompanySettingsTable
           companySettings={companySettings}
+          deletingCompanySettingId={deletingCompanySettingId}
           isLoading={isLoading}
-          isTableBusy={isTableBusy}
           page={page}
           perPage={perPage}
           paginationMeta={paginationMeta}
@@ -600,8 +603,8 @@ function CheckboxField({ checked, disabled, label, onChange }: { checked: boolea
 
 function CompanySettingsTable({
   companySettings,
+  deletingCompanySettingId,
   isLoading,
-  isTableBusy,
   onDelete,
   onEdit,
   onPageChange,
@@ -612,8 +615,8 @@ function CompanySettingsTable({
   search,
 }: {
   companySettings: AdminCompanySettingRecord[];
+  deletingCompanySettingId: number | null;
   isLoading: boolean;
-  isTableBusy: boolean;
   onDelete: (companySetting: AdminCompanySettingRecord) => void;
   onEdit: (companySetting: AdminCompanySettingRecord) => void;
   onPageChange: (page: number) => void;
@@ -650,8 +653,8 @@ function CompanySettingsTable({
                 <CompanySettingRow
                   key={companySetting.id}
                   companySetting={companySetting}
+                  deletingCompanySettingId={deletingCompanySettingId}
                   index={(page - 1) * perPage + index + 1}
-                  isTableBusy={isTableBusy}
                   onDelete={onDelete}
                   onEdit={onEdit}
                 />
@@ -662,7 +665,6 @@ function CompanySettingsTable({
           {paginationMeta ? (
             <Pagination
               meta={paginationMeta}
-              disabled={isTableBusy}
               perPageOptions={PER_PAGE_OPTIONS}
               onPageChange={onPageChange}
               onPerPageChange={onPerPageChange}
@@ -676,17 +678,19 @@ function CompanySettingsTable({
 
 function CompanySettingRow({
   companySetting,
+  deletingCompanySettingId,
   index,
-  isTableBusy,
   onDelete,
   onEdit,
 }: {
   companySetting: AdminCompanySettingRecord;
+  deletingCompanySettingId: number | null;
   index: number;
-  isTableBusy: boolean;
   onDelete: (companySetting: AdminCompanySettingRecord) => void;
   onEdit: (companySetting: AdminCompanySettingRecord) => void;
 }) {
+  const isDeletingCompanySetting = deletingCompanySettingId === companySetting.id;
+
   return (
     <tr className="border-b border-[var(--line)] text-sm text-[var(--foreground)] last:border-0">
       <td className="px-6 py-4 text-[var(--muted)] sm:px-8">{index}</td>
@@ -706,10 +710,10 @@ function CompanySettingRow({
           >
             <Eye className="h-3.5 w-3.5" />
           </Link>
-          <Button as="span" variant="outline" size="icon-sm" aria-label="Edit company" title="Edit" disabled={isTableBusy} onClick={() => onEdit(companySetting)}>
+          <Button as="span" variant="outline" size="icon-sm" aria-label="Edit company" title="Edit" disabled={isDeletingCompanySetting} onClick={() => onEdit(companySetting)}>
             <PencilLine className="h-3.5 w-3.5" />
           </Button>
-          <Button as="span" variant="danger-soft" size="icon-sm" aria-label="Delete company" title="Delete" disabled={isTableBusy} onClick={() => onDelete(companySetting)}>
+          <Button as="span" variant="danger-soft" size="icon-sm" aria-label="Delete company" title="Delete" disabled={isDeletingCompanySetting} onClick={() => onDelete(companySetting)}>
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>

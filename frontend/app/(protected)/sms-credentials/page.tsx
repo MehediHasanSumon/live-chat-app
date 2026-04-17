@@ -86,8 +86,8 @@ function SmsCredentialsPageContent() {
   const [editingCredential, setEditingCredential] = useState<AdminSmsCredentialRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [deletingCredentialId, setDeletingCredentialId] = useState<number | null>(null);
   const isSubmitting = createCredential.isPending || updateCredential.isPending;
-  const isTableBusy = deleteCredential.isPending;
 
   const updateListUrl = useCallback(
     (next: { page?: number; perPage?: number; search?: string; status?: string }) => {
@@ -220,10 +220,13 @@ function SmsCredentialsPageContent() {
     setFormError(null);
 
     try {
+      setDeletingCredentialId(credential.id);
       await deleteCredential.mutateAsync(credential.id);
       if (editingCredential?.id === credential.id) closeForm();
     } catch (submissionError) {
       setFormError(submissionError instanceof ApiClientError ? submissionError.message : "Unable to delete SMS credential right now.");
+    } finally {
+      setDeletingCredentialId(null);
     }
   }
 
@@ -307,12 +310,12 @@ function SmsCredentialsPageContent() {
             <SelectInput value={statusDraft} options={STATUS_OPTIONS} dropdownLabel="Status" onChange={setStatusDraft} />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" className="rounded-full px-5" disabled={isTableBusy}>Search</Button>
+            <Button type="submit" className="rounded-full px-5">Search</Button>
             <Button
               type="button"
               variant="ghost"
               className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white"
-              disabled={isTableBusy || (!search && !searchDraft && !status && !statusDraft)}
+              disabled={!search && !searchDraft && !status && !statusDraft}
               onClick={() => {
                 setSearchDraft("");
                 setStatusDraft("");
@@ -363,10 +366,10 @@ function SmsCredentialsPageContent() {
                         <td className="px-6 py-4 text-[var(--muted)]">{formatDate(credential.updated_at)}</td>
                         <td className="px-6 py-4 sm:px-8">
                           <div className="flex justify-end gap-2">
-                            <Button as="span" variant="outline" size="icon-sm" aria-label="Edit SMS credential" title="Edit" disabled={isTableBusy} onClick={() => openEditForm(credential)}>
+                            <Button as="span" variant="outline" size="icon-sm" aria-label="Edit SMS credential" title="Edit" disabled={deletingCredentialId === credential.id} onClick={() => openEditForm(credential)}>
                               <PencilLine className="h-3.5 w-3.5" />
                             </Button>
-                            <Button as="span" variant="danger-soft" size="icon-sm" aria-label="Delete SMS credential" title="Delete" disabled={isTableBusy} onClick={() => void handleDelete(credential)}>
+                            <Button as="span" variant="danger-soft" size="icon-sm" aria-label="Delete SMS credential" title="Delete" disabled={deletingCredentialId === credential.id} onClick={() => void handleDelete(credential)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -379,7 +382,6 @@ function SmsCredentialsPageContent() {
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
-                  disabled={isTableBusy}
                   perPageOptions={PER_PAGE_OPTIONS}
                   onPageChange={(nextPage) => updateListUrl({ page: nextPage })}
                   onPerPageChange={(nextPerPage) => updateListUrl({ page: DEFAULT_PAGE, perPage: nextPerPage })}

@@ -83,9 +83,9 @@ function CustomersPageContent() {
   const [editingCustomer, setEditingCustomer] = useState<AdminCustomerRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isCustomerSectionOpen, setIsCustomerSectionOpen] = useState(false);
+  const [deletingCustomerId, setDeletingCustomerId] = useState<number | null>(null);
 
   const isSubmitting = createCustomer.isPending || updateCustomer.isPending;
-  const isTableBusy = deleteCustomer.isPending;
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {
@@ -262,6 +262,7 @@ function CustomersPageContent() {
     setFormError(null);
 
     try {
+      setDeletingCustomerId(customer.id);
       await deleteCustomer.mutateAsync(customer.id);
 
       if (editingCustomer?.id === customer.id) {
@@ -274,6 +275,8 @@ function CustomersPageContent() {
       }
 
       setFormError("Unable to delete the customer right now.");
+    } finally {
+      setDeletingCustomerId(null);
     }
   }
 
@@ -385,14 +388,14 @@ function CustomersPageContent() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" className="rounded-full px-5" disabled={isTableBusy}>
+            <Button type="submit" className="rounded-full px-5">
               Search
             </Button>
             <Button
               type="button"
               variant="ghost"
               className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white"
-              disabled={isTableBusy || (!search && !searchDraft)}
+              disabled={!search && !searchDraft}
               onClick={handleClearSearch}
             >
               Clear
@@ -443,7 +446,7 @@ function CustomersPageContent() {
                             size="icon-sm"
                             aria-label="Edit customer"
                             title="Edit"
-                            disabled={isTableBusy}
+                            disabled={deletingCustomerId === customer.id}
                             onClick={() => openEditSection(customer)}
                           >
                             <PencilLine className="h-3.5 w-3.5" />
@@ -454,7 +457,7 @@ function CustomersPageContent() {
                             size="icon-sm"
                             aria-label="Delete customer"
                             title="Delete"
-                            disabled={isTableBusy}
+                            disabled={deletingCustomerId === customer.id}
                             onClick={() => void handleDelete(customer)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -469,7 +472,6 @@ function CustomersPageContent() {
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
-                  disabled={isTableBusy}
                   perPageOptions={PER_PAGE_OPTIONS}
                   onPageChange={(nextPage) => updatePaginationUrl(nextPage)}
                   onPerPageChange={(nextPerPage) => updatePaginationUrl(DEFAULT_PAGE, nextPerPage)}

@@ -91,8 +91,8 @@ function InvoiceSmsTemplatesPageContent() {
   const [editingTemplate, setEditingTemplate] = useState<InvoiceSmsTemplateRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [deletingTemplateId, setDeletingTemplateId] = useState<number | null>(null);
   const isSubmitting = createTemplate.isPending || updateTemplate.isPending;
-  const isTableBusy = deleteTemplate.isPending;
   const allowedVariables = variables.map((variable) => variable.key);
 
   const updateListUrl = useCallback(
@@ -239,10 +239,13 @@ function InvoiceSmsTemplatesPageContent() {
     setFormError(null);
 
     try {
+      setDeletingTemplateId(template.id);
       await deleteTemplate.mutateAsync(template.id);
       if (editingTemplate?.id === template.id) closeForm();
     } catch (submissionError) {
       setFormError(submissionError instanceof ApiClientError ? submissionError.message : "Unable to delete SMS template right now.");
+    } finally {
+      setDeletingTemplateId(null);
     }
   }
 
@@ -337,8 +340,8 @@ function InvoiceSmsTemplatesPageContent() {
             <SelectInput value={statusDraft} options={STATUS_OPTIONS} dropdownLabel="Status" onChange={setStatusDraft} />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" className="rounded-full px-5" disabled={isTableBusy}>Search</Button>
-            <Button type="button" variant="ghost" className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white" disabled={isTableBusy || (!search && !searchDraft && !status && !statusDraft)} onClick={() => { setSearchDraft(""); setStatusDraft(""); updateListUrl({ page: DEFAULT_PAGE, search: "", status: "" }); }}>
+            <Button type="submit" className="rounded-full px-5">Search</Button>
+            <Button type="button" variant="ghost" className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white" disabled={!search && !searchDraft && !status && !statusDraft} onClick={() => { setSearchDraft(""); setStatusDraft(""); updateListUrl({ page: DEFAULT_PAGE, search: "", status: "" }); }}>
               Clear
             </Button>
           </div>
@@ -389,10 +392,10 @@ function InvoiceSmsTemplatesPageContent() {
                         <td className="px-6 py-4 text-[var(--muted)]">{formatDate(template.updated_at)}</td>
                         <td className="px-6 py-4 sm:px-8">
                           <div className="flex justify-end gap-2">
-                            <Button as="span" variant="outline" size="icon-sm" aria-label="Edit SMS template" title="Edit" disabled={isTableBusy} onClick={() => openEditForm(template)}>
+                            <Button as="span" variant="outline" size="icon-sm" aria-label="Edit SMS template" title="Edit" disabled={deletingTemplateId === template.id} onClick={() => openEditForm(template)}>
                               <PencilLine className="h-3.5 w-3.5" />
                             </Button>
-                            <Button as="span" variant="danger-soft" size="icon-sm" aria-label="Delete SMS template" title="Delete" disabled={isTableBusy} onClick={() => void handleDelete(template)}>
+                            <Button as="span" variant="danger-soft" size="icon-sm" aria-label="Delete SMS template" title="Delete" disabled={deletingTemplateId === template.id} onClick={() => void handleDelete(template)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -402,7 +405,7 @@ function InvoiceSmsTemplatesPageContent() {
                   </tbody>
                 </table>
               </div>
-              {paginationMeta ? <Pagination meta={paginationMeta} disabled={isTableBusy} perPageOptions={PER_PAGE_OPTIONS} onPageChange={(nextPage) => updateListUrl({ page: nextPage })} onPerPageChange={(nextPerPage) => updateListUrl({ page: DEFAULT_PAGE, perPage: nextPerPage })} /> : null}
+              {paginationMeta ? <Pagination meta={paginationMeta} perPageOptions={PER_PAGE_OPTIONS} onPageChange={(nextPage) => updateListUrl({ page: nextPage })} onPerPageChange={(nextPerPage) => updateListUrl({ page: DEFAULT_PAGE, perPage: nextPerPage })} /> : null}
             </>
           )}
         </section>

@@ -68,9 +68,9 @@ function PermissionsPageContent() {
   const [editingPermission, setEditingPermission] = useState<AdminPermissionRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isCreateSectionOpen, setIsCreateSectionOpen] = useState(false);
+  const [deletingPermissionId, setDeletingPermissionId] = useState<number | null>(null);
 
   const isSubmitting = createPermission.isPending || updatePermission.isPending;
-  const isTableBusy = deletePermission.isPending;
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {
@@ -185,6 +185,7 @@ function PermissionsPageContent() {
     setFormError(null);
 
     try {
+      setDeletingPermissionId(permission.id);
       await deletePermission.mutateAsync(permission.id);
 
       if (editingPermission?.id === permission.id) {
@@ -197,6 +198,8 @@ function PermissionsPageContent() {
       }
 
       setFormError("Unable to delete the permission right now.");
+    } finally {
+      setDeletingPermissionId(null);
     }
   }
 
@@ -292,14 +295,14 @@ function PermissionsPageContent() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" className="rounded-full px-5" disabled={isTableBusy}>
+            <Button type="submit" className="rounded-full px-5">
               Search
             </Button>
             <Button
               type="button"
               variant="ghost"
               className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white"
-              disabled={isTableBusy || (!search && !searchDraft)}
+              disabled={!search && !searchDraft}
               onClick={handleClearSearch}
             >
               Clear
@@ -348,7 +351,7 @@ function PermissionsPageContent() {
                             size="icon-sm"
                             aria-label="Edit permission"
                             title="Edit"
-                            disabled={isTableBusy}
+                            disabled={deletingPermissionId === permission.id}
                             onClick={() => {
                               setEditingPermission(permission);
                               setName(permission.name);
@@ -364,7 +367,7 @@ function PermissionsPageContent() {
                             size="icon-sm"
                             aria-label="Delete permission"
                             title="Delete"
-                            disabled={isTableBusy}
+                            disabled={deletingPermissionId === permission.id}
                             onClick={() => void handleDelete(permission)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -379,7 +382,6 @@ function PermissionsPageContent() {
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
-                  disabled={isTableBusy}
                   perPageOptions={PER_PAGE_OPTIONS}
                   onPageChange={(nextPage) => updatePaginationUrl(nextPage)}
                   onPerPageChange={(nextPerPage) => updatePaginationUrl(DEFAULT_PAGE, nextPerPage)}

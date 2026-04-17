@@ -90,9 +90,9 @@ function ProductUnitsPageContent() {
   const [editingProductUnit, setEditingProductUnit] = useState<AdminProductUnitRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isProductUnitSectionOpen, setIsProductUnitSectionOpen] = useState(false);
+  const [deletingProductUnitId, setDeletingProductUnitId] = useState<number | null>(null);
 
   const isSubmitting = createProductUnit.isPending || updateProductUnit.isPending;
-  const isTableBusy = deleteProductUnit.isPending;
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {
@@ -267,6 +267,7 @@ function ProductUnitsPageContent() {
     setFormError(null);
 
     try {
+      setDeletingProductUnitId(productUnit.id);
       await deleteProductUnit.mutateAsync(productUnit.id);
 
       if (editingProductUnit?.id === productUnit.id) {
@@ -279,6 +280,8 @@ function ProductUnitsPageContent() {
       }
 
       setFormError("Unable to delete the product unit right now.");
+    } finally {
+      setDeletingProductUnitId(null);
     }
   }
 
@@ -389,14 +392,14 @@ function ProductUnitsPageContent() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" className="rounded-full px-5" disabled={isTableBusy}>
+            <Button type="submit" className="rounded-full px-5">
               Search
             </Button>
             <Button
               type="button"
               variant="ghost"
               className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white"
-              disabled={isTableBusy || (!search && !searchDraft)}
+              disabled={!search && !searchDraft}
               onClick={handleClearSearch}
             >
               Clear
@@ -451,7 +454,7 @@ function ProductUnitsPageContent() {
                             size="icon-sm"
                             aria-label="Edit product unit"
                             title="Edit"
-                            disabled={isTableBusy}
+                            disabled={deletingProductUnitId === productUnit.id}
                             onClick={() => openEditSection(productUnit)}
                           >
                             <PencilLine className="h-3.5 w-3.5" />
@@ -462,7 +465,7 @@ function ProductUnitsPageContent() {
                             size="icon-sm"
                             aria-label="Delete product unit"
                             title="Delete"
-                            disabled={isTableBusy}
+                            disabled={deletingProductUnitId === productUnit.id}
                             onClick={() => void handleDelete(productUnit)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -477,7 +480,6 @@ function ProductUnitsPageContent() {
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
-                  disabled={isTableBusy}
                   perPageOptions={PER_PAGE_OPTIONS}
                   onPageChange={(nextPage) => updatePaginationUrl(nextPage)}
                   onPerPageChange={(nextPerPage) => updatePaginationUrl(DEFAULT_PAGE, nextPerPage)}

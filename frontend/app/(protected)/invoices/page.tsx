@@ -11,6 +11,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Pagination } from "@/components/ui/pagination";
 import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
+import { ApiClientError } from "@/lib/api-client";
 import {
   AdminInvoiceRecord,
   InvoicePaymentStatus,
@@ -21,6 +22,7 @@ import {
   useDeleteAdminInvoiceMutation,
   useResendAdminInvoiceSmsMutation,
 } from "@/lib/hooks/use-admin-invoices";
+import { pushToast } from "@/lib/stores/toast-store";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE = 1;
@@ -187,8 +189,8 @@ function InvoicesPageContent() {
   const paginationMeta = invoicesResponse?.meta;
   const [filterDraft, setFilterDraft] = useState<InvoiceFilterState>(filters);
   const [filterError, setFilterError] = useState<string | null>(null);
+  const [deletingInvoiceId, setDeletingInvoiceId] = useState<number | null>(null);
   const [resendingInvoiceId, setResendingInvoiceId] = useState<number | null>(null);
-  const isTableBusy = isLoading || deleteInvoice.isPending || resendInvoiceSms.isPending;
   const filtersAreActive = hasActiveFilters(filters);
 
   const updatePaginationUrl = useCallback(
@@ -324,16 +326,44 @@ function InvoicesPageContent() {
       return;
     }
 
-    await deleteInvoice.mutateAsync(invoice.id);
+    setDeletingInvoiceId(invoice.id);
+
+    try {
+      await deleteInvoice.mutateAsync(invoice.id);
+    } finally {
+      setDeletingInvoiceId(null);
+    }
   }
 
   async function handleResendSms(invoice: AdminInvoiceRecord) {
     setResendingInvoiceId(invoice.id);
 
     try {
-      await resendInvoiceSms.mutateAsync(invoice.id);
-    } catch {
-      window.alert("Unable to resend SMS right now.");
+      const response = await resendInvoiceSms.mutateAsync(invoice.id);
+
+      if (response.sms_log?.status === "sent") {
+        pushToast({
+          kind: "crud",
+          tone: "success",
+          title: "SMS sent",
+          message: `Invoice ${invoice.invoice_no} SMS sent successfully.`,
+        });
+        return;
+      }
+
+      pushToast({
+        kind: "crud",
+        tone: "error",
+        title: "SMS send failed",
+        message: `Invoice ${invoice.invoice_no} SMS could not be sent.`,
+      });
+    } catch (submissionError) {
+      pushToast({
+        kind: "crud",
+        tone: "error",
+        title: "SMS send failed",
+        message: submissionError instanceof ApiClientError ? submissionError.message : "Unable to resend SMS right now.",
+      });
     } finally {
       setResendingInvoiceId(null);
     }
@@ -478,11 +508,9 @@ function InvoicesPageContent() {
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm font-medium uppercase text-[#2d3150]">{invoice.payment_type}</p>
-                        <p className="mt-1 text-xs capitalize text-[var(--muted)]">{invoice.payment_status}</p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="font-medium text-[#2d3150]">BDT {formatMoney(invoice.total_amount)}</p>
-                        <p className="mt-1 text-xs text-[var(--muted)]">Due BDT {formatMoney(invoice.due_amount)}</p>
                       </td>
                       <td className="px-6 py-4">
                         <span
@@ -500,7 +528,6 @@ function InvoicesPageContent() {
                         <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize", smsStatusClassName(invoice.sms_status))}>
                           {formatSmsStatus(invoice.sms_status)}
                         </span>
-                        {invoice.sms_sent_at ? <p className="mt-1 text-xs text-[var(--muted)]">{formatDateTime(invoice.sms_sent_at)}</p> : null}
                       </td>
                       <td className="px-6 py-4 text-[var(--muted)]">{formatDateTime(invoice.invoice_datetime)}</td>
                       <td className="px-6 py-4 sm:px-8">
@@ -511,7 +538,7 @@ function InvoicesPageContent() {
                             size="icon-sm"
                             aria-label="Resend SMS"
                             title={resendingInvoiceId === invoice.id ? "Sending SMS" : "Resend SMS"}
-                            disabled={isTableBusy}
+                            disabled={resendingInvoiceId === invoice.id || deletingInvoiceId === invoice.id}
                             onClick={() => void handleResendSms(invoice)}
                           >
                             <Send className="h-3.5 w-3.5" />
@@ -538,7 +565,7 @@ function InvoicesPageContent() {
                             size="icon-sm"
                             aria-label="Delete invoice"
                             title="Delete"
-                            disabled={isTableBusy}
+                            disabled={deletingInvoiceId === invoice.id || resendingInvoiceId === invoice.id}
                             onClick={() => void handleDelete(invoice)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />

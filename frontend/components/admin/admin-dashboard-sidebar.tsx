@@ -31,6 +31,7 @@ type DropdownItem = {
 };
 
 type DropdownOpenState = "auto" | "open" | "closed";
+type SidebarDropdownKey = "invoice" | "business" | "userManagement" | "logs" | "settings";
 
 const mainItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: House },
@@ -286,6 +287,19 @@ export function AdminDashboardSidebar({
   const logsOpen = logsOpenState === "open" || (logsOpenState === "auto" && logsHasActiveItem);
   const settingsOpen = settingsOpenState === "open" || (settingsOpenState === "auto" && settingsHasActiveItem);
 
+  function toggleDropdown(key: SidebarDropdownKey, nextOpen: boolean) {
+    setInvoiceOpenState(key === "invoice" ? (nextOpen ? "open" : "closed") : "closed");
+    setBusinessOpenState(key === "business" ? (nextOpen ? "open" : "closed") : "closed");
+    setUserManagementOpenState(key === "userManagement" ? (nextOpen ? "open" : "closed") : "closed");
+    setLogsOpenState(key === "logs" ? (nextOpen ? "open" : "closed") : "closed");
+    setSettingsOpenState(key === "settings" ? (nextOpen ? "open" : "closed") : "closed");
+    setIsInvoiceHoverOpen(false);
+    setIsBusinessHoverOpen(false);
+    setIsUserManagementHoverOpen(false);
+    setIsLogsHoverOpen(false);
+    setIsSettingsHoverOpen(false);
+  }
+
   return (
     <>
       <div
@@ -351,7 +365,7 @@ export function AdminDashboardSidebar({
             isCollapsed={isCollapsed}
             isOpen={invoiceOpen}
             isHoverOpen={isInvoiceHoverOpen}
-            onToggle={() => setInvoiceOpenState(invoiceOpen ? "closed" : "open")}
+            onToggle={() => toggleDropdown("invoice", !invoiceOpen)}
             onHoverChange={setIsInvoiceHoverOpen}
             onNavigate={onCloseMobile}
             onExpandDesktop={onExpandDesktop}
@@ -365,7 +379,7 @@ export function AdminDashboardSidebar({
             isCollapsed={isCollapsed}
             isOpen={businessOpen}
             isHoverOpen={isBusinessHoverOpen}
-            onToggle={() => setBusinessOpenState(businessOpen ? "closed" : "open")}
+            onToggle={() => toggleDropdown("business", !businessOpen)}
             onHoverChange={setIsBusinessHoverOpen}
             onNavigate={onCloseMobile}
             onExpandDesktop={onExpandDesktop}
@@ -379,7 +393,7 @@ export function AdminDashboardSidebar({
             isCollapsed={isCollapsed}
             isOpen={userManagementOpen}
             isHoverOpen={isUserManagementHoverOpen}
-            onToggle={() => setUserManagementOpenState(userManagementOpen ? "closed" : "open")}
+            onToggle={() => toggleDropdown("userManagement", !userManagementOpen)}
             onHoverChange={setIsUserManagementHoverOpen}
             onNavigate={onCloseMobile}
             onExpandDesktop={onExpandDesktop}
@@ -393,7 +407,7 @@ export function AdminDashboardSidebar({
             isCollapsed={isCollapsed}
             isOpen={logsOpen}
             isHoverOpen={isLogsHoverOpen}
-            onToggle={() => setLogsOpenState(logsOpen ? "closed" : "open")}
+            onToggle={() => toggleDropdown("logs", !logsOpen)}
             onHoverChange={setIsLogsHoverOpen}
             onNavigate={onCloseMobile}
             onExpandDesktop={onExpandDesktop}
@@ -407,7 +421,7 @@ export function AdminDashboardSidebar({
             isCollapsed={isCollapsed}
             isOpen={settingsOpen}
             isHoverOpen={isSettingsHoverOpen}
-            onToggle={() => setSettingsOpenState(settingsOpen ? "closed" : "open")}
+            onToggle={() => toggleDropdown("settings", !settingsOpen)}
             onHoverChange={setIsSettingsHoverOpen}
             onNavigate={onCloseMobile}
             onExpandDesktop={onExpandDesktop}

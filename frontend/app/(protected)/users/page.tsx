@@ -98,9 +98,9 @@ function UsersPageContent() {
   const [editingUser, setEditingUser] = useState<AdminUserRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isUserSectionOpen, setIsUserSectionOpen] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
 
   const isSubmitting = createUser.isPending || updateUser.isPending;
-  const isTableBusy = deleteUser.isPending;
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {
@@ -321,6 +321,7 @@ function UsersPageContent() {
     setFormError(null);
 
     try {
+      setDeletingUserId(user.id);
       await deleteUser.mutateAsync(user.id);
 
       if (editingUser?.id === user.id) {
@@ -333,6 +334,8 @@ function UsersPageContent() {
       }
 
       setFormError("Unable to delete the user right now.");
+    } finally {
+      setDeletingUserId(null);
     }
   }
 
@@ -566,14 +569,14 @@ function UsersPageContent() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" className="rounded-full px-5" disabled={isTableBusy}>
+            <Button type="submit" className="rounded-full px-5">
               Search
             </Button>
             <Button
               type="button"
               variant="ghost"
               className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white"
-              disabled={isTableBusy || (!search && !searchDraft)}
+              disabled={!search && !searchDraft}
               onClick={handleClearSearch}
             >
               Clear
@@ -659,7 +662,7 @@ function UsersPageContent() {
                             size="icon-sm"
                             aria-label="Edit user"
                             title="Edit"
-                            disabled={isTableBusy}
+                            disabled={deletingUserId === user.id}
                             onClick={() => openEditSection(user)}
                           >
                             <PencilLine className="h-3.5 w-3.5" />
@@ -670,7 +673,7 @@ function UsersPageContent() {
                             size="icon-sm"
                             aria-label="Delete user"
                             title="Delete"
-                            disabled={isTableBusy}
+                            disabled={deletingUserId === user.id}
                             onClick={() => void handleDelete(user)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -685,7 +688,6 @@ function UsersPageContent() {
               {paginationMeta ? (
                 <Pagination
                   meta={paginationMeta}
-                  disabled={isTableBusy}
                   perPageOptions={PER_PAGE_OPTIONS}
                   onPageChange={(nextPage) => updatePaginationUrl(nextPage)}
                   onPerPageChange={(nextPerPage) => updatePaginationUrl(DEFAULT_PAGE, nextPerPage)}
