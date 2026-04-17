@@ -81,24 +81,24 @@ export default function InvoiceDetailsPage() {
               <Button
                 as="span"
                 variant="outline"
-                size="xs"
-                className="h-9 px-4 text-sm"
+                size="icon-sm"
+                aria-label="Edit invoice"
+                title="Edit"
                 aria-disabled={!invoice}
               >
                 <PencilLine className="h-3.5 w-3.5" />
-                Edit
               </Button>
             </Link>
             <Button
               as="span"
               variant="danger-soft"
-              size="xs"
-              className="h-9 px-4 text-sm"
+              size="icon-sm"
+              aria-label="Delete invoice"
+              title="Delete"
               disabled={!invoice || deleteInvoice.isPending}
               onClick={() => void handleDelete()}
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Delete
             </Button>
           </div>
         </div>

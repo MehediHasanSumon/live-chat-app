@@ -609,22 +609,24 @@ function ProductPricesPageContent() {
                           <Button
                             as="span"
                             variant="outline"
-                            size="xs"
+                            size="icon-sm"
+                            aria-label="Edit product price"
+                            title="Edit"
                             disabled={isTableBusy}
                             onClick={() => openEditSection(productPrice)}
                           >
                             <PencilLine className="h-3.5 w-3.5" />
-                            Edit
                           </Button>
                           <Button
                             as="span"
                             variant="danger-soft"
-                            size="xs"
+                            size="icon-sm"
+                            aria-label="Delete product price"
+                            title="Delete"
                             disabled={isTableBusy}
                             onClick={() => void handleDelete(productPrice)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                            Delete
                           </Button>
                         </div>
                       </td>

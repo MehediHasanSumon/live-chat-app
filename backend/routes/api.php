@@ -172,6 +172,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/admin/invoices/statements/monthly', [AdminInvoiceController::class, 'monthlyStatement']);
     Route::get('/admin/invoices', [AdminInvoiceController::class, 'index']);
     Route::post('/admin/invoices', [AdminInvoiceController::class, 'store']);
+    Route::post('/admin/invoices/{invoice}/resend-sms', [AdminInvoiceController::class, 'resendSms']);
     Route::get('/admin/invoices/{invoice}', [AdminInvoiceController::class, 'show']);
     Route::patch('/admin/invoices/{invoice}', [AdminInvoiceController::class, 'update']);
     Route::delete('/admin/invoices/{invoice}', [AdminInvoiceController::class, 'destroy']);

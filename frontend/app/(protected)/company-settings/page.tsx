@@ -700,18 +700,17 @@ function CompanySettingRow({
         <div className="flex justify-end gap-2">
           <Link
             href={`/company-settings/${companySetting.id}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-[var(--line)] bg-white px-3 text-xs font-medium text-[var(--foreground)] transition hover:bg-white"
+            aria-label="Company details"
+            title="Details"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--line)] bg-white text-xs font-medium text-[var(--foreground)] transition hover:bg-white"
           >
             <Eye className="h-3.5 w-3.5" />
-            Details
           </Link>
-          <Button as="span" variant="outline" size="xs" disabled={isTableBusy} onClick={() => onEdit(companySetting)}>
+          <Button as="span" variant="outline" size="icon-sm" aria-label="Edit company" title="Edit" disabled={isTableBusy} onClick={() => onEdit(companySetting)}>
             <PencilLine className="h-3.5 w-3.5" />
-            Edit
           </Button>
-          <Button as="span" variant="danger-soft" size="xs" disabled={isTableBusy} onClick={() => onDelete(companySetting)}>
+          <Button as="span" variant="danger-soft" size="icon-sm" aria-label="Delete company" title="Delete" disabled={isTableBusy} onClick={() => onDelete(companySetting)}>
             <Trash2 className="h-3.5 w-3.5" />
-            Delete
           </Button>
         </div>
       </td>

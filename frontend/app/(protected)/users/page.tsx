@@ -656,22 +656,24 @@ function UsersPageContent() {
                           <Button
                             as="span"
                             variant="outline"
-                            size="xs"
+                            size="icon-sm"
+                            aria-label="Edit user"
+                            title="Edit"
                             disabled={isTableBusy}
                             onClick={() => openEditSection(user)}
                           >
                             <PencilLine className="h-3.5 w-3.5" />
-                            Edit
                           </Button>
                           <Button
                             as="span"
                             variant="danger-soft"
-                            size="xs"
+                            size="icon-sm"
+                            aria-label="Delete user"
+                            title="Delete"
                             disabled={isTableBusy}
                             onClick={() => void handleDelete(user)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                            Delete
                           </Button>
                         </div>
                       </td>

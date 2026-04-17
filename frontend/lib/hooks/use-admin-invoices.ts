@@ -8,6 +8,7 @@ import { queryKeys } from "@/lib/query-keys";
 export type InvoicePaymentType = "due" | "cash" | "pos";
 export type InvoicePaymentStatus = "unpaid" | "partial" | "paid";
 export type InvoiceStatus = "draft" | "submitted" | "cancelled";
+export type InvoiceSmsStatus = "not_sent" | "pending" | "sent" | "failed";
 
 export type AdminInvoiceCustomer = {
   id: number;
@@ -30,6 +31,14 @@ export type AdminInvoiceItem = {
   line_total: string;
 };
 
+export type AdminInvoiceSmsLogSummary = {
+  id: number;
+  mobile: string | null;
+  status: Exclude<InvoiceSmsStatus, "not_sent">;
+  sent_at: string | null;
+  created_at: string | null;
+};
+
 export type AdminInvoiceRecord = {
   id: number;
   invoice_no: string;
@@ -43,6 +52,9 @@ export type AdminInvoiceRecord = {
   paid_amount: string;
   due_amount: string;
   sms_enabled: boolean;
+  sms_status: InvoiceSmsStatus;
+  sms_sent_at: string | null;
+  sms_logs: AdminInvoiceSmsLogSummary[];
   status: InvoiceStatus;
   items: AdminInvoiceItem[];
   created_at: string | null;
@@ -73,6 +85,11 @@ export type InvoicesResponse = {
 
 type InvoiceResponse = {
   data: AdminInvoiceRecord;
+};
+
+type InvoiceSmsResendResponse = {
+  data: AdminInvoiceRecord;
+  sms_log: AdminInvoiceSmsLogSummary | null;
 };
 
 type InvoiceNumberResponse = {
@@ -380,7 +397,7 @@ export function useCreateAdminInvoiceMutation() {
     mutationFn: (payload: InvoicePayload) => apiClient.post<InvoiceResponse>("/api/admin/invoices", payload, { skipAuthRedirect: true }),
     onSuccess: async (response) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.admin.invoices.all });
-      queryClient.setQueryData(queryKeys.admin.invoices.detail(response.data.id), response.data);
+      queryClient.setQueryData(queryKeys.admin.invoices.detail(response.data.id), response);
     },
   });
 }
@@ -393,7 +410,23 @@ export function useUpdateAdminInvoiceMutation() {
       apiClient.patch<InvoiceResponse>(`/api/admin/invoices/${invoiceId}`, payload, { skipAuthRedirect: true }),
     onSuccess: async (response) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.admin.invoices.all });
-      queryClient.setQueryData(queryKeys.admin.invoices.detail(response.data.id), response.data);
+      queryClient.setQueryData(queryKeys.admin.invoices.detail(response.data.id), response);
+    },
+  });
+}
+
+export function useResendAdminInvoiceSmsMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (invoiceId: number | string) =>
+      apiClient.post<InvoiceSmsResendResponse>(`/api/admin/invoices/${invoiceId}/resend-sms`, {}, { skipAuthRedirect: true }),
+    onSuccess: async (response) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.invoices.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.invoiceSmsLogs.all }),
+      ]);
+      queryClient.setQueryData(queryKeys.admin.invoices.detail(response.data.id), { data: response.data });
     },
   });
 }

@@ -345,7 +345,9 @@ function PermissionsPageContent() {
                           <Button
                             as="span"
                             variant="outline"
-                            size="xs"
+                            size="icon-sm"
+                            aria-label="Edit permission"
+                            title="Edit"
                             disabled={isTableBusy}
                             onClick={() => {
                               setEditingPermission(permission);
@@ -355,17 +357,17 @@ function PermissionsPageContent() {
                             }}
                           >
                             <PencilLine className="h-3.5 w-3.5" />
-                            Edit
                           </Button>
                           <Button
                             as="span"
                             variant="danger-soft"
-                            size="xs"
+                            size="icon-sm"
+                            aria-label="Delete permission"
+                            title="Delete"
                             disabled={isTableBusy}
                             onClick={() => void handleDelete(permission)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                            Delete
                           </Button>
                         </div>
                       </td>

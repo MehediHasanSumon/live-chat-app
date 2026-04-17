@@ -389,11 +389,11 @@ function InvoiceSmsTemplatesPageContent() {
                         <td className="px-6 py-4 text-[var(--muted)]">{formatDate(template.updated_at)}</td>
                         <td className="px-6 py-4 sm:px-8">
                           <div className="flex justify-end gap-2">
-                            <Button as="span" variant="outline" size="xs" disabled={isTableBusy} onClick={() => openEditForm(template)}>
-                              <PencilLine className="h-3.5 w-3.5" /> Edit
+                            <Button as="span" variant="outline" size="icon-sm" aria-label="Edit SMS template" title="Edit" disabled={isTableBusy} onClick={() => openEditForm(template)}>
+                              <PencilLine className="h-3.5 w-3.5" />
                             </Button>
-                            <Button as="span" variant="danger-soft" size="xs" disabled={isTableBusy} onClick={() => void handleDelete(template)}>
-                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            <Button as="span" variant="danger-soft" size="icon-sm" aria-label="Delete SMS template" title="Delete" disabled={isTableBusy} onClick={() => void handleDelete(template)}>
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </td>

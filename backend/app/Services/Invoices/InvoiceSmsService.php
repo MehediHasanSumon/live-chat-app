@@ -11,9 +11,9 @@ use Throwable;
 
 class InvoiceSmsService
 {
-    public function sendInvoiceCreatedNotification(Invoice $invoice): ?InvoiceSmsLog
+    public function sendInvoiceCreatedNotification(Invoice $invoice, bool $force = false): ?InvoiceSmsLog
     {
-        if (! $invoice->sms_enabled) {
+        if (! $invoice->sms_enabled && ! $force) {
             return null;
         }
 

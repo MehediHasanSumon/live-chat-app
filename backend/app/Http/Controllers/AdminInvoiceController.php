@@ -40,7 +40,7 @@ class AdminInvoiceController extends Controller
         $perPage = (int) ($validated['per_page'] ?? 10);
         $search = trim((string) ($validated['search'] ?? ''));
         $invoices = Invoice::query()
-            ->with(['customer', 'items.product', 'items.unit'])
+            ->with(['customer', 'items.product', 'items.unit', 'smsLogs'])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
                     $query
@@ -268,6 +268,22 @@ class AdminInvoiceController extends Controller
         return response()->json([], 204);
     }
 
+    public function resendSms(Invoice $invoice): JsonResponse
+    {
+        $log = $this->invoiceSmsService->sendInvoiceCreatedNotification($invoice, force: true);
+
+        return response()->json([
+            'data' => $this->serializeInvoice($invoice->fresh(['customer', 'items.product', 'items.unit', 'smsLogs'])),
+            'sms_log' => $log ? [
+                'id' => $log->id,
+                'mobile' => $log->mobile,
+                'status' => $log->status,
+                'sent_at' => $log->sent_at?->toIso8601String(),
+                'created_at' => $log->created_at?->toIso8601String(),
+            ] : null,
+        ]);
+    }
+
     protected function rules(?Invoice $invoice = null): array
     {
         return [
@@ -457,6 +473,8 @@ class AdminInvoiceController extends Controller
                 'quantity' => $item->quantity,
                 'line_total' => $item->line_total,
             ])->values(),
+            'sms_status' => $this->resolveSmsStatus($invoice),
+            'sms_sent_at' => $this->resolveSmsSentAt($invoice),
             'sms_logs' => $invoice->relationLoaded('smsLogs') ? $invoice->smsLogs->map(fn ($log): array => [
                 'id' => $log->id,
                 'mobile' => $log->mobile,
@@ -467,6 +485,37 @@ class AdminInvoiceController extends Controller
             'created_at' => $invoice->created_at?->toIso8601String(),
             'updated_at' => $invoice->updated_at?->toIso8601String(),
         ];
+    }
+
+    protected function resolveSmsStatus(Invoice $invoice): string
+    {
+        if (! $invoice->relationLoaded('smsLogs') || $invoice->smsLogs->isEmpty()) {
+            return 'not_sent';
+        }
+
+        if ($invoice->smsLogs->contains(fn ($log): bool => $log->status === 'sent')) {
+            return 'sent';
+        }
+
+        if ($invoice->smsLogs->contains(fn ($log): bool => $log->status === 'pending')) {
+            return 'pending';
+        }
+
+        return 'failed';
+    }
+
+    protected function resolveSmsSentAt(Invoice $invoice): ?string
+    {
+        if (! $invoice->relationLoaded('smsLogs')) {
+            return null;
+        }
+
+        $sentLog = $invoice->smsLogs
+            ->filter(fn ($log): bool => $log->status === 'sent' && $log->sent_at !== null)
+            ->sortByDesc('sent_at')
+            ->first();
+
+        return $sentLog?->sent_at?->toIso8601String();
     }
 
     protected function resolveStatementRange(array $validated, Carbon $defaultStart, Carbon $defaultEnd): array

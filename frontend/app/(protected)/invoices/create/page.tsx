@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 
 import { InvoiceSummaryData } from "@/components/admin/invoice-summary";
 import { Button } from "@/components/ui/button";
+import { CheckboxInput } from "@/components/ui/checkbox-input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { RadioInput } from "@/components/ui/radio-input";
 import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
@@ -38,6 +39,7 @@ type InvoiceItemFormState = {
   id: string;
   product_price_id: string;
   quantity: string;
+  line_total: string;
 };
 
 const mobilePattern = /^[0-9+\-\s()]+$/;
@@ -71,6 +73,7 @@ function createEmptyItem(): InvoiceItemFormState {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     product_price_id: "",
     quantity: "1",
+    line_total: "",
   };
 }
 
@@ -96,6 +99,7 @@ function createItemsFromInvoice(invoice: AdminInvoiceRecord): InvoiceItemFormSta
       id: `invoice-item-${item.id}`,
       product_price_id: String(item.product_price_id),
       quantity: item.quantity,
+      line_total: item.line_total,
     }));
 
   return invoiceItems.length > 0 ? invoiceItems : [createEmptyItem()];
@@ -113,6 +117,18 @@ function toNumber(value: string) {
   const numericValue = Number(value);
 
   return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function formatCalculatedAmount(value: number) {
+  return Number.isFinite(value) ? value.toFixed(2) : "";
+}
+
+function formatCalculatedQuantity(value: number) {
+  if (!Number.isFinite(value)) {
+    return "";
+  }
+
+  return value.toFixed(2);
 }
 
 function normalizeLookupValue(value: string | null) {
@@ -142,6 +158,8 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [isDiscountInputOpen, setIsDiscountInputOpen] = useState(false);
   const [discountDraft, setDiscountDraft] = useState("0");
+  const [pendingCreatePayload, setPendingCreatePayload] = useState<InvoicePayload | null>(null);
+  const [shouldSendSms, setShouldSendSms] = useState(false);
   const isSubmitting = createInvoice.isPending || updateInvoice.isPending;
   const customerLookupTerm = useMemo(() => form.customer_mobile.trim() || form.vehicle_no.trim(), [form.customer_mobile, form.vehicle_no]);
   const { data: customerMatches = [] } = useAdminCustomerOptionsQuery(customerLookupTerm, customerLookupTerm.length >= 2);
@@ -212,6 +230,7 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
         const price = priceById.get(item.product_price_id);
         const quantity = toNumber(item.quantity);
         const sellPrice = toNumber(price?.sell_price ?? "0");
+        const lineTotal = item.line_total.trim() ? toNumber(item.line_total) : sellPrice * quantity;
 
         if (!price) {
           return null;
@@ -222,7 +241,7 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
           unitName: price.unit?.unit_name ?? null,
           price: sellPrice,
           quantity,
-          lineTotal: sellPrice * quantity,
+          lineTotal,
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -297,16 +316,77 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
     });
   }
 
-  function updateItemValue(index: number, key: keyof InvoiceItemFormState, value: string) {
+  function updateItemProduct(index: number, productPriceId: string) {
     setItems((current) =>
       current.map((item, itemIndex) => {
         if (itemIndex !== index) {
           return item;
         }
 
+        const price = priceById.get(productPriceId);
+        const sellPrice = toNumber(price?.sell_price ?? "0");
+        const quantity = Number(item.quantity);
+        const total = Number(item.line_total);
+
+        if (price && Number.isFinite(quantity) && quantity > 0) {
+          return {
+            ...item,
+            product_price_id: productPriceId,
+            line_total: formatCalculatedAmount(sellPrice * quantity),
+          };
+        }
+
+        if (price && Number.isFinite(total) && total > 0 && sellPrice > 0) {
+          return {
+            ...item,
+            product_price_id: productPriceId,
+            quantity: formatCalculatedQuantity(total / sellPrice),
+          };
+        }
+
         return {
           ...item,
-          [key]: value,
+          product_price_id: productPriceId,
+        };
+      }),
+    );
+  }
+
+  function updateItemQuantity(index: number, value: string) {
+    setItems((current) =>
+      current.map((item, itemIndex) => {
+        if (itemIndex !== index) {
+          return item;
+        }
+
+        const price = priceById.get(item.product_price_id);
+        const sellPrice = toNumber(price?.sell_price ?? "0");
+        const quantity = Number(value);
+
+        return {
+          ...item,
+          quantity: value,
+          line_total: price && Number.isFinite(quantity) && quantity > 0 ? formatCalculatedAmount(sellPrice * quantity) : "",
+        };
+      }),
+    );
+  }
+
+  function updateItemLineTotal(index: number, value: string) {
+    setItems((current) =>
+      current.map((item, itemIndex) => {
+        if (itemIndex !== index) {
+          return item;
+        }
+
+        const price = priceById.get(item.product_price_id);
+        const sellPrice = toNumber(price?.sell_price ?? "0");
+        const lineTotal = Number(value);
+
+        return {
+          ...item,
+          line_total: value,
+          quantity: price && sellPrice > 0 && Number.isFinite(lineTotal) && lineTotal > 0 ? formatCalculatedQuantity(lineTotal / sellPrice) : "",
         };
       }),
     );
@@ -411,7 +491,7 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
     return null;
   }
 
-  function buildPayload(): InvoicePayload {
+  function buildPayload(smsEnabled = false): InvoicePayload {
     const payloadItems = items.map((item) => {
       const price = priceById.get(item.product_price_id);
 
@@ -433,7 +513,7 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
       payment_type: form.payment_type,
       paid_amount: form.payment_type === "due" ? 0 : null,
       discount_amount: invoiceSummary.discountAmount,
-      sms_enabled: false,
+      sms_enabled: smsEnabled,
       status: "submitted",
       items: payloadItems,
     };
@@ -451,6 +531,13 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
     return payload;
   }
 
+  async function submitPayload(payload: InvoicePayload) {
+    const response = invoice
+      ? await updateInvoice.mutateAsync({ invoiceId: invoice.id, payload })
+      : await createInvoice.mutateAsync(payload);
+    router.push(`/invoices/${response.data.id}`);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
@@ -464,10 +551,13 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
 
     try {
       const payload = buildPayload();
-      const response = invoice
-        ? await updateInvoice.mutateAsync({ invoiceId: invoice.id, payload })
-        : await createInvoice.mutateAsync(payload);
-      router.push(`/invoices/${response.data.id}`);
+      if (!invoice) {
+        setPendingCreatePayload(payload);
+        setShouldSendSms(false);
+        return;
+      }
+
+      await submitPayload(payload);
     } catch (submissionError) {
       if (submissionError instanceof ApiClientError) {
         setFormError(
@@ -486,6 +576,39 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
       }
 
       setFormError(`Unable to ${isEditing ? "update" : "submit"} the invoice right now.`);
+    }
+  }
+
+  async function confirmCreateInvoice() {
+    if (!pendingCreatePayload) {
+      return;
+    }
+
+    setFormError(null);
+
+    try {
+      await submitPayload({
+        ...pendingCreatePayload,
+        sms_enabled: shouldSendSms,
+      });
+    } catch (submissionError) {
+      if (submissionError instanceof ApiClientError) {
+        setFormError(
+          submissionError.errors?.invoice_no?.[0] ??
+            submissionError.errors?.invoice_datetime?.[0] ??
+            submissionError.errors?.customer_id?.[0] ??
+            submissionError.errors?.["customer.name"]?.[0] ??
+            submissionError.errors?.["customer.mobile"]?.[0] ??
+            submissionError.errors?.["customer.vehicle_no"]?.[0] ??
+            submissionError.errors?.payment_type?.[0] ??
+            submissionError.errors?.discount_amount?.[0] ??
+            submissionError.errors?.items?.[0] ??
+            submissionError.message,
+        );
+      } else {
+        setFormError("Unable to submit the invoice right now.");
+      }
+      setPendingCreatePayload(null);
     }
   }
 
@@ -593,10 +716,6 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
 
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4 pr-3">
                   {items.map((item, index) => {
-                    const price = priceById.get(item.product_price_id);
-                    const quantity = toNumber(item.quantity);
-                    const sellPrice = toNumber(price?.sell_price ?? "0");
-
                     return (
                       <div key={item.id} className="grid gap-3 rounded-lg border border-[var(--line)] bg-white p-3 md:grid-cols-[1fr_120px_130px_34px]">
                         <div>
@@ -605,7 +724,7 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
                             value={item.product_price_id}
                             options={productPriceSelectOptions}
                             dropdownLabel="Products"
-                            onChange={(nextValue) => updateItemValue(index, "product_price_id", nextValue)}
+                            onChange={(nextValue) => updateItemProduct(index, nextValue)}
                             disabled={isFormBusy}
                           />
                         </div>
@@ -614,19 +733,25 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
                           <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Quantity</label>
                           <TextInput
                             type="number"
-                            min="0.0001"
-                            step="0.0001"
+                            min="0"
+                            step="0.01"
                             value={item.quantity}
-                            onChange={(event) => updateItemValue(index, "quantity", event.target.value)}
+                            onChange={(event) => updateItemQuantity(index, event.target.value)}
                             disabled={isSubmitting}
                           />
                         </div>
 
                         <div>
-                          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Total</label>
-                          <div className="pill-input flex h-9 items-center px-3 text-sm font-semibold text-[#2d3150]">
-                            BDT {(sellPrice * quantity).toFixed(2)}
-                          </div>
+                          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Total (BDT)</label>
+                          <TextInput
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={item.line_total}
+                            onChange={(event) => updateItemLineTotal(index, event.target.value)}
+                            disabled={isSubmitting}
+                          />
                         </div>
 
                         <div className="flex items-end justify-end">
@@ -754,6 +879,101 @@ export function InvoiceFormPage({ invoice }: InvoiceFormPageProps) {
           </div>
         </form>
       </section>
+
+      {pendingCreatePayload ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(35,37,58,0.28)] px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="invoice-confirm-title">
+          <div className="w-full max-w-[560px] overflow-hidden rounded-[1rem] border border-[var(--line)] bg-white text-[var(--foreground)] shadow-[0_24px_60px_rgba(35,37,58,0.16)]">
+            <div className="border-b border-[var(--line)] px-5 py-4">
+              <h2 id="invoice-confirm-title" className="text-lg font-semibold text-[#1f2440]">Confirm Invoice</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">Review invoice details before creating this invoice.</p>
+            </div>
+
+            <div className="max-h-[calc(100vh-220px)] space-y-4 overflow-y-auto px-5 py-5">
+              <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <p>
+                  <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Invoice</span>
+                  <span className="mt-1 block font-semibold text-[#2d3150]">{invoiceSummary.invoiceNo}</span>
+                </p>
+                <p>
+                  <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Total</span>
+                  <span className="mt-1 block font-semibold text-[#2d3150]">BDT {invoiceSummary.totalAmount.toFixed(2)}</span>
+                </p>
+                <p>
+                  <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Customer</span>
+                  <span className="mt-1 block font-semibold text-[#2d3150]">{invoiceSummary.customerName}</span>
+                </p>
+                <p>
+                  <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Mobile</span>
+                  <span className="mt-1 block font-semibold text-[#2d3150]">{invoiceSummary.customerMobile ?? "-"}</span>
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-[var(--line)]">
+                <div className="grid grid-cols-[1fr_84px_110px] gap-3 border-b border-[var(--line)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+                  <span>Product</span>
+                  <span className="text-right">Qty</span>
+                  <span className="text-right">Total</span>
+                </div>
+
+                <div className="divide-y divide-[var(--line)]">
+                  {invoiceSummary.items.map((item, itemIndex) => (
+                    <div key={`${item.productName}-${itemIndex}`} className="grid grid-cols-[1fr_84px_110px] gap-3 px-3 py-2 text-sm">
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-[#2d3150]">{item.productName}</span>
+                        {item.unitName ? <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">{item.unitName}</span> : null}
+                      </span>
+                      <span className="text-right font-semibold text-[#2d3150]">{item.quantity.toFixed(2)}</span>
+                      <span className="text-right font-semibold text-[#2d3150]">BDT {item.lineTotal.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2 border-t border-[var(--line)] bg-[var(--accent-soft)] px-3 py-3 text-sm">
+                  <p className="flex items-center justify-between text-[var(--muted)]">
+                    <span>Subtotal</span>
+                    <span>BDT {invoiceSummary.subtotalAmount.toFixed(2)}</span>
+                  </p>
+                  <p className="flex items-center justify-between text-[var(--muted)]">
+                    <span>Discount</span>
+                    <span>BDT {invoiceSummary.discountAmount.toFixed(2)}</span>
+                  </p>
+                  <p className="flex items-center justify-between font-semibold text-[#1f2440]">
+                    <span>Total</span>
+                    <span>BDT {invoiceSummary.totalAmount.toFixed(2)}</span>
+                  </p>
+                </div>
+              </div>
+
+              <label className="flex items-start gap-3 rounded-lg border border-[var(--line)] bg-[var(--accent-soft)] px-4 py-3 text-sm text-[#2d3150]">
+                <CheckboxInput
+                  checked={shouldSendSms}
+                  disabled={isSubmitting}
+                  onChange={(event) => setShouldSendSms(event.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block font-semibold">Send SMS</span>
+                </span>
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-[var(--line)] px-5 py-4">
+              <Button
+                type="button"
+                variant="ghost"
+                className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white"
+                disabled={isSubmitting}
+                onClick={() => setPendingCreatePayload(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="button" className="rounded-full px-5" disabled={isSubmitting} onClick={() => void confirmCreateInvoice()}>
+                {isSubmitting ? "Saving..." : "Create Invoice"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

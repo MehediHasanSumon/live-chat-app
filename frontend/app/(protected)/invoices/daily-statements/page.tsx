@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, Suspense, useCallback, useState } from "react";
-import { CalendarDays, FileText, Plus, ReceiptText, Wallet } from "lucide-react";
+import { CalendarDays, Eye, FileText, Plus, ReceiptText, Wallet } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -412,8 +412,8 @@ function DailyStatementsPageContent() {
                         <td className="px-6 py-4 sm:px-8">
                           <div className="flex justify-end">
                             <Link href={`/invoices/${invoice.id}`}>
-                              <Button as="span" variant="outline" size="xs">
-                                Details
+                              <Button as="span" variant="outline" size="icon-sm" aria-label="Invoice details" title="Details">
+                                <Eye className="h-3.5 w-3.5" />
                               </Button>
                             </Link>
                           </div>

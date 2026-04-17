@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
-import { Eye, PencilLine, Plus, Trash2 } from "lucide-react";
+import { Eye, PencilLine, Plus, Send, Trash2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,11 @@ import {
   AdminInvoiceRecord,
   InvoicePaymentStatus,
   InvoicePaymentType,
+  InvoiceSmsStatus,
   InvoiceStatus,
   useAdminInvoicesQuery,
   useDeleteAdminInvoiceMutation,
+  useResendAdminInvoiceSmsMutation,
 } from "@/lib/hooks/use-admin-invoices";
 import { cn } from "@/lib/utils";
 
@@ -128,6 +130,30 @@ function formatMoney(value: string) {
   }).format(numericValue);
 }
 
+function formatSmsStatus(status: InvoiceSmsStatus) {
+  if (status === "not_sent") {
+    return "Not Sent";
+  }
+
+  return status;
+}
+
+function smsStatusClassName(status: InvoiceSmsStatus) {
+  if (status === "sent") {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (status === "pending") {
+    return "bg-amber-50 text-amber-700";
+  }
+
+  if (status === "failed") {
+    return "bg-rose-50 text-rose-700";
+  }
+
+  return "bg-slate-100 text-slate-600";
+}
+
 function InvoicesPageContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -156,11 +182,13 @@ function InvoicesPageContent() {
     true,
   );
   const deleteInvoice = useDeleteAdminInvoiceMutation();
+  const resendInvoiceSms = useResendAdminInvoiceSmsMutation();
   const invoices = invoicesResponse?.data ?? [];
   const paginationMeta = invoicesResponse?.meta;
   const [filterDraft, setFilterDraft] = useState<InvoiceFilterState>(filters);
   const [filterError, setFilterError] = useState<string | null>(null);
-  const isTableBusy = isLoading || deleteInvoice.isPending;
+  const [resendingInvoiceId, setResendingInvoiceId] = useState<number | null>(null);
+  const isTableBusy = isLoading || deleteInvoice.isPending || resendInvoiceSms.isPending;
   const filtersAreActive = hasActiveFilters(filters);
 
   const updatePaginationUrl = useCallback(
@@ -299,6 +327,18 @@ function InvoicesPageContent() {
     await deleteInvoice.mutateAsync(invoice.id);
   }
 
+  async function handleResendSms(invoice: AdminInvoiceRecord) {
+    setResendingInvoiceId(invoice.id);
+
+    try {
+      await resendInvoiceSms.mutateAsync(invoice.id);
+    } catch {
+      window.alert("Unable to resend SMS right now.");
+    } finally {
+      setResendingInvoiceId(null);
+    }
+  }
+
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
@@ -401,8 +441,8 @@ function InvoicesPageContent() {
       {!error ? (
         <section className="glass-card relative z-0 mx-auto mt-5 w-full max-w-[1328px] overflow-hidden rounded-[1.5rem]">
           {isLoading ? (
-            <BoneyardSkeleton name="invoices-table" loading={isLoading} fallback={<TableSkeleton columns={8} rows={6} />}>
-              <TableSkeleton columns={8} rows={6} />
+            <BoneyardSkeleton name="invoices-table" loading={isLoading} fallback={<TableSkeleton columns={9} rows={6} />}>
+              <TableSkeleton columns={9} rows={6} />
             </BoneyardSkeleton>
           ) : invoices.length === 0 ? (
             <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">
@@ -420,6 +460,7 @@ function InvoicesPageContent() {
                     <th className="px-6 py-4 font-semibold">Payment</th>
                     <th className="px-6 py-4 font-semibold">Total</th>
                     <th className="px-6 py-4 font-semibold">Status</th>
+                    <th className="px-6 py-4 font-semibold">SMS</th>
                     <th className="px-6 py-4 font-semibold">Date</th>
                     <th className="px-6 py-4 font-semibold sm:px-8">
                       <span className="sr-only">Actions</span>
@@ -455,34 +496,52 @@ function InvoicesPageContent() {
                           {invoice.status}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize", smsStatusClassName(invoice.sms_status))}>
+                          {formatSmsStatus(invoice.sms_status)}
+                        </span>
+                        {invoice.sms_sent_at ? <p className="mt-1 text-xs text-[var(--muted)]">{formatDateTime(invoice.sms_sent_at)}</p> : null}
+                      </td>
                       <td className="px-6 py-4 text-[var(--muted)]">{formatDateTime(invoice.invoice_datetime)}</td>
                       <td className="px-6 py-4 sm:px-8">
                         <div className="flex justify-end gap-2">
+                          <Button
+                            as="span"
+                            variant="soft"
+                            size="icon-sm"
+                            aria-label="Resend SMS"
+                            title={resendingInvoiceId === invoice.id ? "Sending SMS" : "Resend SMS"}
+                            disabled={isTableBusy}
+                            onClick={() => void handleResendSms(invoice)}
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                          </Button>
                           <Link href={`/invoices/${invoice.id}`}>
                             <Button
                               as="span"
                               variant="outline"
-                              size="xs"
+                              size="icon-sm"
+                              aria-label="Invoice details"
+                              title="Details"
                             >
                               <Eye className="h-3.5 w-3.5" />
-                              Details
                             </Button>
                           </Link>
                           <Link href={`/invoices/${invoice.id}/edit`}>
-                            <Button as="span" variant="outline" size="xs">
+                            <Button as="span" variant="outline" size="icon-sm" aria-label="Edit invoice" title="Edit">
                               <PencilLine className="h-3.5 w-3.5" />
-                              Edit
                             </Button>
                           </Link>
                           <Button
                             as="span"
                             variant="danger-soft"
-                            size="xs"
+                            size="icon-sm"
+                            aria-label="Delete invoice"
+                            title="Delete"
                             disabled={isTableBusy}
                             onClick={() => void handleDelete(invoice)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                            Delete
                           </Button>
                         </div>
                       </td>

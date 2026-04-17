@@ -363,11 +363,11 @@ function SmsCredentialsPageContent() {
                         <td className="px-6 py-4 text-[var(--muted)]">{formatDate(credential.updated_at)}</td>
                         <td className="px-6 py-4 sm:px-8">
                           <div className="flex justify-end gap-2">
-                            <Button as="span" variant="outline" size="xs" disabled={isTableBusy} onClick={() => openEditForm(credential)}>
-                              <PencilLine className="h-3.5 w-3.5" /> Edit
+                            <Button as="span" variant="outline" size="icon-sm" aria-label="Edit SMS credential" title="Edit" disabled={isTableBusy} onClick={() => openEditForm(credential)}>
+                              <PencilLine className="h-3.5 w-3.5" />
                             </Button>
-                            <Button as="span" variant="danger-soft" size="xs" disabled={isTableBusy} onClick={() => void handleDelete(credential)}>
-                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            <Button as="span" variant="danger-soft" size="icon-sm" aria-label="Delete SMS credential" title="Delete" disabled={isTableBusy} onClick={() => void handleDelete(credential)}>
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </td>

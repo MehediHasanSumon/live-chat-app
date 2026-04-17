@@ -162,6 +162,7 @@ it('sends and logs invoice sms when sms is enabled on invoice creation', functio
             ],
         ])
         ->assertCreated()
+        ->assertJsonPath('data.sms_status', 'sent')
         ->assertJsonPath('data.sms_logs.0.status', 'sent')
         ->json('data.id');
 
@@ -188,4 +189,64 @@ it('sends and logs invoice sms when sms is enabled on invoice creation', functio
         ->assertOk()
         ->assertJsonPath('data.0.id', $log->id)
         ->assertJsonPath('data.0.status', 'sent');
+});
+
+it('can resend an invoice sms even when the original invoice skipped sms', function () {
+    Http::fake([
+        'sms.example.com/*' => Http::response(['message_id' => 'sms-456'], 200),
+    ]);
+
+    $actor = User::factory()->create();
+    [, $price] = createSmsInvoiceProductSet();
+
+    SmsServiceCredential::query()->create([
+        'url' => 'https://sms.example.com/send',
+        'api_key' => 'secret-key',
+        'sender_id' => 'SHOP',
+        'status' => 'active',
+    ]);
+    InvoiceSmsTemplate::query()->create([
+        'name' => 'Invoice confirmation',
+        'body' => 'Dear {customer_name}, invoice {invoice_no} total {total_amount}',
+        'variables_json' => ['customer_name', 'invoice_no', 'total_amount'],
+        'status' => 'active',
+        'is_default' => true,
+    ]);
+
+    $invoiceId = $this->actingAs($actor, 'web')
+        ->postJson('/api/admin/invoices', [
+            'invoice_datetime' => '2026-05-04 11:00:00',
+            'customer' => [
+                'name' => 'Karim Uddin',
+                'mobile' => '+8801700000022',
+                'vehicle_no' => 'DHAKA-456',
+            ],
+            'payment_type' => 'cash',
+            'discount_amount' => 0,
+            'sms_enabled' => false,
+            'status' => 'submitted',
+            'items' => [
+                [
+                    'product_id' => $price->product_id,
+                    'product_price_id' => $price->id,
+                    'quantity' => 1,
+                ],
+            ],
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.sms_status', 'not_sent')
+        ->assertJsonCount(0, 'data.sms_logs')
+        ->json('data.id');
+
+    Http::assertSentCount(0);
+
+    $this->actingAs($actor, 'web')
+        ->postJson("/api/admin/invoices/{$invoiceId}/resend-sms")
+        ->assertOk()
+        ->assertJsonPath('data.sms_status', 'sent')
+        ->assertJsonPath('data.sms_logs.0.status', 'sent')
+        ->assertJsonPath('sms_log.status', 'sent');
+
+    Http::assertSentCount(1);
+    expect(InvoiceSmsLog::query()->where('invoice_id', $invoiceId)->where('status', 'sent')->count())->toBe(1);
 });
