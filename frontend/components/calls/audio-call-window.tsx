@@ -811,16 +811,23 @@ function VideoParticipantGrid() {
   const tracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }], {
     onlySubscribed: false,
   });
+  const usePortraitCards = tracks.length <= 2;
 
   return (
-    <div className="grid flex-1 auto-rows-[minmax(220px,1fr)] grid-cols-1 gap-4 overflow-auto p-5 md:grid-cols-2">
+    <div
+      className={`grid h-full w-full auto-rows-fr gap-4 overflow-auto p-5 ${
+        usePortraitCards ? "grid-cols-1 justify-items-center md:grid-cols-2" : "grid-cols-1 md:grid-cols-2"
+      }`}
+    >
       {tracks.map((trackRef) => {
         const key = `${trackRef.participant.identity}-${trackRef.source}`;
 
         return (
           <div
             key={key}
-            className="overflow-hidden rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(18,24,44,0.96)_0%,rgba(14,18,34,0.94)_100%)] shadow-[0_28px_70px_rgba(4,8,20,0.42)]"
+            className={`min-h-0 overflow-hidden rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(18,24,44,0.96)_0%,rgba(14,18,34,0.94)_100%)] shadow-[0_28px_70px_rgba(4,8,20,0.42)] ${
+              usePortraitCards ? "h-full w-full max-w-[18rem]" : "h-full w-full"
+            }`}
           >
             <SpeakingParticipantTile trackRef={trackRef} />
           </div>

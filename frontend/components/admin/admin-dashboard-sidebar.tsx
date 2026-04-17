@@ -259,7 +259,7 @@ export function AdminDashboardSidebar({
 }: AdminDashboardSidebarProps) {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
-  const { data: publicCompanySetting } = usePublicCompanySettingQuery();
+  const { data: publicCompanySetting, isPending: isCompanySettingPending } = usePublicCompanySettingQuery();
   const { badgeCount } = useMessagesBadgeCount(true);
   const [invoiceOpenState, setInvoiceOpenState] = useState<DropdownOpenState>("auto");
   const [isInvoiceHoverOpen, setIsInvoiceHoverOpen] = useState(false);
@@ -274,7 +274,8 @@ export function AdminDashboardSidebar({
   const displayName = user?.name?.trim() || user?.username || "Guest User";
   const displayUsername = user?.username ? `@${user.username}` : "@guest";
   const avatarUrl = user?.avatar_object?.download_url ?? null;
-  const companyName = publicCompanySetting?.company_name?.trim() || "Nexus";
+  const isCompanyBrandLoading = isCompanySettingPending && !publicCompanySetting;
+  const companyName = publicCompanySetting?.company_name?.trim() || "Company";
   const companyLogoUrl = publicCompanySetting?.company_logo_object?.download_url ?? null;
   const invoiceHasActiveItem = invoiceItems.some((item) => isDropdownItemActive(pathname, item));
   const businessHasActiveItem = businessItems.some((item) => isRouteActive(pathname, item.href));
@@ -319,20 +320,29 @@ export function AdminDashboardSidebar({
         )}
       >
         <div className="flex h-16 items-center border-b border-white/[0.06] px-5">
-          <AppAvatar
-            name={companyName}
-            imageUrl={companyLogoUrl}
-            sizeClass="h-9 w-9"
-            textClass="text-sm"
-            radiusClassName="rounded-lg"
-            fallbackClassName="bg-[#ea580c] text-white"
-            className="shrink-0"
-            alt={`${companyName} logo`}
-            sizes="36px"
-          />
-          <span className={cn("ml-3 truncate whitespace-nowrap text-lg font-bold tracking-tight", isCollapsed ? "hidden lg:hidden" : "inline")}>
-            {companyName}
-          </span>
+          {isCompanyBrandLoading ? (
+            <>
+              <div className="h-9 w-9 shrink-0 animate-pulse rounded-lg bg-white/10" />
+              <div className={cn("ml-3 h-5 animate-pulse rounded-full bg-white/10", isCollapsed ? "hidden lg:hidden" : "w-28")} />
+            </>
+          ) : (
+            <>
+              <AppAvatar
+                name={companyName}
+                imageUrl={companyLogoUrl}
+                sizeClass="h-9 w-9"
+                textClass="text-sm"
+                radiusClassName="rounded-lg"
+                fallbackClassName="bg-[#ea580c] text-white"
+                className="shrink-0"
+                alt={`${companyName} logo`}
+                sizes="36px"
+              />
+              <span className={cn("ml-3 truncate whitespace-nowrap text-lg font-bold tracking-tight", isCollapsed ? "hidden lg:hidden" : "inline")}>
+                {companyName}
+              </span>
+            </>
+          )}
           <button
             type="button"
             onClick={onCloseMobile}
