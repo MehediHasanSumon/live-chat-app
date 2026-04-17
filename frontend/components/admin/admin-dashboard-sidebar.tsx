@@ -422,7 +422,7 @@ export function AdminDashboardSidebar({
               sizeClass="h-8 w-8"
               textClass="text-xs"
               fallbackClassName="bg-white/10 text-white"
-              className="shrink-0 ring-2 ring-white/10"
+              className="shrink-0"
               alt={`${displayName} avatar`}
             />
             <div className={cn("ml-3 min-w-0", isCollapsed ? "hidden lg:hidden" : "block")}>

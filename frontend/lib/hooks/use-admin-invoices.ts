@@ -204,9 +204,23 @@ type InvoiceListParams = {
   page: number;
   perPage: number;
   search: string;
+  status?: InvoiceStatus | "";
+  paymentType?: InvoicePaymentType | "";
+  paymentStatus?: InvoicePaymentStatus | "";
+  dateFrom?: string;
+  dateTo?: string;
 };
 
-function buildInvoicesPath({ page, perPage, search }: InvoiceListParams) {
+function buildInvoicesPath({
+  dateFrom = "",
+  dateTo = "",
+  page,
+  paymentStatus = "",
+  paymentType = "",
+  perPage,
+  search,
+  status = "",
+}: InvoiceListParams) {
   const params = new URLSearchParams({
     page: String(page),
     per_page: String(perPage),
@@ -217,7 +231,40 @@ function buildInvoicesPath({ page, perPage, search }: InvoiceListParams) {
     params.set("search", normalizedSearch);
   }
 
+  if (paymentType) {
+    params.set("payment_type", paymentType);
+  }
+
+  if (paymentStatus) {
+    params.set("payment_status", paymentStatus);
+  }
+
+  if (status) {
+    params.set("status", status);
+  }
+
+  if (dateFrom) {
+    params.set("date_from", dateFrom);
+  }
+
+  if (dateTo) {
+    params.set("date_to", dateTo);
+  }
+
   return `/api/admin/invoices?${params.toString()}`;
+}
+
+function normalizedInvoiceListFilters(params: InvoiceListParams): Record<string, string | number> {
+  return {
+    page: params.page,
+    perPage: params.perPage,
+    search: params.search.trim(),
+    status: params.status ?? "",
+    paymentType: params.paymentType ?? "",
+    paymentStatus: params.paymentStatus ?? "",
+    dateFrom: params.dateFrom ?? "",
+    dateTo: params.dateTo ?? "",
+  };
 }
 
 function normalizedStatementFilters(filters: InvoiceStatementFilters) {
@@ -264,8 +311,10 @@ function buildMonthlyStatementPath(filters: InvoiceStatementFilters) {
 }
 
 export function useAdminInvoicesQuery(params: InvoiceListParams, enabled = true) {
+  const normalizedFilters = normalizedInvoiceListFilters(params);
+
   return useQuery({
-    queryKey: queryKeys.admin.invoices.list(params.page, params.perPage, params.search.trim()),
+    queryKey: queryKeys.admin.invoices.list(normalizedFilters),
     queryFn: () => apiClient.get<InvoicesResponse>(buildInvoicesPath(params), { skipAuthRedirect: true }),
     enabled,
     retry: false,

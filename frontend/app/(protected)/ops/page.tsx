@@ -29,7 +29,7 @@ export default function AdminOpsPage() {
       <section className="glass-card mx-auto w-full max-w-6xl rounded-[1.5rem] px-5 py-5 sm:px-6">
         <div>
           <div>
-            <p className="text-lg font-semibold text-[#2d3150]">Admin ops</p>
+            <p className="text-lg font-semibold text-[#2d3150]">System Configuration</p>
             <p className="text-sm text-[var(--muted)]">Quick health checks for queue, notifications, storage, Reverb, LiveKit, and Horizon.</p>
           </div>
         </div>

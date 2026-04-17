@@ -34,7 +34,7 @@ class AdminInvoiceController extends Controller
             'payment_status' => ['sometimes', 'nullable', Rule::in(['unpaid', 'partial', 'paid'])],
             'status' => ['sometimes', 'nullable', Rule::in(['draft', 'submitted', 'cancelled'])],
             'date_from' => ['sometimes', 'nullable', 'date'],
-            'date_to' => ['sometimes', 'nullable', 'date'],
+            'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
         ]);
 
         $perPage = (int) ($validated['per_page'] ?? 10);
@@ -56,8 +56,8 @@ class AdminInvoiceController extends Controller
             ->when(! empty($validated['payment_type']), fn ($query) => $query->where('payment_type', $validated['payment_type']))
             ->when(! empty($validated['payment_status']), fn ($query) => $query->where('payment_status', $validated['payment_status']))
             ->when(! empty($validated['status']), fn ($query) => $query->where('status', $validated['status']))
-            ->when(! empty($validated['date_from']), fn ($query) => $query->where('invoice_datetime', '>=', $validated['date_from']))
-            ->when(! empty($validated['date_to']), fn ($query) => $query->where('invoice_datetime', '<=', $validated['date_to']))
+            ->when(! empty($validated['date_from']), fn ($query) => $query->where('invoice_datetime', '>=', Carbon::parse($validated['date_from'])->startOfDay()))
+            ->when(! empty($validated['date_to']), fn ($query) => $query->where('invoice_datetime', '<=', Carbon::parse($validated['date_to'])->endOfDay()))
             ->orderByDesc('invoice_datetime')
             ->orderByDesc('id')
             ->paginate($perPage)

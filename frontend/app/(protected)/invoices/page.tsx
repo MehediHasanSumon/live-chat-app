@@ -7,14 +7,50 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { BoneyardSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Pagination } from "@/components/ui/pagination";
+import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
 import { TextInput } from "@/components/ui/text-input";
-import { AdminInvoiceRecord, useAdminInvoicesQuery, useDeleteAdminInvoiceMutation } from "@/lib/hooks/use-admin-invoices";
+import {
+  AdminInvoiceRecord,
+  InvoicePaymentStatus,
+  InvoicePaymentType,
+  InvoiceStatus,
+  useAdminInvoicesQuery,
+  useDeleteAdminInvoiceMutation,
+} from "@/lib/hooks/use-admin-invoices";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PER_PAGE = 10;
 const PER_PAGE_OPTIONS = [5, 10, 20, 30, 50];
+const INVOICE_STATUS_OPTIONS: SelectInputOption[] = [
+  { value: "", label: "All Status" },
+  { value: "draft", label: "Draft" },
+  { value: "submitted", label: "Submitted" },
+  { value: "cancelled", label: "Cancelled" },
+];
+const PAYMENT_TYPE_OPTIONS: SelectInputOption[] = [
+  { value: "", label: "All Method" },
+  { value: "cash", label: "Cash" },
+  { value: "pos", label: "POS" },
+  { value: "due", label: "Due" },
+];
+const PAYMENT_STATUS_OPTIONS: SelectInputOption[] = [
+  { value: "", label: "All Status" },
+  { value: "paid", label: "Paid" },
+  { value: "partial", label: "Partial" },
+  { value: "unpaid", label: "Unpaid" },
+];
+
+type InvoiceFilterState = {
+  search: string;
+  status: InvoiceStatus | "";
+  paymentType: InvoicePaymentType | "";
+  paymentStatus: InvoicePaymentStatus | "";
+  dateFrom: string;
+  dateTo: string;
+};
 
 function parsePageParam(value: string | null) {
   const page = Number(value);
@@ -30,6 +66,39 @@ function parsePerPageParam(value: string | null) {
 
 function parseSearchParam(value: string | null) {
   return (value ?? "").trim();
+}
+
+function parseInvoiceStatusParam(value: string | null): InvoiceStatus | "" {
+  return value === "draft" || value === "submitted" || value === "cancelled" ? value : "";
+}
+
+function parsePaymentTypeParam(value: string | null): InvoicePaymentType | "" {
+  return value === "cash" || value === "pos" || value === "due" ? value : "";
+}
+
+function parsePaymentStatusParam(value: string | null): InvoicePaymentStatus | "" {
+  return value === "paid" || value === "partial" || value === "unpaid" ? value : "";
+}
+
+function parseDateParam(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return "";
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+
+  return Number.isNaN(date.getTime()) ? "" : value;
+}
+
+function hasActiveFilters(filters: InvoiceFilterState) {
+  return Boolean(
+    filters.search ||
+      filters.status ||
+      filters.paymentType ||
+      filters.paymentStatus ||
+      filters.dateFrom ||
+      filters.dateTo,
+  );
 }
 
 function formatDateTime(value: string | null) {
@@ -65,13 +134,34 @@ function InvoicesPageContent() {
   const searchParams = useSearchParams();
   const page = parsePageParam(searchParams.get("page"));
   const perPage = parsePerPageParam(searchParams.get("per_page"));
-  const search = parseSearchParam(searchParams.get("search"));
-  const { data: invoicesResponse, isLoading, error } = useAdminInvoicesQuery({ page, perPage, search }, true);
+  const filters: InvoiceFilterState = {
+    search: parseSearchParam(searchParams.get("search")),
+    status: parseInvoiceStatusParam(searchParams.get("status")),
+    paymentType: parsePaymentTypeParam(searchParams.get("payment_type")),
+    paymentStatus: parsePaymentStatusParam(searchParams.get("payment_status")),
+    dateFrom: parseDateParam(searchParams.get("date_from")),
+    dateTo: parseDateParam(searchParams.get("date_to")),
+  };
+  const { data: invoicesResponse, isLoading, error } = useAdminInvoicesQuery(
+    {
+      page,
+      perPage,
+      search: filters.search,
+      status: filters.status,
+      paymentType: filters.paymentType,
+      paymentStatus: filters.paymentStatus,
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+    },
+    true,
+  );
   const deleteInvoice = useDeleteAdminInvoiceMutation();
   const invoices = invoicesResponse?.data ?? [];
   const paginationMeta = invoicesResponse?.meta;
-  const [searchDraft, setSearchDraft] = useState(search);
+  const [filterDraft, setFilterDraft] = useState<InvoiceFilterState>(filters);
+  const [filterError, setFilterError] = useState<string | null>(null);
   const isTableBusy = isLoading || deleteInvoice.isPending;
+  const filtersAreActive = hasActiveFilters(filters);
 
   const updatePaginationUrl = useCallback(
     (nextPage: number, nextPerPage = perPage) => {
@@ -96,10 +186,10 @@ function InvoicesPageContent() {
     [pathname, perPage, router, searchParams],
   );
 
-  const updateSearchUrl = useCallback(
-    (nextSearch: string) => {
+  const updateFilterUrl = useCallback(
+    (nextFilters: InvoiceFilterState) => {
       const params = new URLSearchParams(searchParams.toString());
-      const normalizedSearch = nextSearch.trim();
+      const normalizedSearch = nextFilters.search.trim();
 
       params.delete("page");
 
@@ -109,15 +199,41 @@ function InvoicesPageContent() {
         params.delete("search");
       }
 
+      if (nextFilters.status) {
+        params.set("status", nextFilters.status);
+      } else {
+        params.delete("status");
+      }
+
+      if (nextFilters.paymentType) {
+        params.set("payment_type", nextFilters.paymentType);
+      } else {
+        params.delete("payment_type");
+      }
+
+      if (nextFilters.paymentStatus) {
+        params.set("payment_status", nextFilters.paymentStatus);
+      } else {
+        params.delete("payment_status");
+      }
+
+      if (nextFilters.dateFrom) {
+        params.set("date_from", nextFilters.dateFrom);
+      } else {
+        params.delete("date_from");
+      }
+
+      if (nextFilters.dateTo) {
+        params.set("date_to", nextFilters.dateTo);
+      } else {
+        params.delete("date_to");
+      }
+
       const queryString = params.toString();
       router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
     },
     [pathname, router, searchParams],
   );
-
-  useEffect(() => {
-    setSearchDraft(search);
-  }, [search]);
 
   useEffect(() => {
     if (!paginationMeta || page <= paginationMeta.last_page) {
@@ -127,14 +243,52 @@ function InvoicesPageContent() {
     updatePaginationUrl(paginationMeta.last_page, perPage);
   }, [page, paginationMeta, perPage, updatePaginationUrl]);
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    updateSearchUrl(searchDraft);
+  function updateFilterDraft<K extends keyof InvoiceFilterState>(key: K, value: InvoiceFilterState[K]) {
+    setFilterDraft((current) => ({
+      ...current,
+      [key]: value,
+    }));
   }
 
-  function handleClearSearch() {
-    setSearchDraft("");
-    updateSearchUrl("");
+  function validateFilters(nextFilters: InvoiceFilterState) {
+    if (nextFilters.dateFrom && nextFilters.dateTo && nextFilters.dateTo < nextFilters.dateFrom) {
+      return "End date cannot be before start date.";
+    }
+
+    return null;
+  }
+
+  function handleFilterSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFilterError(null);
+
+    const nextFilters = {
+      ...filterDraft,
+      search: filterDraft.search.trim(),
+    };
+    const clientError = validateFilters(nextFilters);
+
+    if (clientError) {
+      setFilterError(clientError);
+      return;
+    }
+
+    updateFilterUrl(nextFilters);
+  }
+
+  function handleClearFilters() {
+    const emptyFilters: InvoiceFilterState = {
+      search: "",
+      status: "",
+      paymentType: "",
+      paymentStatus: "",
+      dateFrom: "",
+      dateTo: "",
+    };
+
+    setFilterDraft(emptyFilters);
+    setFilterError(null);
+    updateFilterUrl(emptyFilters);
   }
 
   async function handleDelete(invoice: AdminInvoiceRecord) {
@@ -163,44 +317,96 @@ function InvoicesPageContent() {
         </div>
       </section>
 
-      <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] rounded-[1.5rem] px-6 py-5 sm:px-8">
-        <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={(event) => handleSearchSubmit(event)}>
-          <div className="flex-1">
+      <section className="glass-card relative z-30 mx-auto mt-5 w-full max-w-[1328px] overflow-visible rounded-[1.5rem] px-6 py-5 sm:px-8">
+        <form className="grid gap-3 lg:grid-cols-[minmax(220px,1.4fr)_repeat(5,minmax(150px,1fr))_auto] lg:items-end" onSubmit={handleFilterSubmit}>
+          <div>
             <label className="mb-2 block text-sm font-semibold text-[#2d3150]">Search</label>
             <TextInput
               placeholder="Search invoices, customers, mobile, vehicle"
-              value={searchDraft}
-              onChange={(event) => setSearchDraft(event.target.value)}
+              value={filterDraft.search}
+              onChange={(event) => updateFilterDraft("search", event.target.value)}
               autoComplete="off"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-[#2d3150]">Invoice Status</label>
+            <SelectInput
+              value={filterDraft.status}
+              options={INVOICE_STATUS_OPTIONS}
+              dropdownLabel="Invoice Status"
+              onChange={(value) => updateFilterDraft("status", parseInvoiceStatusParam(value))}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-[#2d3150]">Payment Method</label>
+            <SelectInput
+              value={filterDraft.paymentType}
+              options={PAYMENT_TYPE_OPTIONS}
+              dropdownLabel="Payment Method"
+              onChange={(value) => updateFilterDraft("paymentType", parsePaymentTypeParam(value))}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-[#2d3150]">Payment Status</label>
+            <SelectInput
+              value={filterDraft.paymentStatus}
+              options={PAYMENT_STATUS_OPTIONS}
+              dropdownLabel="Payment Status"
+              onChange={(value) => updateFilterDraft("paymentStatus", parsePaymentStatusParam(value))}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-[#2d3150]">Start Date</label>
+            <DatePicker
+              value={filterDraft.dateFrom}
+              onChange={(value) => updateFilterDraft("dateFrom", parseDateParam(value))}
+              defaultToToday={false}
+              placeholder="Start date"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-[#2d3150]">End Date</label>
+            <DatePicker
+              value={filterDraft.dateTo}
+              onChange={(value) => updateFilterDraft("dateTo", parseDateParam(value))}
+              defaultToToday={false}
+              placeholder="End date"
             />
           </div>
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" className="rounded-full px-5">
-              Search
+              Filter
             </Button>
             <Button
               type="button"
               variant="ghost"
               className="rounded-full border border-[var(--line)] bg-white px-5 text-[var(--foreground)] hover:bg-white"
-              disabled={!search && !searchDraft}
-              onClick={handleClearSearch}
+              disabled={!filtersAreActive && !hasActiveFilters(filterDraft)}
+              onClick={handleClearFilters}
             >
               Clear
             </Button>
           </div>
+
+          {filterError ? <p className="text-sm text-rose-600 lg:col-span-7">{filterError}</p> : null}
         </form>
       </section>
 
       {!error ? (
-        <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] overflow-hidden rounded-[1.5rem]">
+        <section className="glass-card relative z-0 mx-auto mt-5 w-full max-w-[1328px] overflow-hidden rounded-[1.5rem]">
           {isLoading ? (
             <BoneyardSkeleton name="invoices-table" loading={isLoading} fallback={<TableSkeleton columns={8} rows={6} />}>
               <TableSkeleton columns={8} rows={6} />
             </BoneyardSkeleton>
           ) : invoices.length === 0 ? (
             <div className="px-6 py-8 text-sm text-[var(--muted)] sm:px-8">
-              {search ? "No invoices matched your search." : "No invoices found yet."}
+              {filtersAreActive ? "No invoices matched your filters." : "No invoices found yet."}
             </div>
           ) : (
             <>
