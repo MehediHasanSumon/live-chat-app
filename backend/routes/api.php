@@ -122,6 +122,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/admin/roles', [AdminRoleController::class, 'store']);
     Route::patch('/admin/roles/{role}', [AdminRoleController::class, 'update']);
     Route::delete('/admin/roles/{role}', [AdminRoleController::class, 'destroy']);
+    Route::get('/admin/users/export/pdf', [AdminUserController::class, 'exportPdf']);
     Route::get('/admin/users', [AdminUserController::class, 'index']);
     Route::post('/admin/users', [AdminUserController::class, 'store']);
     Route::patch('/admin/users/{user}', [AdminUserController::class, 'update']);

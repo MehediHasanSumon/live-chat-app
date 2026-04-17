@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
-import { PencilLine, Plus, Trash2, X } from "lucide-react";
+import { FileText, PencilLine, Plus, Trash2, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { ApiClientError } from "@/lib/api-client";
 import {
   AdminUserRecord,
   AdminUserStatus,
+  getAdminUsersPdfDownloadUrl,
   useAdminRoleOptionsQuery,
   useAdminUsersQuery,
   useCreateAdminUserMutation,
@@ -78,6 +79,21 @@ function parseSearchParam(value: string | null) {
   return (value ?? "").trim();
 }
 
+function parseContentDispositionFilename(headerValue: string | null) {
+  if (!headerValue) {
+    return null;
+  }
+
+  const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
+
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const basicMatch = headerValue.match(/filename="?([^"]+)"?/i);
+  return basicMatch?.[1] ?? null;
+}
+
 function UsersPageContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -97,8 +113,10 @@ function UsersPageContent() {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [editingUser, setEditingUser] = useState<AdminUserRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isUserSectionOpen, setIsUserSectionOpen] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const isSubmitting = createUser.isPending || updateUser.isPending;
 
@@ -339,6 +357,65 @@ function UsersPageContent() {
     }
   }
 
+  async function handleDownloadPdf() {
+    setDownloadError(null);
+
+    try {
+      setIsDownloadingPdf(true);
+
+      const response = await fetch(getAdminUsersPdfDownloadUrl(search), {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type") ?? "";
+
+        if (contentType.includes("application/json")) {
+          const payload = await response.json().catch(() => null);
+          throw new ApiClientError(response.status, payload ?? undefined);
+        }
+
+        throw new ApiClientError(response.status, { message: "Unable to download the PDF right now." });
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+
+      if (arrayBuffer.byteLength === 0) {
+        throw new ApiClientError(response.status, { message: "Downloaded PDF was empty. Please try again." });
+      }
+
+      const filename =
+        parseContentDispositionFilename(response.headers.get("content-disposition")) ??
+        `users-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const blob = new Blob([arrayBuffer], {
+        type: response.headers.get("content-type") ?? "application/pdf",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60_000);
+    } catch (downloadPdfError) {
+      if (downloadPdfError instanceof ApiClientError) {
+        setDownloadError(downloadPdfError.message);
+        return;
+      }
+
+      setDownloadError("Unable to download the PDF right now.");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  }
+
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
@@ -348,22 +425,34 @@ function UsersPageContent() {
             <p className="mt-2 text-sm text-[var(--muted)]">Manage users, status, and role access.</p>
           </div>
 
-          <Button
-            className="gap-2 self-start rounded-full px-5 sm:self-center"
-            aria-controls="user-form-section"
-            aria-expanded={isUserSectionOpen}
-            onClick={() => {
-              if (isUserSectionOpen) {
-                closeUserSection();
-                return;
-              }
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              className="gap-2 self-start rounded-full px-5 sm:self-center"
+              disabled={isDownloadingPdf}
+              onClick={() => void handleDownloadPdf()}
+            >
+              <FileText className="h-4 w-4" />
+              Download
+            </Button>
 
-              openCreateSection();
-            }}
-          >
-            {isUserSectionOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {isUserSectionOpen ? "Close" : "Create User"}
-          </Button>
+            <Button
+              className="gap-2 self-start rounded-full px-5 sm:self-center"
+              aria-controls="user-form-section"
+              aria-expanded={isUserSectionOpen}
+              onClick={() => {
+                if (isUserSectionOpen) {
+                  closeUserSection();
+                  return;
+                }
+
+                openCreateSection();
+              }}
+            >
+              {isUserSectionOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {isUserSectionOpen ? "Close" : "Create User"}
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -552,8 +641,10 @@ function UsersPageContent() {
                 {isSubmitting ? "Saving..." : "Save"}
               </Button>
             </div>
-          </form>
-        </section>
+        </form>
+
+        {downloadError ? <p className="mt-3 text-sm text-rose-600">{downloadError}</p> : null}
+      </section>
       </div>
 
       <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] rounded-[1.5rem] px-6 py-5 sm:px-8">
@@ -583,6 +674,7 @@ function UsersPageContent() {
             </Button>
           </div>
         </form>
+
       </section>
 
       {!error ? (

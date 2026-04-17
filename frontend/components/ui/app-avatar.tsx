@@ -74,7 +74,7 @@ function AppAvatarComponent({
             alt={alt ?? name}
             fill
             sizes={sizes}
-            quality={90}
+            quality={75}
             className={cn("object-cover", radiusClassName, imageClassName)}
           />
         ) : (

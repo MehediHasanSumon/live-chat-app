@@ -42,6 +42,23 @@ it('filters users by search on the server', function () {
         ->assertJsonPath('meta.total', 1);
 });
 
+it('downloads the filtered users list as a pdf', function () {
+    $this->seed(RolesAndPermissionsSeeder::class);
+    $actor = User::factory()->create();
+    User::factory()->create(['name' => 'Alice Example', 'email' => 'alice@example.test']);
+    User::factory()->create(['name' => 'Bob Example', 'email' => 'bob@example.test']);
+
+    $response = $this->actingAs($actor, 'web')
+        ->get('/api/admin/users/export/pdf?search=alice');
+
+    $response
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('content-disposition');
+
+    expect($response->getContent())->toContain('%PDF');
+});
+
 it('creates a user with multiple roles', function () {
     $this->seed(RolesAndPermissionsSeeder::class);
     $actor = User::factory()->create();

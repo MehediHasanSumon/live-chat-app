@@ -2,47 +2,40 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\StorageObject;
 use App\Models\User;
 use App\Services\Auth\VerificationCodeService;
+use App\Services\Company\PublicCompanySettingService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 class AdminUserController extends Controller
 {
-    public function __construct(private readonly VerificationCodeService $verificationCodes) {}
+    public function __construct(
+        private readonly VerificationCodeService $verificationCodes,
+        private readonly PublicCompanySettingService $publicCompanySettings,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'page' => ['sometimes', 'integer', 'min:1'],
-            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
-            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
-        ]);
+        $validated = $this->validatedFilters($request);
 
         $perPage = (int) ($validated['per_page'] ?? 10);
         $search = trim((string) ($validated['search'] ?? ''));
-        $users = User::query()
-            ->with('roles')
-            ->when($search !== '', function ($query) use ($search): void {
-                $query->where(function ($query) use ($search): void {
-                    $query
-                        ->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('phone', 'like', "%{$search}%")
-                        ->orWhere('status', 'like', "%{$search}%");
-                });
-            })
+        $users = $this->userListQuery($search)
             ->orderBy('name')
             ->paginate($perPage)
             ->withQueryString();
 
         return response()->json([
             'data' => $users->getCollection()
-                ->map(fn (User $user): array => $this->serializeUser($user))
+                ->map(fn(User $user): array => $this->serializeUser($user))
                 ->values(),
             'meta' => [
                 'current_page' => $users->currentPage(),
@@ -59,6 +52,28 @@ class AdminUserController extends Controller
                 'next' => $users->nextPageUrl(),
             ],
         ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $validated = $this->validatedFilters($request);
+        $search = trim((string) ($validated['search'] ?? ''));
+        $generatedAt = now();
+        $users = $this->userListQuery($search)
+            ->orderBy('name')
+            ->get();
+        $companySetting = $this->publicCompanySettings->activeSetting();
+        $companyLogoPath = $companySetting ? $this->companyLogoPath($companySetting->company_logo) : null;
+
+        $pdf = Pdf::loadView('pdf.admin-users', [
+            'companySetting' => $companySetting,
+            'companyLogoPath' => $companyLogoPath,
+            'generatedAt' => $generatedAt,
+            'search' => $search,
+            'users' => $users,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download('users-' . $generatedAt->format('Y-m-d-His') . '.pdf');
     }
 
     public function store(Request $request): JsonResponse
@@ -166,11 +181,62 @@ class AdminUserController extends Controller
         return Str::limit($username, 32, '');
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    protected function validatedFilters(Request $request): array
+    {
+        return $request->validate([
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:125'],
+        ]);
+    }
+
+    protected function userListQuery(string $search)
+    {
+        return User::query()
+            ->with('roles')
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('status', 'like', "%{$search}%");
+                });
+            });
+    }
+
+    protected function companyLogoPath(?string $companyLogoUuid): ?string
+    {
+        if (! $companyLogoUuid) {
+            return null;
+        }
+
+        $storageObject = StorageObject::query()
+            ->where('object_uuid', $companyLogoUuid)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $storageObject) {
+            return null;
+        }
+
+        $disk = Storage::disk(config('uploads.disk'));
+
+        if (! $disk->exists($storageObject->disk_path)) {
+            return null;
+        }
+
+        return $disk->path($storageObject->disk_path);
+    }
+
     protected function serializeUser(User $user): array
     {
         $roles = $user->roles
             ->sortBy('name')
-            ->map(fn ($role): array => [
+            ->map(fn($role): array => [
                 'id' => $role->id,
                 'name' => $role->name,
                 'guard_name' => $role->guard_name,

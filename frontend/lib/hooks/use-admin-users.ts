@@ -94,6 +94,18 @@ function buildUsersPath({ page, perPage, search }: UserListParams) {
   return `/api/admin/users?${params.toString()}`;
 }
 
+function buildUsersPdfPath(search: string) {
+  const params = new URLSearchParams();
+  const normalizedSearch = search.trim();
+
+  if (normalizedSearch) {
+    params.set("search", normalizedSearch);
+  }
+
+  const query = params.toString();
+  return `/api/admin/users/export/pdf${query ? `?${query}` : ""}`;
+}
+
 export function useAdminUsersQuery(params: UserListParams, enabled = true) {
   return useQuery({
     queryKey: queryKeys.admin.users.list(params.page, params.perPage, params.search.trim()),
@@ -145,4 +157,8 @@ export function useDeleteAdminUserMutation() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.admin.users.all });
     },
   });
+}
+
+export function getAdminUsersPdfDownloadUrl(search: string) {
+  return buildUsersPdfPath(search);
 }
