@@ -1,5 +1,9 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 import type { RemotePattern } from "next/dist/shared/lib/image-config";
+
+const configDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 function toRemotePattern(rawUrl: string | undefined): RemotePattern | null {
   if (!rawUrl) {
@@ -45,6 +49,9 @@ const configuredRemotePatterns: RemotePattern[] = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  turbopack: {
+    root: configDirectory,
+  },
 
   // Enable GZIP compression for responses
   compress: true,
