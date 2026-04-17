@@ -455,6 +455,57 @@ it('returns daily and monthly invoice statements for submitted invoices', functi
         ->assertJsonPath('data.filters.created_by', $actor->id);
 });
 
+it('downloads daily and monthly statements as pdf', function () {
+    $actor = User::factory()->create();
+    $customer = Customer::query()->create([
+        'name' => 'Statement PDF Customer',
+        'mobile' => '+8801700000042',
+        'vehicle_no' => 'DHAKA-421',
+    ]);
+
+    $invoice = Invoice::query()->create([
+        'invoice_no' => 'INV-202605-80001',
+        'invoice_datetime' => '2026-05-04 11:00:00',
+        'customer_id' => $customer->id,
+        'payment_type' => 'cash',
+        'payment_status' => 'paid',
+        'subtotal_amount' => 100,
+        'discount_amount' => 0,
+        'total_amount' => 100,
+        'paid_amount' => 100,
+        'due_amount' => 0,
+        'sms_enabled' => false,
+        'status' => 'submitted',
+        'created_by' => $actor->id,
+        'updated_by' => $actor->id,
+    ]);
+
+    $invoice->items()->create([
+        'product_id' => null,
+        'product_price_id' => null,
+        'product_unit_id' => null,
+        'product_name' => 'Octane',
+        'unit_name' => 'Liter',
+        'unit_code' => 'PU001',
+        'unit_value' => 1,
+        'price' => 100,
+        'quantity' => 1,
+        'line_total' => 100,
+    ]);
+
+    $this->actingAs($actor, 'web')
+        ->get('/api/admin/invoices/statements/daily/export/pdf?date_from=2026-05-04&date_to=2026-05-04')
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('content-disposition');
+
+    $this->actingAs($actor, 'web')
+        ->get('/api/admin/invoices/statements/monthly/export/pdf?date_from=2026-05-01&date_to=2026-05-31')
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('content-disposition');
+});
+
 it('downloads invoice list and detail as pdf', function () {
     $actor = User::factory()->create();
     $customer = Customer::query()->create([

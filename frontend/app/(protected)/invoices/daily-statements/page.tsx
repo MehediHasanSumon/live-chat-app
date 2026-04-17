@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { FormEvent, Suspense, useCallback, useState } from "react";
-import { CalendarDays, Eye, FileText, Plus, ReceiptText, Wallet } from "lucide-react";
+import { Eye, Plus } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { BoneyardSkeleton, CardGridSkeleton, PanelSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
+import { BoneyardSkeleton, PanelSkeleton, TableSkeleton } from "@/components/ui/boneyard-loading";
 import { DatePicker } from "@/components/ui/date-picker";
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { SelectInput, SelectInputOption } from "@/components/ui/select-input";
+import { buildAdminListPdfPath } from "@/lib/admin-pdf";
 import { InvoicePaymentType, InvoiceStatementFilters, useAdminDailyInvoiceStatementQuery } from "@/lib/hooks/use-admin-invoices";
 import { useAdminUsersQuery } from "@/lib/hooks/use-admin-users";
+import { usePdfDownload } from "@/lib/hooks/use-pdf-download";
 
 const paymentMethodOptions: SelectInputOption[] = [
   { value: "", label: "All methods" },
@@ -121,10 +124,10 @@ function DailyStatementsPageContent() {
   const [filterDraft, setFilterDraft] = useState<InvoiceStatementFilters>(filters);
   const { data: usersResponse } = useAdminUsersQuery({ page: 1, perPage: 50, search: "" }, true);
   const { data: statement, isLoading, error } = useAdminDailyInvoiceStatementQuery(filters, true);
-  const summary = statement?.summary;
   const productSummaries = statement?.product_summaries ?? [];
   const statementInvoices = statement?.invoices ?? [];
   const saleByUsers = usersResponse?.data ?? [];
+  const { download, downloadError, isDownloadingPdf } = usePdfDownload();
   const saleByOptions: SelectInputOption[] = [
     { value: "", label: "All users" },
     ...saleByUsers.map((user) => ({ value: String(user.id), label: user.name })),
@@ -193,6 +196,18 @@ function DailyStatementsPageContent() {
     router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
   }
 
+  async function handleDownloadPdf() {
+    await download(
+      buildAdminListPdfPath("invoices/statements/daily", {
+        date_from: filters.dateFrom,
+        date_to: filters.dateTo,
+        payment_type: filters.paymentType,
+        created_by: filters.createdBy,
+      }),
+      "daily-statement",
+    );
+  }
+
   return (
     <main className="shell px-4 py-6 sm:px-6">
       <section className="glass-card mx-auto flex min-h-[124px] w-full max-w-[1328px] flex-col justify-center rounded-[1.5rem] px-6 py-6 sm:px-8">
@@ -202,14 +217,19 @@ function DailyStatementsPageContent() {
             <p className="mt-2 text-sm text-[var(--muted)]">Submitted invoice totals for {formatDisplayRange(dateFrom, dateTo)}.</p>
           </div>
 
-          <Link href="/invoices/create">
-            <Button className="gap-2 rounded-full px-5">
-              <Plus className="h-4 w-4" />
-              Create Invoice
-            </Button>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <PdfDownloadButton isLoading={isDownloadingPdf} onClick={() => void handleDownloadPdf()} />
+            <Link href="/invoices/create">
+              <Button className="gap-2 rounded-full px-5">
+                <Plus className="h-4 w-4" />
+                Create Invoice
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
+
+      {downloadError ? <p className="mx-auto mt-3 w-full max-w-[1328px] text-sm text-rose-600">{downloadError}</p> : null}
 
       <section className="glass-card relative z-30 mx-auto mt-5 w-full max-w-[1328px] overflow-visible rounded-[1.5rem] px-6 py-5 sm:px-8">
         <form className="grid gap-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] lg:items-end" onSubmit={handleSubmit}>
@@ -275,60 +295,6 @@ function DailyStatementsPageContent() {
 
       {!error ? (
         <>
-          <section className="relative z-10 mx-auto mt-5 grid w-full max-w-[1328px] gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <BoneyardSkeleton name="daily-statement-summary-cards" loading={isLoading} fallback={<CardGridSkeleton cards={4} />} className="contents">
-              <>
-                <div className="glass-card rounded-[1.25rem] px-5 py-5">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-[#ea580c]">
-                  <ReceiptText className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Invoices</p>
-                  <p className="mt-1 text-2xl font-semibold text-[#1f2440]">{isLoading ? "-" : (summary?.invoice_count ?? 0)}</p>
-                </div>
-              </div>
-                </div>
-
-                <div className="glass-card rounded-[1.25rem] px-5 py-5">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <Wallet className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Total Sales</p>
-                  <p className="mt-1 text-2xl font-semibold text-[#1f2440]">BDT {isLoading ? "-" : formatMoney(summary?.total_amount ?? "0")}</p>
-                </div>
-              </div>
-                </div>
-
-                <div className="glass-card rounded-[1.25rem] px-5 py-5">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
-                  <CalendarDays className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Paid</p>
-                  <p className="mt-1 text-2xl font-semibold text-[#1f2440]">BDT {isLoading ? "-" : formatMoney(summary?.paid_amount ?? "0")}</p>
-                </div>
-              </div>
-                </div>
-
-                <div className="glass-card rounded-[1.25rem] px-5 py-5">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 text-rose-700">
-                  <FileText className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Due</p>
-                  <p className="mt-1 text-2xl font-semibold text-[#1f2440]">BDT {isLoading ? "-" : formatMoney(summary?.due_amount ?? "0")}</p>
-                </div>
-              </div>
-                </div>
-              </>
-            </BoneyardSkeleton>
-          </section>
-
           <section className="glass-card mx-auto mt-5 w-full max-w-[1328px] overflow-hidden rounded-[1.5rem]">
             <div className="border-b border-[var(--line)] px-6 py-5 sm:px-8">
               <h2 className="text-xl font-semibold text-[#1f2440]">Product Summary</h2>

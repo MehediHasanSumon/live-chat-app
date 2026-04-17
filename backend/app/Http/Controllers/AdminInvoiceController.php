@@ -11,6 +11,7 @@ use App\Models\ProductPrice;
 use App\Models\ProductUnit;
 use App\Services\Invoices\InvoiceSmsService;
 use App\Support\InvoiceNumberHelper;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -142,56 +143,19 @@ class AdminInvoiceController extends Controller
 
     public function exportDetailPdf(Invoice $invoice)
     {
-        $invoice->load(['customer', 'items.product', 'items.unit', 'smsLogs']);
+        $invoice->load(['customer', 'items.product', 'items.unit', 'smsLogs', 'creator']);
         $generatedAt = now();
-        $smsStatus = $this->resolveSmsStatus($invoice);
 
-        return $this->downloadDetailReportPdf('Invoice Details', [
-            [
-                'title' => 'Invoice',
-                'fields' => [
-                    ['label' => 'Invoice No', 'value' => $invoice->invoice_no],
-                    ['label' => 'Invoice Date', 'value' => $this->pdfDateTime($invoice->invoice_datetime)],
-                    ['label' => 'Status', 'value' => ucfirst($invoice->status)],
-                    ['label' => 'Payment Type', 'value' => strtoupper($invoice->payment_type)],
-                    ['label' => 'Payment Status', 'value' => ucfirst($invoice->payment_status)],
-                    ['label' => 'SMS Status', 'value' => ucfirst(str_replace('_', ' ', $smsStatus))],
-                ],
-            ],
-            [
-                'title' => 'Customer',
-                'fields' => [
-                    ['label' => 'Name', 'value' => $this->pdfText($invoice->customer?->name)],
-                    ['label' => 'Mobile', 'value' => $this->pdfText($invoice->customer?->mobile)],
-                    ['label' => 'Vehicle No', 'value' => $this->pdfText($invoice->customer?->vehicle_no)],
-                ],
-            ],
-        ], $generatedAt, 'invoice-'.$invoice->id, [
-            'summaryItems' => [
-                ['label' => 'Invoice', 'value' => $invoice->invoice_no],
-                ['label' => 'Total', 'value' => $this->pdfMoney($invoice->total_amount)],
-                ['label' => 'Due', 'value' => $this->pdfMoney($invoice->due_amount)],
-            ],
-            'tables' => [[
-                'title' => 'Items',
-                'columns' => [
-                    ['label' => 'SL', 'width' => '48px', 'align' => 'center'],
-                    ['label' => 'Product'],
-                    ['label' => 'Unit', 'width' => '100px'],
-                    ['label' => 'Price', 'width' => '85px', 'align' => 'right'],
-                    ['label' => 'Qty', 'width' => '80px', 'align' => 'right'],
-                    ['label' => 'Total', 'width' => '90px', 'align' => 'right'],
-                ],
-                'rows' => $invoice->items->values()->map(fn ($item, int $index): array => [
-                    (string) ($index + 1),
-                    $item->product_name,
-                    $item->unit_name ?: ($item->unit_code ?: '-'),
-                    $this->pdfMoney($item->price),
-                    number_format((float) $item->quantity, 4, '.', ''),
-                    $this->pdfMoney($item->line_total),
-                ])->all(),
-            ]],
-        ]);
+        $pdf = Pdf::loadView('pdf.reports.invoice-detail', [
+            ...$this->companyPdfViewData(),
+            'reportTitle' => 'Sale Invoice',
+            'invoice' => $invoice,
+            'generatedAt' => $generatedAt,
+            'amountInWords' => $this->invoiceAmountInWords($invoice->total_amount),
+            'preparedBy' => $this->pdfText($invoice->creator?->name, '-'),
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download($this->pdfFilename('invoice-'.$invoice->id, $generatedAt));
     }
 
     public function nextNumber(Request $request): JsonResponse
@@ -243,6 +207,84 @@ class AdminInvoiceController extends Controller
                 'invoices' => $invoices->map(fn (Invoice $invoice): array => $this->serializeStatementInvoice($invoice))->values(),
             ],
         ]);
+    }
+
+    public function exportDailyStatementPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => ['sometimes', 'nullable', 'date'],
+            'date_from' => ['sometimes', 'nullable', 'date'],
+            'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
+            'payment_type' => ['sometimes', 'nullable', Rule::in(['due', 'cash', 'pos'])],
+            'created_by' => ['sometimes', 'nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        [$start, $end] = $this->resolveStatementRange(
+            $validated,
+            Carbon::parse($validated['date'] ?? now())->startOfDay(),
+            Carbon::parse($validated['date'] ?? now())->endOfDay(),
+        );
+        $filters = $this->resolveStatementFilters($validated);
+        $baseQuery = $this->statementInvoiceQuery($start, $end, $filters);
+        $summary = $this->statementSummary($baseQuery, $start, $end, $filters);
+        $productSummaries = $this->statementProductSummaries($start, $end, $filters);
+        $invoices = (clone $baseQuery)
+            ->with('customer')
+            ->withCount('items')
+            ->orderBy('invoice_datetime')
+            ->orderBy('id')
+            ->get();
+        $generatedAt = now();
+
+        return $this->downloadStatementReportPdf(
+            'Daily Statement',
+            [],
+            [],
+            [
+                [
+                    'title' => 'Product Summary',
+                    'columns' => [
+                        ['label' => 'Product'],
+                        ['label' => 'Unit', 'width' => '90px'],
+                        ['label' => 'Qty', 'width' => '82px', 'align' => 'right'],
+                        ['label' => 'Avg Price', 'width' => '90px', 'align' => 'right'],
+                        ['label' => 'Total', 'width' => '95px', 'align' => 'right'],
+                    ],
+                    'rows' => $productSummaries->map(fn (array $product): array => [
+                        $product['product_name'],
+                        $product['unit_name'] ?: ($product['unit_code'] ?: '-'),
+                        $product['quantity'],
+                        $this->pdfMoney($product['average_price']),
+                        $this->pdfMoney($product['line_total']),
+                    ])->all(),
+                ],
+                [
+                    'title' => 'Invoices',
+                    'columns' => [
+                        ['label' => 'Invoice', 'width' => '105px'],
+                        ['label' => 'Customer'],
+                        ['label' => 'Payment', 'width' => '80px', 'align' => 'center'],
+                        ['label' => 'Total', 'width' => '88px', 'align' => 'right'],
+                        ['label' => 'Due', 'width' => '88px', 'align' => 'right'],
+                        ['label' => 'Date', 'width' => '110px', 'align' => 'center'],
+                    ],
+                    'rows' => $invoices->map(fn (Invoice $invoice): array => [
+                        $invoice->invoice_no,
+                        $invoice->customer?->name ?? '-',
+                        strtoupper($invoice->payment_type),
+                        $this->pdfMoney($invoice->total_amount),
+                        $this->pdfMoney($invoice->due_amount),
+                        $this->pdfDateTime($invoice->invoice_datetime),
+                    ])->all(),
+                ],
+            ],
+            $generatedAt,
+            'daily-statement',
+            [
+                'totalRecords' => (int) $summary['invoice_count'],
+                'periodLabel' => $this->pdfDate($start).' to '.$this->pdfDate($end),
+            ]
+        );
     }
 
     public function monthlyStatement(Request $request): JsonResponse
@@ -301,6 +343,92 @@ class AdminInvoiceController extends Controller
                 'product_summaries' => $this->statementProductSummaries($start, $end, $filters),
             ],
         ]);
+    }
+
+    public function exportMonthlyStatementPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'month' => ['sometimes', 'nullable', 'date_format:Y-m'],
+            'date_from' => ['sometimes', 'nullable', 'date'],
+            'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
+            'payment_type' => ['sometimes', 'nullable', Rule::in(['due', 'cash', 'pos'])],
+            'created_by' => ['sometimes', 'nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $month = ! empty($validated['month'])
+            ? Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth()
+            : now()->startOfMonth();
+        [$start, $end] = $this->resolveStatementRange($validated, $month->copy()->startOfMonth(), $month->copy()->endOfMonth()->endOfDay());
+        $filters = $this->resolveStatementFilters($validated);
+        $baseQuery = $this->statementInvoiceQuery($start, $end, $filters);
+        $summary = $this->statementSummary($baseQuery, $start, $end, $filters);
+        $productSummaries = $this->statementProductSummaries($start, $end, $filters);
+        $dailySummaries = (clone $baseQuery)
+            ->selectRaw("
+                DATE(invoice_datetime) as statement_date,
+                COUNT(*) as invoice_count,
+                COALESCE(SUM(total_amount), 0) as total_amount,
+                COALESCE(SUM(paid_amount), 0) as paid_amount,
+                COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total_amount ELSE 0 END), 0) as cash_amount,
+                COALESCE(SUM(CASE WHEN payment_type = 'pos' THEN total_amount ELSE 0 END), 0) as pos_amount,
+                COALESCE(SUM(CASE WHEN payment_type = 'due' THEN total_amount ELSE 0 END), 0) as due_sales_amount
+            ")
+            ->groupBy(DB::raw('DATE(invoice_datetime)'))
+            ->orderBy('statement_date')
+            ->get();
+        $generatedAt = now();
+
+        return $this->downloadStatementReportPdf(
+            'Monthly Statement',
+            [],
+            [],
+            [
+                [
+                    'title' => 'Daily Totals',
+                    'columns' => [
+                        ['label' => 'Date', 'width' => '92px', 'align' => 'center'],
+                        ['label' => 'Invoices', 'width' => '64px', 'align' => 'center'],
+                        ['label' => 'Cash', 'width' => '82px', 'align' => 'right'],
+                        ['label' => 'POS', 'width' => '82px', 'align' => 'right'],
+                        ['label' => 'Due Sales', 'width' => '82px', 'align' => 'right'],
+                        ['label' => 'Paid', 'width' => '82px', 'align' => 'right'],
+                        ['label' => 'Total', 'width' => '90px', 'align' => 'right'],
+                    ],
+                    'rows' => $dailySummaries->map(fn ($day): array => [
+                        $this->pdfDate($day->statement_date),
+                        (string) $day->invoice_count,
+                        $this->pdfMoney($day->cash_amount),
+                        $this->pdfMoney($day->pos_amount),
+                        $this->pdfMoney($day->due_sales_amount),
+                        $this->pdfMoney($day->paid_amount),
+                        $this->pdfMoney($day->total_amount),
+                    ])->all(),
+                ],
+                [
+                    'title' => 'Product Summary',
+                    'columns' => [
+                        ['label' => 'Product'],
+                        ['label' => 'Unit', 'width' => '90px'],
+                        ['label' => 'Qty', 'width' => '82px', 'align' => 'right'],
+                        ['label' => 'Avg Price', 'width' => '90px', 'align' => 'right'],
+                        ['label' => 'Total', 'width' => '95px', 'align' => 'right'],
+                    ],
+                    'rows' => $productSummaries->map(fn (array $product): array => [
+                        $product['product_name'],
+                        $product['unit_name'] ?: ($product['unit_code'] ?: '-'),
+                        $product['quantity'],
+                        $this->pdfMoney($product['average_price']),
+                        $this->pdfMoney($product['line_total']),
+                    ])->all(),
+                ],
+            ],
+            $generatedAt,
+            'monthly-statement',
+            [
+                'totalRecords' => (int) $summary['invoice_count'],
+                'periodLabel' => $this->pdfDate($start).' to '.$this->pdfDate($end),
+            ]
+        );
     }
 
     public function store(Request $request): JsonResponse
@@ -779,6 +907,94 @@ class AdminInvoiceController extends Controller
     protected function formatQuantity($value): string
     {
         return number_format((float) ($value ?? 0), 4, '.', '');
+    }
+
+    protected function invoiceAmountInWords(mixed $value): string
+    {
+        $amount = round((float) ($value ?? 0), 2);
+        $whole = (int) floor($amount);
+        $fraction = (int) round(($amount - $whole) * 100);
+
+        $words = $whole > 0 ? $this->numberToWords($whole) : 'Zero';
+
+        if ($fraction > 0) {
+            $words .= ' And '.$this->numberToWords($fraction).' Paisa';
+        }
+
+        return $words.' Only';
+    }
+
+    protected function numberToWords(int $number): string
+    {
+        $ones = [
+            0 => 'Zero',
+            1 => 'One',
+            2 => 'Two',
+            3 => 'Three',
+            4 => 'Four',
+            5 => 'Five',
+            6 => 'Six',
+            7 => 'Seven',
+            8 => 'Eight',
+            9 => 'Nine',
+            10 => 'Ten',
+            11 => 'Eleven',
+            12 => 'Twelve',
+            13 => 'Thirteen',
+            14 => 'Fourteen',
+            15 => 'Fifteen',
+            16 => 'Sixteen',
+            17 => 'Seventeen',
+            18 => 'Eighteen',
+            19 => 'Nineteen',
+        ];
+        $tens = [
+            2 => 'Twenty',
+            3 => 'Thirty',
+            4 => 'Forty',
+            5 => 'Fifty',
+            6 => 'Sixty',
+            7 => 'Seventy',
+            8 => 'Eighty',
+            9 => 'Ninety',
+        ];
+
+        if ($number < 20) {
+            return $ones[$number];
+        }
+
+        if ($number < 100) {
+            $ten = intdiv($number, 10);
+            $remainder = $number % 10;
+
+            return $tens[$ten].($remainder > 0 ? ' '.$ones[$remainder] : '');
+        }
+
+        if ($number < 1000) {
+            $hundreds = intdiv($number, 100);
+            $remainder = $number % 100;
+
+            return $ones[$hundreds].' Hundred'.($remainder > 0 ? ' '.$this->numberToWords($remainder) : '');
+        }
+
+        if ($number < 1000000) {
+            $thousands = intdiv($number, 1000);
+            $remainder = $number % 1000;
+
+            return $this->numberToWords($thousands).' Thousand'.($remainder > 0 ? ' '.$this->numberToWords($remainder) : '');
+        }
+
+        if ($number < 1000000000) {
+            $millions = intdiv($number, 1000000);
+            $remainder = $number % 1000000;
+
+            return $this->numberToWords($millions).' Million'.($remainder > 0 ? ' '.$this->numberToWords($remainder) : '');
+        }
+
+        $billions = intdiv($number, 1000000000);
+        $remainder = $number % 1000000000;
+
+        return $this->numberToWords($billions).' Billion'.($remainder > 0 ? ' '.$this->numberToWords($remainder) : '');
     }
 
     protected function paginationMeta($paginator): array

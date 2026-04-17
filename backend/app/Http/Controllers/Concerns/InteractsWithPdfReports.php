@@ -53,6 +53,29 @@ trait InteractsWithPdfReports
         return $pdf->download($this->pdfFilename($filenamePrefix, $generatedAt));
     }
 
+    protected function downloadStatementReportPdf(
+        string $reportTitle,
+        array $metaRows,
+        array $summaryRows,
+        array $tables,
+        CarbonInterface $generatedAt,
+        string $filenamePrefix,
+        array $options = [],
+    ) {
+        $pdf = Pdf::loadView('pdf.reports.statement', [
+            ...$this->companyPdfViewData(),
+            'reportTitle' => $reportTitle,
+            'metaRows' => $metaRows,
+            'summaryRows' => $summaryRows,
+            'tables' => $tables,
+            'periodLabel' => $options['periodLabel'] ?? null,
+            'generatedAt' => $generatedAt,
+            'totalRecords' => $options['totalRecords'] ?? 0,
+        ])->setPaper('a4', $options['orientation'] ?? 'portrait');
+
+        return $pdf->download($this->pdfFilename($filenamePrefix, $generatedAt));
+    }
+
     protected function companyPdfViewData(): array
     {
         $companySetting = app(PublicCompanySettingService::class)->activeSetting();

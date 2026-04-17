@@ -181,7 +181,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/admin/invoice-sms-logs/{invoiceSmsLog}', [AdminInvoiceSmsLogController::class, 'show']);
     Route::get('/admin/invoices/next-number', [AdminInvoiceController::class, 'nextNumber']);
     Route::get('/admin/invoices/statements/daily', [AdminInvoiceController::class, 'dailyStatement']);
+    Route::get('/admin/invoices/statements/daily/export/pdf', [AdminInvoiceController::class, 'exportDailyStatementPdf']);
     Route::get('/admin/invoices/statements/monthly', [AdminInvoiceController::class, 'monthlyStatement']);
+    Route::get('/admin/invoices/statements/monthly/export/pdf', [AdminInvoiceController::class, 'exportMonthlyStatementPdf']);
     Route::get('/admin/invoices/export/pdf', [AdminInvoiceController::class, 'exportPdf']);
     Route::get('/admin/invoices', [AdminInvoiceController::class, 'index']);
     Route::post('/admin/invoices', [AdminInvoiceController::class, 'store']);
