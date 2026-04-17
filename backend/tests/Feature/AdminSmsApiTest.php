@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Customer;
+use App\Models\Invoice;
 use App\Models\InvoiceSmsLog;
 use App\Models\InvoiceSmsTemplate;
 use App\Models\Product;
@@ -169,10 +171,13 @@ it('sends and logs invoice sms when sms is enabled on invoice creation', functio
     Http::assertSent(function ($request): bool {
         return $request->url() === 'https://sms.example.com/send'
             && $request['api_key'] === 'secret-key'
-            && $request['sender_id'] === 'SHOP'
-            && $request['to'] === '+8801700000011'
+            && $request['senderid'] === 'SHOP'
+            && $request['number'] === '+8801700000011'
             && str_contains($request['message'], 'Rahim Uddin')
-            && str_contains($request['message'], '110.00');
+            && str_contains($request['message'], '110.00')
+            && ! isset($request['sender_id'])
+            && ! isset($request['to'])
+            && ! isset($request['mobile']);
     });
 
     $log = InvoiceSmsLog::query()->firstOrFail();
@@ -249,4 +254,73 @@ it('can resend an invoice sms even when the original invoice skipped sms', funct
 
     Http::assertSentCount(1);
     expect(InvoiceSmsLog::query()->where('invoice_id', $invoiceId)->where('status', 'sent')->count())->toBe(1);
+});
+
+it('requires authentication before sending invoice sms from invoice endpoints', function () {
+    Http::fake([
+        'sms.example.com/*' => Http::response(['message_id' => 'sms-789'], 200),
+    ]);
+
+    [, $price] = createSmsInvoiceProductSet();
+    SmsServiceCredential::query()->create([
+        'url' => 'https://sms.example.com/send',
+        'api_key' => 'secret-key',
+        'sender_id' => 'SHOP',
+        'status' => 'active',
+    ]);
+    InvoiceSmsTemplate::query()->create([
+        'name' => 'Invoice confirmation',
+        'body' => 'Dear {customer_name}, invoice {invoice_no} total {total_amount}',
+        'variables_json' => ['customer_name', 'invoice_no', 'total_amount'],
+        'status' => 'active',
+        'is_default' => true,
+    ]);
+
+    $payload = [
+        'invoice_datetime' => '2026-05-04 11:00:00',
+        'customer' => [
+            'name' => 'Unauth Customer',
+            'mobile' => '+8801700000099',
+            'vehicle_no' => 'DHAKA-999',
+        ],
+        'payment_type' => 'cash',
+        'discount_amount' => 0,
+        'sms_enabled' => true,
+        'status' => 'submitted',
+        'items' => [
+            [
+                'product_id' => $price->product_id,
+                'product_price_id' => $price->id,
+                'quantity' => 1,
+            ],
+        ],
+    ];
+
+    $this->postJson('/api/admin/invoices', $payload)->assertUnauthorized();
+    Http::assertSentCount(0);
+    expect(InvoiceSmsLog::query()->count())->toBe(0);
+
+    $customer = Customer::query()->create([
+        'name' => 'Unauth Customer',
+        'mobile' => '+8801700000099',
+        'vehicle_no' => 'DHAKA-999',
+    ]);
+    $invoice = Invoice::query()->create([
+        'invoice_no' => 'INV-202605-00099',
+        'invoice_datetime' => '2026-05-04 11:00:00',
+        'customer_id' => $customer->id,
+        'payment_type' => 'cash',
+        'payment_status' => 'paid',
+        'subtotal_amount' => 60,
+        'discount_amount' => 0,
+        'total_amount' => 60,
+        'paid_amount' => 60,
+        'due_amount' => 0,
+        'sms_enabled' => false,
+        'status' => 'submitted',
+    ]);
+
+    $this->postJson("/api/admin/invoices/{$invoice->id}/resend-sms")->assertUnauthorized();
+    Http::assertSentCount(0);
+    expect(InvoiceSmsLog::query()->count())->toBe(0);
 });

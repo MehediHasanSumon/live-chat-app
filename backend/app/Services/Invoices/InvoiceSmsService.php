@@ -6,11 +6,15 @@ use App\Models\Invoice;
 use App\Models\InvoiceSmsLog;
 use App\Models\InvoiceSmsTemplate;
 use App\Models\SmsServiceCredential;
-use Illuminate\Support\Facades\Http;
+use App\Services\Sms\BulkSmsBdClient;
 use Throwable;
 
 class InvoiceSmsService
 {
+    public function __construct(
+        private readonly BulkSmsBdClient $smsClient,
+    ) {}
+
     public function sendInvoiceCreatedNotification(Invoice $invoice, bool $force = false): ?InvoiceSmsLog
     {
         if (! $invoice->sms_enabled && ! $force) {
@@ -54,15 +58,7 @@ class InvoiceSmsService
         }
 
         try {
-            $response = Http::asForm()
-                ->timeout(15)
-                ->post($credential->url, [
-                    'api_key' => $credential->api_key,
-                    'sender_id' => $credential->sender_id,
-                    'to' => $mobile,
-                    'mobile' => $mobile,
-                    'message' => $message,
-                ]);
+            $response = $this->smsClient->send($credential, $mobile, $message);
 
             $log->forceFill([
                 'status' => $response->successful() ? 'sent' : 'failed',
