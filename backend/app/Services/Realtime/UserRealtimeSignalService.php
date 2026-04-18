@@ -18,6 +18,14 @@ class UserRealtimeSignalService
     /**
      * @param  array<string, mixed>  $payload
      */
+    public function dispatchPresence(int $userId, array $payload = []): void
+    {
+        event(new UserNotificationDispatched($userId, 'presence.updated', $payload));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function dispatchCallSignal(int $userId, string $eventName, array $payload = []): void
     {
         event(new UserCallSignaled($userId, $eventName, $payload));

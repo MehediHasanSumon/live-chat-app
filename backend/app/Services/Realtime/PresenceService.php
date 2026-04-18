@@ -2,6 +2,7 @@
 
 namespace App\Services\Realtime;
 
+use App\Models\ConversationMember;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -9,6 +10,11 @@ use Illuminate\Support\Facades\Cache;
 class PresenceService
 {
     public const HEARTBEAT_TTL_SECONDS = 70;
+
+    public function __construct(
+        protected UserRealtimeSignalService $userRealtimeSignalService,
+    ) {
+    }
 
     /**
      * @return array<string, mixed>
@@ -18,6 +24,7 @@ class PresenceService
         $cacheKey = $this->cacheKey($userId);
         $now = now();
         $expiresAt = $now->copy()->addSeconds(self::HEARTBEAT_TTL_SECONDS);
+        $wasOnline = $this->activePresence($userId) !== null;
         $devices = $this->activeDevices($userId, $now);
 
         $devices[$deviceUuid] = [
@@ -34,6 +41,13 @@ class PresenceService
                 'last_seen_at' => $now,
             ]);
 
+        $this->broadcastPresenceUpdate(
+            $userId,
+            true,
+            $now->toIso8601String(),
+            ! $wasOnline,
+        );
+
         return [
             'presence_key' => $cacheKey,
             'ttl_seconds' => self::HEARTBEAT_TTL_SECONDS,
@@ -49,12 +63,22 @@ class PresenceService
     {
         $cacheKey = $this->cacheKey($userId);
         $now = now();
+        $wasOnline = $this->activePresence($userId) !== null;
         $devices = $this->activeDevices($userId, $now);
         $disconnected = array_key_exists($deviceUuid, $devices);
 
         unset($devices[$deviceUuid]);
 
         $payload = $this->storeActiveDevices($cacheKey, $userId, $devices, $now);
+
+        if ($wasOnline || $disconnected) {
+            $this->broadcastPresenceUpdate(
+                $userId,
+                $payload !== null,
+                $now->toIso8601String(),
+                $wasOnline !== ($payload !== null),
+            );
+        }
 
         return [
             'presence_key' => $cacheKey,
@@ -145,5 +169,37 @@ class PresenceService
         Cache::put($cacheKey, $payload, $expiresAt);
 
         return $payload;
+    }
+
+    protected function broadcastPresenceUpdate(
+        int $userId,
+        bool $isOnline,
+        string $lastSeenAt,
+        bool $statusChanged,
+    ): void {
+        $recipientIds = ConversationMember::query()
+            ->select('conversation_members.user_id')
+            ->join('conversations', 'conversations.id', '=', 'conversation_members.conversation_id')
+            ->where('conversations.type', 'direct')
+            ->where('conversation_members.membership_state', 'active')
+            ->whereIn('conversation_members.conversation_id', function ($query) use ($userId): void {
+                $query
+                    ->select('conversation_id')
+                    ->from('conversation_members')
+                    ->where('user_id', $userId)
+                    ->where('membership_state', 'active');
+            })
+            ->where('conversation_members.user_id', '!=', $userId)
+            ->distinct()
+            ->pluck('conversation_members.user_id');
+
+        foreach ($recipientIds as $recipientId) {
+            $this->userRealtimeSignalService->dispatchPresence((int) $recipientId, [
+                'user_id' => $userId,
+                'is_online' => $isOnline,
+                'last_seen_at' => $lastSeenAt,
+                'status_changed' => $statusChanged,
+            ]);
+        }
     }
 }

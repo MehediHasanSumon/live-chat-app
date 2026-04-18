@@ -21,6 +21,7 @@ use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\MeController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\MobileBroadcastAuthController;
 use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\PublicCompanySettingController;
@@ -41,6 +42,7 @@ Route::post('/mobile/login', [MobileAuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/me', MeController::class);
+    Route::post('/mobile/broadcasting/auth', MobileBroadcastAuthController::class);
 
     Route::get('/conversations', [ConversationController::class, 'index']);
     Route::post('/conversations/direct', [ConversationController::class, 'storeDirect']);
