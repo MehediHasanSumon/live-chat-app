@@ -41,4 +41,4 @@ yarn-error.log*
 coverage/
 /deploy/
 live-chat-app.code-workspace
-app
+/app/
