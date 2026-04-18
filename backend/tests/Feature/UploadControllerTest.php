@@ -137,6 +137,42 @@ it('returns a signed private download response for uploaded files', function () 
         ->assertHeader('content-type', 'text/plain; charset=UTF-8');
 });
 
+it('supports ranged inline streaming for signed voice downloads', function () {
+    Storage::fake(config('uploads.disk'));
+
+    $user = User::factory()->create();
+    $file = UploadedFile::fake()->createWithContent('voice.m4a', 'voice-stream-test');
+
+    $this->actingAs($user, 'web')
+        ->post('/api/uploads', [
+            'file' => $file,
+            'purpose' => 'message_attachment',
+            'media_kind_hint' => 'voice',
+        ])
+        ->assertCreated();
+
+    $storageObject = StorageObject::query()->firstOrFail();
+    $storageObject->forceFill([
+        'mime_type' => 'audio/mp4',
+        'media_kind' => 'voice',
+        'original_name' => 'voice.m4a',
+    ])->save();
+
+    $signedUrl = URL::temporarySignedRoute('files.download', now()->addMinutes(5), [
+        'objectUuid' => $storageObject->object_uuid,
+    ]);
+
+    $response = $this
+        ->withHeader('Range', 'bytes=0-4')
+        ->get($signedUrl);
+
+    $response
+        ->assertStatus(206)
+        ->assertHeader('accept-ranges', 'bytes')
+        ->assertHeader('content-type', 'audio/mp4')
+        ->assertHeader('content-range', 'bytes 0-4/17');
+});
+
 it('attaches an uploaded object to a message and returns the updated message payload', function () {
     Storage::fake(config('uploads.disk'));
 
