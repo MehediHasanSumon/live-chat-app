@@ -63,12 +63,9 @@ function AdminDashboardShellSkeleton({ isSidebarCollapsed }: { isSidebarCollapse
           <div className="flex items-center gap-3">
             <ShellBone className="h-10 w-10 rounded-lg lg:hidden" />
             <ShellBone className="hidden h-10 w-10 rounded-lg lg:block" />
-            <ShellBone className="hidden h-10 w-64 rounded-xl md:block lg:w-80" />
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            <ShellBone className="h-10 w-10 rounded-lg" />
-            <div className="hidden h-8 w-px bg-slate-200 sm:block" />
             <div className="flex items-center gap-2.5 rounded-xl py-1.5 pl-2 pr-3">
               <ShellBone className="h-8 w-8 rounded-lg" />
               <div className="hidden space-y-2 sm:block">
