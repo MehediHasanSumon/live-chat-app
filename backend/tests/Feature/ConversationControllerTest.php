@@ -317,6 +317,38 @@ it('allows group admins to save a new avatar file and title in one request', fun
         ->assertJsonPath('data.avatar_object.owner_user_id', $owner->id);
 });
 
+it('accepts mobile style form method spoofing when updating group details', function () {
+    Storage::fake(config('uploads.disk'));
+
+    $member = User::factory()->create();
+    $conversation = Conversation::query()->create([
+        'type' => 'group',
+        'title' => 'Mobile group',
+        'created_by' => $member->id,
+    ]);
+
+    ConversationMember::query()->create([
+        'conversation_id' => $conversation->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+        'membership_state' => 'active',
+        'joined_at' => now(),
+    ]);
+
+    $response = $this->actingAs($member, 'web')
+        ->post("/api/groups/{$conversation->id}", [
+            '_method' => 'PATCH',
+            'title' => 'Mobile group v2',
+            'avatar_file' => UploadedFile::fake()->image('mobile-group-avatar.png', 160, 160),
+        ]);
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('data.title', 'Mobile group v2')
+        ->assertJsonPath('data.avatar_object.purpose', 'group_avatar')
+        ->assertJsonPath('data.avatar_object.owner_user_id', $member->id);
+});
+
 it('removes a group avatar from the conversation and hard deletes the file', function () {
     Storage::fake(config('uploads.disk'));
 
