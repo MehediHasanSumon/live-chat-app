@@ -84,6 +84,21 @@ function patchConversationMessageState(
   };
 }
 
+function mergeConversationSnapshot(
+  current: ConversationApiItem,
+  incoming: ConversationApiItem,
+): ConversationApiItem {
+  return {
+    ...current,
+    ...incoming,
+    creator: incoming.creator ?? current.creator,
+    avatar_object: incoming.avatar_object ?? current.avatar_object,
+    membership: incoming.membership ?? current.membership,
+    members: incoming.members ?? current.members,
+    direct_peer_presence: incoming.direct_peer_presence ?? current.direct_peer_presence,
+  };
+}
+
 export function ConversationRealtimeProvider() {
   const queryClient = useQueryClient();
   const { activeThreadId } = useChatUiStore(useShallow((state) => ({
@@ -121,7 +136,11 @@ export function ConversationRealtimeProvider() {
 
         return {
           ...current,
-          data: current.data.map((item) => (String(item.id) === String(conversation.id) ? conversation : item)),
+          data: current.data.map((item) =>
+            String(item.id) === String(conversation.id)
+              ? mergeConversationSnapshot(item, conversation)
+              : item,
+          ),
         };
       });
 
@@ -131,12 +150,12 @@ export function ConversationRealtimeProvider() {
         }
 
         if (!("data" in current)) {
-          return conversation;
+          return mergeConversationSnapshot(current, conversation);
         }
 
         return {
           ...current,
-          data: conversation,
+          data: mergeConversationSnapshot(current.data, conversation),
         };
       });
     };
@@ -270,6 +289,10 @@ export function ConversationRealtimeProvider() {
     };
 
     const handleConversationRead = (payload: ConversationReadPayload) => {
+      if (!payload.conversation) {
+        return;
+      }
+
       patchConversationSnapshot(payload.conversation);
     };
 
